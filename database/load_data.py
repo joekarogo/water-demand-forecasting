@@ -2,6 +2,10 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 
+df_raw = pd.read_csv(r'C:\Users\HomePC\Documents\Izmir dataset.csv')
+print(df_raw['Tarih'].head(10))
+print(df_raw['Tarih'].dtype)
+
 # DB connection
 conn = psycopg2.connect(
     host="localhost",
@@ -18,6 +22,7 @@ df = pd.read_csv(r'C:\Users\HomePC\Documents\Izmir dataset.csv')
 
 # Rename relevant columns
 df = df[['Tarih', 'Su_Tuketim_Aylik_m3', 'URETIM_MIKTARI']]
+df['Tarih'] = pd.to_datetime(df['Tarih'], format='%m/%d/%Y')
 df.columns = ['date', 'consumption_m3', 'production_m3']
 
 # Convert date
