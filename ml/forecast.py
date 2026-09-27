@@ -1,6 +1,7 @@
 import pandas as pd
 import psycopg2
 from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
 import joblib
@@ -69,6 +70,17 @@ rmse = np.sqrt(mean_squared_error(actuals, predictions))
 print(f"\nModel Evaluation:")
 print(f"MAE: {mae:,.2f} m3")
 print(f"RMSE: {rmse:,.2f} m3")
+
+# Cross validation
+df_cv = cross_validation(model, initial='840 days', period='180 days', horizon='180 days')
+df_metrics = performance_metrics(df_cv)
+
+cv_mae = df_metrics['mae'].mean()
+cv_rmse = df_metrics['rmse'].mean()
+
+print(f"\nCross Validation:")
+print(f"Mean MAE: {cv_mae:,.2f} m3")
+print(f"Mean RMSE: {cv_rmse:,.2f} m3")
 
 # Retrain final model on all records
 final_model = Prophet(
