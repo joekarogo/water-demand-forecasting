@@ -6,15 +6,20 @@ import numpy as np
 import joblib
 import os
 import warnings
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# Load environment variables from .env in the project root
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path)
 
 # Connect to database
 conn = psycopg2.connect(
-    host="localhost",
-    database="water_forecasting_db",
-    user="postgres",
-    password="4407",
-    port="5432"
+    host=os.getenv("DB_HOST"),
+    database=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    port=os.getenv("DB_PORT")
 )
 
 # Load consumption data

@@ -1,0 +1,7 @@
+pandas==3.0.5
+psycopg2-binary==2.9.13
+prophet==1.4.0
+scikit-learn==1.9.1
+numpy==2.5.3
+joblib==1.6.0
+python-dotenv==1.2.3
