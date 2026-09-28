@@ -11,3 +11,11 @@ This project develops an integrated water demand forecasting system using the Pr
 - **Version Control:** GitHub
 - **Model Storage:** Google Drive
 - **AI Tool:** Claude Code
+
+## Results So Far
+
+- MAE: 401,104 m3
+- RMSE: 457,897 m3
+- Cross Validation Mean MAE: 190,087 m3 (11 folds)
+- Cross Validation Mean RMSE: 227,574 m3 (11 folds)
+- Error rate: less than 1% of average monthly consumption
