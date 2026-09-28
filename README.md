@@ -12,6 +12,15 @@ This project develops an integrated water demand forecasting system using the Pr
 - **Model Storage:** Google Drive
 - **AI Tool:** Claude Code
 
+- ## How It Works
+
+1. Historical water consumption data is loaded from the Izmir dataset into PostgreSQL
+2. The Prophet Time Series model trains on 96 monthly records (2015-2022)
+3. The model is evaluated on 24 unseen records (2023-2024) using MAE and RMSE
+4. Cross validation across 11 folds confirms consistent performance
+5. The final model retrains on all 120 records and saves to Google Drive
+6. The web system displays forecasts on a dashboard for water production managers
+
 ## Results So Far
 
 - MAE: 401,104 m3
