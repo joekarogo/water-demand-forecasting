@@ -63,13 +63,15 @@ forecast = model.predict(future)
 predictions = forecast['yhat'].tail(len(test)).values
 actuals = test['y'].values
 
-# Calculate MAE and RMSE
+# Calculate MAE, RMSE and MAPE
 mae = mean_absolute_error(actuals, predictions)
 rmse = np.sqrt(mean_squared_error(actuals, predictions))
+mape = np.mean(np.abs((actuals - predictions) / actuals)) * 100
 
 print(f"\nModel Evaluation:")
 print(f"MAE: {mae:,.2f} m3")
 print(f"RMSE: {rmse:,.2f} m3")
+print(f"MAPE: {mape:,.2f}%")
 
 # Cross validation
 df_cv = cross_validation(model, initial='840 days', period='180 days', horizon='180 days')
