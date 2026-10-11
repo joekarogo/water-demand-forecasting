@@ -1,18 +1,26 @@
 import pandas as pd
 import psycopg2
 from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
+import joblib
+import os
 import warnings
+from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
+
+# Load environment variables from .env in the project root
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path)
 
 # Connect to database
 conn = psycopg2.connect(
-    host="localhost",
-    database="water_forecasting_db",
-    user="postgres",
-    password="4407",
-    port="5432"
+    host=os.getenv("DB_HOST"),
+    database=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    port=os.getenv("DB_PORT")
 )
 
 # Load consumption data
@@ -55,17 +63,45 @@ forecast = model.predict(future)
 predictions = forecast['yhat'].tail(len(test)).values
 actuals = test['y'].values
 
-# Calculate MAE and RMSE
+# Calculate MAE, RMSE and MAPE
 mae = mean_absolute_error(actuals, predictions)
 rmse = np.sqrt(mean_squared_error(actuals, predictions))
+mape = np.mean(np.abs((actuals - predictions) / actuals)) * 100
 
 print(f"\nModel Evaluation:")
 print(f"MAE: {mae:,.2f} m3")
 print(f"RMSE: {rmse:,.2f} m3")
+print(f"MAPE: {mape:,.2f}%")
+
+# Cross validation
+df_cv = cross_validation(model, initial='840 days', period='180 days', horizon='180 days')
+df_metrics = performance_metrics(df_cv)
+
+cv_mae = df_metrics['mae'].mean()
+cv_rmse = df_metrics['rmse'].mean()
+
+print(f"\nCross Validation:")
+print(f"Mean MAE: {cv_mae:,.2f} m3")
+print(f"Mean RMSE: {cv_rmse:,.2f} m3")
+
+# Retrain final model on all records
+final_model = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=False,
+    daily_seasonality=False
+)
+final_model.fit(df)
+print(f"\nFinal model retrained on all {len(df)} records")
+
+# Save final model
+model_path = r"G:\My Drive\water-demand-forecasting\models\prophet_model.pkl"
+os.makedirs(os.path.dirname(model_path), exist_ok=True)
+joblib.dump(final_model, model_path)
+print(f"Final model saved to {model_path}")
 
 # Generate future forecast
-future_forecast = model.make_future_dataframe(periods=6, freq='MS')
-future_predictions = model.predict(future_forecast)
+future_forecast = final_model.make_future_dataframe(periods=6, freq='MS')
+future_predictions = final_model.predict(future_forecast)
 
 print(f"\nForecast for next 6 months:")
 future_only = future_predictions.tail(6)[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
