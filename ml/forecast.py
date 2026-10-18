@@ -48,10 +48,16 @@ print(f"Training records: {len(train)}")
 print(f"Testing records: {len(test)}")
 
 # Train Prophet model
+# Hyperparameters tuned via ml/tune_prophet.py grid search (see ml/best_params.json):
+# changepoint_prior_scale=0.01, seasonality_prior_scale=10, seasonality_mode='multiplicative'
+# reduced CV Mean RMSE from 227,574 m3 to 32,626 m3 vs. Prophet's defaults.
 model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=False,
-    daily_seasonality=False
+    daily_seasonality=False,
+    changepoint_prior_scale=0.01,
+    seasonality_prior_scale=10,
+    seasonality_mode='multiplicative'
 )
 model.fit(train)
 
@@ -88,7 +94,10 @@ print(f"Mean RMSE: {cv_rmse:,.2f} m3")
 final_model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=False,
-    daily_seasonality=False
+    daily_seasonality=False,
+    changepoint_prior_scale=0.01,
+    seasonality_prior_scale=10,
+    seasonality_mode='multiplicative'
 )
 final_model.fit(df)
 print(f"\nFinal model retrained on all {len(df)} records")
