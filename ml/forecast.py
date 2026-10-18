@@ -23,8 +23,10 @@ conn = psycopg2.connect(
     port=os.getenv("DB_PORT")
 )
 
-# Load consumption data
-query = "SELECT date, consumption_m3 FROM consumption_data ORDER BY date"
+# Load consumption data from izsu_consumption (official IZSU billed data).
+# consumption_cleaned_m3 has the 5 outlier months (2019-09 billing spike;
+# 2020-04/05/06 COVID meter-reading suspension; 2020-08) interpolated.
+query = "SELECT date, consumption_cleaned_m3 FROM izsu_consumption ORDER BY date"
 df = pd.read_sql(query, conn)
 conn.close()
 
@@ -48,16 +50,18 @@ print(f"Training records: {len(train)}")
 print(f"Testing records: {len(test)}")
 
 # Train Prophet model
-# Hyperparameters tuned via ml/tune_prophet.py grid search (see ml/best_params.json):
-# changepoint_prior_scale=0.01, seasonality_prior_scale=10, seasonality_mode='multiplicative'
-# reduced CV Mean RMSE from 227,574 m3 to 32,626 m3 vs. Prophet's defaults.
+# Using Prophet's default hyperparameters for now. The previously tuned
+# values (changepoint_prior_scale=0.01, seasonality_prior_scale=10,
+# seasonality_mode='multiplicative') were fit on the synthetic Kaggle
+# consumption column and do not apply to this real IZSU data. Proper
+# retuning against izsu_consumption is pending (see ml/tune_prophet.py).
 model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=False,
     daily_seasonality=False,
-    changepoint_prior_scale=0.01,
+    changepoint_prior_scale=0.05,
     seasonality_prior_scale=10,
-    seasonality_mode='multiplicative'
+    seasonality_mode='additive'
 )
 model.fit(train)
 
@@ -79,25 +83,45 @@ print(f"MAE: {mae:,.2f} m3")
 print(f"RMSE: {rmse:,.2f} m3")
 print(f"MAPE: {mape:,.2f}%")
 
-# Cross validation
+# Seasonal-naive baseline: predict each test month by repeating the last 12
+# training months in order (wrapping around if the horizon exceeds 12 months).
+last_12_train = train['y'].values[-12:]
+baseline_predictions = np.array([last_12_train[i % 12] for i in range(len(test))])
+
+baseline_mae = mean_absolute_error(actuals, baseline_predictions)
+baseline_rmse = np.sqrt(mean_squared_error(actuals, baseline_predictions))
+baseline_mape = np.mean(np.abs((actuals - baseline_predictions) / actuals)) * 100
+
+print(f"\nSeasonal-Naive Baseline:")
+print(f"Baseline MAE: {baseline_mae:,.2f} m3")
+print(f"Baseline RMSE: {baseline_rmse:,.2f} m3")
+print(f"Baseline MAPE: {baseline_mape:,.2f}%")
+
+# Cross validation — on the TRAINING data only (model was fit on `train`,
+# and Prophet's cross_validation re-fits on rolling cutoffs drawn from that
+# same history, so the test set is never touched here).
 df_cv = cross_validation(model, initial='840 days', period='180 days', horizon='180 days')
 df_metrics = performance_metrics(df_cv)
 
 cv_mae = df_metrics['mae'].mean()
 cv_rmse = df_metrics['rmse'].mean()
+cv_mape = df_metrics['mape'].mean() * 100
+cv_folds = df_cv['cutoff'].nunique()
 
-print(f"\nCross Validation:")
+print(f"\nCross Validation (training data only):")
+print(f"CV Folds: {cv_folds}")
 print(f"Mean MAE: {cv_mae:,.2f} m3")
 print(f"Mean RMSE: {cv_rmse:,.2f} m3")
+print(f"Mean MAPE: {cv_mape:,.2f}%")
 
 # Retrain final model on all records
 final_model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=False,
     daily_seasonality=False,
-    changepoint_prior_scale=0.01,
+    changepoint_prior_scale=0.05,
     seasonality_prior_scale=10,
-    seasonality_mode='multiplicative'
+    seasonality_mode='additive'
 )
 final_model.fit(df)
 print(f"\nFinal model retrained on all {len(df)} records")
