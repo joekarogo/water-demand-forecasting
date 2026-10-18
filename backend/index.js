@@ -120,6 +120,26 @@ app.get('/api/forecast', authenticateToken, (req, res) => {
   });
 });
 
+// Admin-only role check — used after authenticateToken, which populates req.user
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
+app.get('/api/consumption-history', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, consumption_m3 FROM consumption_data ORDER BY date"
+    );
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error('Consumption history error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;

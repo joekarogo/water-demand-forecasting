@@ -37,12 +37,148 @@
   }
 }
 
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background-color: #282c34;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  gap: 8px;
+}
+
+.sidebar-title {
+  margin: 0 0 20px;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.sidebar-link {
+  display: block;
+  color: #ccc;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.sidebar-link:hover {
+  background-color: #3a3f4b;
+  color: white;
+}
+
+.sidebar-link.active {
+  background-color: #61dafb;
+  color: #282c34;
+  font-weight: bold;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.page-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-badge {
+  background-color: #61dafb;
+  color: #282c34;
+  font-weight: bold;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+.header-logout {
+  background-color: #b00020;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.header-logout:hover {
+  background-color: #8c0019;
+}
+
 .dashboard-container {
+  flex: 1;
   max-width: 900px;
   margin: 40px auto;
   padding: 0 20px;
   text-align: center;
   color: #282c34;
+}
+
+.spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 30px 0;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #ddd;
+  border-top-color: #282c34;
+  border-radius: 50%;
+  animation: spinner-spin 0.8s linear infinite;
+}
+
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-container {
+  margin: 20px 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  background-color: #fff;
+}
+
+.model-info {
+  margin-top: 40px;
+  text-align: left;
+}
+
+.model-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.model-info-table td {
+  border: 1px solid #ddd;
+  padding: 10px 14px;
+}
+
+.model-info-table td:first-child {
+  background-color: #f7f9fb;
+  font-weight: bold;
+  width: 50%;
 }
 
 .dashboard-error {
