@@ -7,6 +7,7 @@ import json
 import os
 import warnings
 from dotenv import load_dotenv
+from run_logger import save_run
 warnings.filterwarnings('ignore')
 
 # Load environment variables from .env in the project root
@@ -114,3 +115,16 @@ else:
     print(f"RESULT: Tuned model does NOT beat defaults on the test set "
           f"(RMSE {tuned_result['rmse']:,.2f} >= {default_result['rmse']:,.2f}). "
           f"Keep defaults in ml/forecast_api.py.")
+
+# Log this run: all four models' metrics, keyed by label.
+save_run(
+    run_name='evaluate_best_params_comparison',
+    params={
+        'tuned_changepoint_prior_scale': best_params['changepoint_prior_scale'],
+        'tuned_seasonality_prior_scale': best_params['seasonality_prior_scale'],
+        'tuned_seasonality_mode': best_params['seasonality_mode'],
+        'train_size': len(train),
+        'test_size': len(test),
+    },
+    metrics={r['label']: {'mae': r['mae'], 'rmse': r['rmse'], 'mape': r['mape']} for r in results},
+)

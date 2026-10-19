@@ -7,7 +7,11 @@ import numpy as np
 import joblib
 import os
 import warnings
+import matplotlib
+matplotlib.use('Agg')  # non-interactive backend — safe for script/headless use
+import matplotlib.pyplot as plt
 from dotenv import load_dotenv
+from run_logger import save_run
 warnings.filterwarnings('ignore')
 
 # Load environment variables from .env in the project root
@@ -113,6 +117,59 @@ print(f"CV Folds: {cv_folds}")
 print(f"Mean MAE: {cv_mae:,.2f} m3")
 print(f"Mean RMSE: {cv_rmse:,.2f} m3")
 print(f"Mean MAPE: {cv_mape:,.2f}%")
+
+# Log this run: test-set metrics, baseline, CV metrics, predictions, and a
+# plot of actual vs predicted on the test period with its uncertainty band.
+predictions_df = pd.DataFrame({
+    'date': test['ds'].dt.strftime('%Y-%m-%d').values,
+    'actual': actuals,
+    'predicted': predictions,
+    'lower': forecast['yhat_lower'].tail(len(test)).values,
+    'upper': forecast['yhat_upper'].tail(len(test)).values,
+})
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(predictions_df['date'], predictions_df['actual'], marker='o', label='Actual')
+ax.plot(predictions_df['date'], predictions_df['predicted'], marker='o', label='Predicted')
+ax.fill_between(
+    predictions_df['date'], predictions_df['lower'], predictions_df['upper'],
+    alpha=0.2, label='Uncertainty (yhat_lower-yhat_upper)'
+)
+ax.set_xticks(range(len(predictions_df)))
+ax.set_xticklabels(predictions_df['date'], rotation=45, ha='right')
+ax.set_ylabel('Consumption (m3)')
+ax.set_title('Prophet Forecast vs Actual - Test Period')
+ax.legend()
+fig.tight_layout()
+
+save_run(
+    run_name='forecast_test_and_cv',
+    params={
+        'changepoint_prior_scale': 0.05,
+        'seasonality_prior_scale': 10,
+        'seasonality_mode': 'additive',
+        'cv_initial': '840 days',
+        'cv_period': '180 days',
+        'cv_horizon': '180 days',
+        'train_size': len(train),
+        'test_size': len(test),
+    },
+    metrics={
+        'test_mae': mae,
+        'test_rmse': rmse,
+        'test_mape': mape,
+        'baseline_mae': baseline_mae,
+        'baseline_rmse': baseline_rmse,
+        'baseline_mape': baseline_mape,
+        'cv_folds': cv_folds,
+        'cv_mean_mae': cv_mae,
+        'cv_mean_rmse': cv_rmse,
+        'cv_mean_mape': cv_mape,
+    },
+    predictions_df=predictions_df,
+    fig=fig,
+)
+plt.close(fig)
 
 # Retrain final model on all records
 final_model = Prophet(
