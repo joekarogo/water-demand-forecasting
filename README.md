@@ -71,9 +71,10 @@ validate it.
 | Authentication and roles | 4 | Done |
 | Testing evidence | 5 | Done |
 | Run records | 5 | Done |
-| Save forecasts to forecasts/forecast_results tables | 4 | Next |
-| Load saved model in the API instead of retraining | 4 | Next |
-| Show confidence band on chart | 4 | Next |
+| Save forecasts to forecasts/forecast_results tables | 4 | Done |
+| Load saved model in the API instead of retraining | 4 | Done |
+| Show confidence band on chart | 4 | Done |
+| Forecast horizon selection (3/6/12 months) and baseline comparison on dashboard | 4, 5 | Done |
 | Climate regressors from official sources (Open-Meteo, TÜİK) | 4, 5 | Next |
 | Chapter 5 | 5 | Next |
 | Hosting (Sprint III) | 4 | Next |
@@ -84,8 +85,7 @@ validate it.
 - Only 128 monthly records are available, limiting how much pattern Prophet can learn.
 - Monthly billing cycles don't align perfectly with calendar months, adding timing noise.
 - 5 outlier months were interpolated rather than using the true billed values.
-- `ml/forecast_api.py` retrains both Prophet models (test-set and final) from scratch on every `/api/forecast` request — it does not load a saved model. One request takes roughly 15-20 seconds.
-- Forecasts are not yet stored in the database; the API always serves a freshly computed result.
+- A forecast request takes about 4 seconds (the saved model is loaded, not retrained).
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
 - The frontend's automated test suite (`App.test.js`) currently fails (Jest/react-router-dom module resolution error).
 - The system runs locally only — no hosting/deployment has been set up.
@@ -144,7 +144,24 @@ This creates two test accounts:
 | manager@water.com | manager |
 | admin@water.com | admin |
 
-### 4. Start the application
+The `forecasts` and `forecast_results` tables (used to store generated
+forecasts) are also not created by a script in this repo — like `users`,
+they must already exist with their original columns (`forecasts`:
+forecast_id, user_id, generated_at, forecast_period, mae, rmse;
+`forecast_results`: result_id, forecast_id, date, predicted_value). Once
+they exist, add the columns the forecast-saving feature needs:
+```bash
+psql -U <your_db_user> -d <your_db_name> -f database/alter_forecasts_tables.sql
+```
+
+### 4. Train the forecasting model
+`ml/forecast_api.py` loads a saved model rather than training one on each
+request, so train and save it first:
+```bash
+python ml/train_model.py
+```
+
+### 5. Start the application
 Start the backend (runs on http://localhost:5000):
 ```bash
 cd backend
@@ -163,7 +180,7 @@ Checked against the current code:
 - **Node runtime** to run `backend/index.js` (Express). Port is already configurable via `PORT` in `.env`.
 - **Python with Prophet and cmdstan** to run `ml/forecast_api.py` on each forecast request. cmdstanpy's model fitting is memory-sensitive — an OpenBLAS memory allocation failure was observed even on this local machine during testing — so the host needs adequate RAM, not just disk/CPU.
 - **A managed PostgreSQL instance** for `izsu_consumption` and `users` (the current `DB_HOST`/`DB_PORT` point at `localhost`).
-- **All `.env` variables** set on the host (see `.env.example`): `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `JWT_SECRET`, `SEED_MANAGER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `RUNS_DIR`.
-- **Model storage:** `ml/forecast.py` and `ml/forecast_api.py` both save the trained model to a hardcoded Windows path, `G:\My Drive\water-demand-forecasting\models\prophet_model.pkl` — this must become a configurable path (or be dropped, since the API doesn't actually load this saved model — see Known Limitations) before hosting on a non-Windows server. `database/load_izsu.py` similarly reads its source CSV from a hardcoded local path.
+- **All `.env` variables** set on the host (see `.env.example`): `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `JWT_SECRET`, `SEED_MANAGER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `RUNS_DIR`, `MODEL_PATH`.
+- **Model storage:** `MODEL_PATH` is now configurable via `.env` (read by `ml/train_model.py` and `ml/forecast_api.py`), so this is no longer a hardcoded blocker — but it still defaults to a Windows path, `G:\My Drive\water-demand-forecasting\models\prophet_model.pkl`, so a non-Windows host must set `MODEL_PATH` explicitly to somewhere it can actually write. `database/load_izsu.py` similarly reads its source CSV from a hardcoded local path.
 - **Frontend build hosting** for the React app (e.g. a static host after `npm run build`), separate from the Node backend.
 - **Hardcoded `http://localhost:5000` API URLs in the frontend** — present in `Login.js`, `Dashboard.js`, and `DataOverview.js` — must become a configurable value (e.g. a build-time environment variable) before the frontend can reach a backend that isn't running on the same machine.

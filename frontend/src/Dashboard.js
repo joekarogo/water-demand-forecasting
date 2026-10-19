@@ -158,8 +158,13 @@ function Dashboard() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   })();
 
-  // Y axis domain: start near the lowest value shown (with a small margin)
-  // instead of 0, so the seasonal pattern is actually visible.
+  // Y axis domain: start ~10% below the lowest value shown (including the
+  // lower uncertainty bound), rounded down to a whole million, and end ~5%
+  // above the highest value (including the upper bound), rounded up to a
+  // whole million — instead of the default 0-based domain, so the seasonal
+  // pattern is actually visible. `allowDataOverflow` is required here:
+  // Recharts otherwise silently extends a stacked Area's axis down to 0
+  // regardless of an explicit domain.
   const allChartValues = chartData.flatMap((d) => {
     const values = [];
     if (d.actual !== undefined) values.push(d.actual);
@@ -170,7 +175,9 @@ function Dashboard() {
     return values;
   });
   const minChartValue = allChartValues.length > 0 ? Math.min(...allChartValues) : 0;
+  const maxChartValue = allChartValues.length > 0 ? Math.max(...allChartValues) : 0;
   const yDomainMin = minChartValue > 0 ? Math.floor((minChartValue * 0.9) / 1000000) * 1000000 : 0;
+  const yDomainMax = maxChartValue > 0 ? Math.ceil((maxChartValue * 1.05) / 1000000) * 1000000 : undefined;
 
   // ~8 visible X axis labels regardless of how many months are plotted,
   // so month labels never overlap.
@@ -224,7 +231,7 @@ function Dashboard() {
             <h3 className="chart-title">Consumption History &amp; {forecastData.horizon}-Month Forecast</h3>
             <div className="chart-container">
               <ResponsiveContainer width="100%" height={360}>
-                <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+                <ComposedChart data={chartData} margin={{ top: 30, right: 20, bottom: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="date"
@@ -236,7 +243,8 @@ function Dashboard() {
                   <YAxis
                     tick={{ fontSize: 12 }}
                     tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
-                    domain={[yDomainMin, 'auto']}
+                    domain={[yDomainMin, yDomainMax]}
+                    allowDataOverflow
                     label={{
                       value: 'Consumption (m³)',
                       angle: -90,
@@ -245,12 +253,12 @@ function Dashboard() {
                     }}
                   />
                   <Tooltip content={<ForecastTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 13 }} />
                   <ReferenceLine
                     x={forecastData.connector.date}
                     stroke="#999"
                     strokeDasharray="3 3"
-                    label={{ value: 'Forecast starts', position: 'top', fontSize: 12, fill: '#555' }}
+                    label={{ value: 'Forecast starts', position: 'insideTopRight', fontSize: 12, fill: '#555' }}
                   />
                   <Line
                     dataKey="actual"
