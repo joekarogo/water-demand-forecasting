@@ -10,3 +10,8 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Dependencies and build output
+node_modules/
+frontend/build/
+*.log

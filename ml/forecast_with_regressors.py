@@ -1,3 +1,4 @@
+# DEPRECATED: uses the old synthetic Kaggle data (consumption_data). Not used by the current model. To be updated to izsu_consumption.
 import pandas as pd
 import psycopg2
 from prophet import Prophet
