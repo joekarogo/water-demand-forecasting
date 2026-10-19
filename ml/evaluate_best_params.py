@@ -64,7 +64,19 @@ last_12_train = train['y'].values[-12:]
 baseline_predictions = np.array([last_12_train[i % 12] for i in range(len(test))])
 results.append(evaluate(baseline_predictions, 'Seasonal-Naive Baseline'))
 
-# (c) Prophet with best tuned params from ml/best_params.json
+# (c) Last-year x growth baseline: predict each test month as the matching
+# month from the last 12 training months, scaled by the year-over-year
+# growth rate observed in the training data, compounded for how many years
+# ahead that test month falls.
+previous_12_train = train['y'].values[-24:-12]
+growth_rate = last_12_train.sum() / previous_12_train.sum()
+growth_predictions = np.array([
+    last_12_train[i % 12] * (growth_rate ** (1 + i // 12))
+    for i in range(len(test))
+])
+results.append(evaluate(growth_predictions, 'Last-Year x Growth Baseline'))
+
+# (d) Prophet with best tuned params from ml/best_params.json
 best_params_path = os.path.join(os.path.dirname(__file__), 'best_params.json')
 with open(best_params_path) as f:
     best_params = json.load(f)
@@ -91,7 +103,7 @@ print("-" * 101)
 for r in results:
     print(f"{r['label']:<55} {r['mae']:>18,.2f} {r['rmse']:>18,.2f} {r['mape']:>7.2f}%")
 
-tuned_result = results[2]
+tuned_result = results[3]
 default_result = results[0]
 
 print()
