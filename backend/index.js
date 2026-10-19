@@ -44,13 +44,24 @@ app.get('/', (req, res) => {
   res.json({ message: 'Water Demand Forecasting API is running' });
 });
 
-app.get('/api/forecast', authenticateToken, (req, res) => {
+const VALID_HORIZONS = [3, 6, 12];
+
+app.get('/api/forecast', authenticateToken, async (req, res) => {
+  const horizonParam = req.query.horizon;
+  const horizon = horizonParam === undefined ? 6 : parseInt(horizonParam, 10);
+
+  if (!VALID_HORIZONS.includes(horizon)) {
+    return res.status(400).json({
+      error: `Invalid horizon "${horizonParam}". Must be 3, 6, or 12.`,
+    });
+  }
+
   const projectRoot = path.join(__dirname, '..');
 
-  // forecast_api.py mirrors forecast.py's 80/20 evaluation and 6 month
-  // forecast but skips cross validation, so this route responds quickly.
-  // Cross validation results are shown separately from pre-stored values.
-  const result = spawnSync('python', ['ml/forecast_api.py'], {
+  // forecast_api.py now loads the model trained by ml/train_model.py
+  // instead of retraining on every request, and prints a single JSON
+  // object to stdout (not text for regex parsing).
+  const result = spawnSync('python', ['ml/forecast_api.py', String(horizon)], {
     cwd: projectRoot,
     encoding: 'utf-8',
   });
@@ -69,55 +80,55 @@ app.get('/api/forecast', authenticateToken, (req, res) => {
     });
   }
 
-  const output = result.stdout;
-
-  // Parse MAE, RMSE, MAPE from the Model Evaluation section
-  // (negative lookbehind excludes the cross-validation "Mean MAE"/"Mean RMSE" lines)
-  const maeMatch = output.match(/(?<!Mean )MAE:\s*([\d,.-]+)\s*m3/);
-  const rmseMatch = output.match(/(?<!Mean )RMSE:\s*([\d,.-]+)\s*m3/);
-  const mapeMatch = output.match(/MAPE:\s*([\d,.-]+)%/);
-
-  if (!maeMatch || !rmseMatch || !mapeMatch) {
+  let data;
+  try {
+    data = JSON.parse(result.stdout);
+  } catch (err) {
     return res.status(500).json({
-      error: 'Could not parse evaluation metrics from forecast output',
-      raw_output: output,
+      error: 'Could not parse forecast output',
+      raw_output: result.stdout,
     });
   }
 
-  const mae = parseFloat(maeMatch[1].replace(/,/g, ''));
-  const rmse = parseFloat(rmseMatch[1].replace(/,/g, ''));
-  const mape = parseFloat(mapeMatch[1].replace(/,/g, ''));
+  // Save this forecast: one row in `forecasts`, one row per predicted
+  // month in `forecast_results`. A failure to save never fails the
+  // request — the manager still gets their forecast either way.
+  try {
+    const insertForecast = await pool.query(
+      `INSERT INTO forecasts (user_id, generated_at, horizon, model_name, mae, rmse, mape)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6)
+       RETURNING forecast_id`,
+      [req.user.user_id, horizon, data.model_name, data.metrics.mae, data.metrics.rmse, data.metrics.mape]
+    );
+    const forecastId = insertForecast.rows[0].forecast_id;
 
-  // Parse the 6 month forecast table
-  const forecastSectionMatch = output.match(/Forecast for next 6 months:\s*([\s\S]*)$/);
-  const forecast = [];
-
-  if (forecastSectionMatch) {
-    const rowRegex = /(\d{4}-\d{2}-\d{2})\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
-    let rowMatch;
-    while ((rowMatch = rowRegex.exec(forecastSectionMatch[1])) !== null) {
-      forecast.push({
-        date: rowMatch[1],
-        yhat: parseFloat(rowMatch[2]),
-        yhat_lower: parseFloat(rowMatch[3]),
-        yhat_upper: parseFloat(rowMatch[4]),
-      });
+    for (const row of data.forecast) {
+      await pool.query(
+        `INSERT INTO forecast_results (forecast_id, date, predicted_value, yhat_lower, yhat_upper)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [forecastId, row.date, row.yhat, row.yhat_lower, row.yhat_upper]
+      );
     }
+  } catch (err) {
+    console.error('Failed to save forecast:', err);
   }
 
-  if (forecast.length === 0) {
-    return res.status(500).json({
-      error: 'Could not parse forecast table from forecast output',
-      raw_output: output,
-    });
-  }
+  res.json(data);
+});
 
-  res.json({
-    mae,
-    rmse,
-    mape,
-    forecast,
-  });
+app.get('/api/forecasts/recent', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT forecast_id, generated_at, horizon, model_name, mae, rmse, mape
+       FROM forecasts
+       ORDER BY generated_at DESC
+       LIMIT 5`
+    );
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error('Recent forecasts error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Admin-only role check — used after authenticateToken, which populates req.user

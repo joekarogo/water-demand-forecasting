@@ -1,10 +1,9 @@
 import pandas as pd
 import psycopg2
-from prophet import Prophet
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import numpy as np
 import joblib
+import json
 import os
+import sys
 import warnings
 from dotenv import load_dotenv
 warnings.filterwarnings('ignore')
@@ -13,7 +12,41 @@ warnings.filterwarnings('ignore')
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 
-# Connect to database
+DEFAULT_MODEL_PATH = r"G:\My Drive\water-demand-forecasting\models\prophet_model.pkl"
+MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH)
+METRICS_PATH = os.path.join(os.path.dirname(MODEL_PATH), 'model_metrics.json')
+
+VALID_HORIZONS = (3, 6, 12)
+
+# Horizon is passed as a CLI argument by backend/index.js; default to 6 if run
+# directly with no argument. All diagnostic output below goes to stderr, so
+# stdout carries nothing but the final JSON result.
+horizon = 6
+if len(sys.argv) > 1:
+    try:
+        horizon = int(sys.argv[1])
+    except ValueError:
+        print(f"ERROR: Invalid horizon argument {sys.argv[1]!r}. Must be 3, 6, or 12.", file=sys.stderr)
+        sys.exit(1)
+
+if horizon not in VALID_HORIZONS:
+    print(f"ERROR: Invalid horizon {horizon}. Must be 3, 6, or 12.", file=sys.stderr)
+    sys.exit(1)
+
+if not os.path.exists(MODEL_PATH):
+    print(f"ERROR: No trained model found at {MODEL_PATH}. Run ml/train_model.py first.", file=sys.stderr)
+    sys.exit(1)
+
+if not os.path.exists(METRICS_PATH):
+    print(f"ERROR: No metrics file found at {METRICS_PATH}. Run ml/train_model.py first.", file=sys.stderr)
+    sys.exit(1)
+
+model = joblib.load(MODEL_PATH)
+
+with open(METRICS_PATH) as f:
+    saved_metrics = json.load(f)
+
+# Full history (for the chart to show past + future) — read-only.
 conn = psycopg2.connect(
     host=os.getenv("DB_HOST"),
     database=os.getenv("DB_NAME"),
@@ -21,103 +54,51 @@ conn = psycopg2.connect(
     password=os.getenv("DB_PASSWORD"),
     port=os.getenv("DB_PORT")
 )
-
-# Load consumption data from izsu_consumption (official IZSU billed data).
-# consumption_cleaned_m3 has the 5 outlier months (2019-09 billing spike;
-# 2020-04/05/06 COVID meter-reading suspension; 2020-08) interpolated.
 query = "SELECT date, consumption_cleaned_m3 FROM izsu_consumption ORDER BY date"
 df = pd.read_sql(query, conn)
 conn.close()
 
-# Prepare data for Prophet
 df.columns = ['ds', 'y']
 df['ds'] = pd.to_datetime(df['ds'])
 df = df.sort_values('ds').reset_index(drop=True)
 
-print(df.head())
-print(df.tail())
-
-print(f"Data loaded: {len(df)} records")
-print(f"Date range: {df['ds'].min()} to {df['ds'].max()}")
-
-# Train test split—80/20
-split_index = int(len(df) * 0.8)
-train = df[:split_index]
-test = df[split_index:]
-
-print(f"Training records: {len(train)}")
-print(f"Testing records: {len(test)}")
-
-# Train Prophet model
-# Using Prophet's default hyperparameters for now. The previously tuned
-# values (changepoint_prior_scale=0.01, seasonality_prior_scale=10,
-# seasonality_mode='multiplicative') were fit on the synthetic Kaggle
-# consumption column and do not apply to this real IZSU data. Proper
-# retuning against izsu_consumption is pending.
-model = Prophet(
-    yearly_seasonality=True,
-    weekly_seasonality=False,
-    daily_seasonality=False,
-    changepoint_prior_scale=0.05,
-    seasonality_prior_scale=10,
-    seasonality_mode='additive'
-)
-model.fit(train)
-
-# Generate forecast
-future = model.make_future_dataframe(periods=len(test), freq='MS')
+future = model.make_future_dataframe(periods=horizon, freq='MS')
 forecast = model.predict(future)
+forecast_only = forecast.tail(horizon)[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
 
-# Get predictions
-predictions = forecast['yhat'].tail(len(test)).values
-actuals = test['y'].values
+# The model's fitted value at the last historical date (not a real future
+# prediction) — used only so the chart's forecast line can start exactly
+# where the actual-consumption line ends, with no visual gap between them.
+connector_row = forecast.iloc[-(horizon + 1)]
 
-# Calculate MAE, RMSE and MAPE
-mae = mean_absolute_error(actuals, predictions)
-rmse = np.sqrt(mean_squared_error(actuals, predictions))
-mape = np.mean(np.abs((actuals - predictions) / actuals)) * 100
+output = {
+    'model_name': saved_metrics.get('model_name', 'Prophet'),
+    'horizon': horizon,
+    'metrics': saved_metrics.get('prophet', {}),
+    'baselines': {
+        'seasonal_naive': saved_metrics.get('seasonal_naive', {}),
+        'last_year_growth': saved_metrics.get('last_year_growth', {}),
+    },
+    'interval_width': model.interval_width,
+    'history': [
+        {'date': row.ds.strftime('%Y-%m-%d'), 'actual': float(row.y)}
+        for row in df.itertuples()
+    ],
+    'connector': {
+        'date': connector_row['ds'].strftime('%Y-%m-%d'),
+        'yhat': float(connector_row['yhat']),
+        'yhat_lower': float(connector_row['yhat_lower']),
+        'yhat_upper': float(connector_row['yhat_upper']),
+    },
+    'forecast': [
+        {
+            'date': row.ds.strftime('%Y-%m-%d'),
+            'yhat': float(row.yhat),
+            'yhat_lower': float(row.yhat_lower),
+            'yhat_upper': float(row.yhat_upper),
+        }
+        for row in forecast_only.itertuples()
+    ],
+}
 
-print(f"\nModel Evaluation:")
-print(f"MAE: {mae:,.2f} m3")
-print(f"RMSE: {rmse:,.2f} m3")
-print(f"MAPE: {mape:,.2f}%")
-
-# Seasonal-naive baseline: predict each test month by repeating the last 12
-# training months in order (wrapping around if the horizon exceeds 12 months).
-last_12_train = train['y'].values[-12:]
-baseline_predictions = np.array([last_12_train[i % 12] for i in range(len(test))])
-
-baseline_mae = mean_absolute_error(actuals, baseline_predictions)
-baseline_rmse = np.sqrt(mean_squared_error(actuals, baseline_predictions))
-baseline_mape = np.mean(np.abs((actuals - baseline_predictions) / actuals)) * 100
-
-print(f"\nSeasonal-Naive Baseline:")
-print(f"Baseline MAE: {baseline_mae:,.2f} m3")
-print(f"Baseline RMSE: {baseline_rmse:,.2f} m3")
-print(f"Baseline MAPE: {baseline_mape:,.2f}%")
-
-# Retrain final model on all records
-final_model = Prophet(
-    yearly_seasonality=True,
-    weekly_seasonality=False,
-    daily_seasonality=False,
-    changepoint_prior_scale=0.05,
-    seasonality_prior_scale=10,
-    seasonality_mode='additive'
-)
-final_model.fit(df)
-print(f"\nFinal model retrained on all {len(df)} records")
-
-# Save final model
-model_path = r"G:\My Drive\water-demand-forecasting\models\prophet_model.pkl"
-os.makedirs(os.path.dirname(model_path), exist_ok=True)
-joblib.dump(final_model, model_path)
-print(f"Final model saved to {model_path}")
-
-# Generate future forecast
-future_forecast = final_model.make_future_dataframe(periods=6, freq='MS')
-future_predictions = final_model.predict(future_forecast)
-
-print(f"\nForecast for next 6 months:")
-future_only = future_predictions.tail(6)[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-print(future_only.to_string(index=False))
+print(json.dumps(output))
