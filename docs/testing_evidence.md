@@ -42,6 +42,11 @@ passwords — see Part C.
 | B5 | GET /api/forecast as manager | 200 with İZSU results | 200, MAE/RMSE/MAPE match ml script output | ✅ |
 | B6 | GET /api/consumption-history as admin | 200, 128 rows | 200, 128 rows | ✅ |
 | B7 | load_izsu.py | 128 rows loaded into izsu_consumption | 128 rows confirmed | ✅ |
+| B8 | GET /api/forecast?horizon=3, 6, 12 | 200 with 3/6/12 forecast months | 200, correct row counts | ✅ |
+| B9 | GET /api/forecast?horizon=99 (invalid input) | 400 with clear message | 400 "Invalid horizon. Must be 3, 6, or 12" | ✅ |
+| B10 | Forecast saved to database | 1 row in forecasts + N rows in forecast_results | Rows saved and linked by forecast_id | ✅ |
+| B11 | GET /api/forecasts/recent | 200, latest saved forecasts | 200, correct order | ✅ |
+| B12 | Forecast response time | Under 10 seconds (NFR) | ~4 s (was ~17 s before loading the saved model) | ✅ |
 
 ## Part C - Issues Found and Fixed
 
