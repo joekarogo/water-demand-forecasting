@@ -41,7 +41,6 @@ function Login() {
     <div className="login-page">
       <div className="login-card">
         <h1 className="login-title">Water Demand Forecasting</h1>
-        <p className="login-subtitle">Sign in to view demand forecasts</p>
         <form onSubmit={handleSubmit}>
           <div className="login-field">
             <label htmlFor="email">Email</label>

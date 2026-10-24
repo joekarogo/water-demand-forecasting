@@ -46,7 +46,7 @@ model = joblib.load(MODEL_PATH)
 with open(METRICS_PATH) as f:
     saved_metrics = json.load(f)
 
-# Full history (for the chart to show past + future) — read-only.
+# Full history (for the chart to show past + future)
 conn = psycopg2.connect(
     host=os.getenv("DB_HOST"),
     database=os.getenv("DB_NAME"),

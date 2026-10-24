@@ -111,7 +111,17 @@ Copy `.env.example` to `.env` in the project root, then fill in your own values:
 cp .env.example .env
 ```
 
-### 3. Set up the database
+### 3. Prepare the data
+Download the raw İZSU billed-records CSV from the İzmir Metropolitan
+Municipality Open Data Portal:
+https://acikveri.bizizmir.com/en/dataset/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari
+
+Then build the monthly consumption file from it:
+```bash
+python database/preprocess_izsu.py
+```
+
+### 4. Set up the database
 Create the `izsu_consumption` table and load the İZSU consumption data into it:
 ```bash
 psql -U <your_db_user> -d <your_db_name> -f database/create_izsu_consumption.sql
@@ -154,14 +164,14 @@ they exist, add the columns the forecast-saving feature needs:
 psql -U <your_db_user> -d <your_db_name> -f database/alter_forecasts_tables.sql
 ```
 
-### 4. Train the forecasting model
+### 5. Train the forecasting model
 `ml/forecast_api.py` loads a saved model rather than training one on each
 request, so train and save it first:
 ```bash
 python ml/train_model.py
 ```
 
-### 5. Start the application
+### 6. Start the application
 Start the backend (runs on http://localhost:5000):
 ```bash
 cd backend
