@@ -114,10 +114,7 @@ for rank, r in enumerate(results_sorted, 1):
           f"-> Mean RMSE: {r['mean_rmse']:,.2f} m3, Mean MAE: {r['mean_mae']:,.2f} m3, "
           f"Mean MAPE: {r['mean_mape']:,.2f}%", flush=True)
 
-# Save the full ranked results alongside best_params.json. These overwrite
-# the previous files, which were fit on the synthetic Kaggle consumption
-# column and are no longer valid — copies were saved beforehand as
-# tuning_results_synthetic_old.json / best_params_synthetic_old.json.
+# Save the full ranked results alongside best_params.json.
 results_path = os.path.join(os.path.dirname(__file__), 'tuning_results.json')
 with open(results_path, 'w') as f:
     json.dump(results_sorted, f, indent=2)

@@ -145,7 +145,7 @@ app.get('/api/consumption-history', authenticateToken, requireAdmin, async (req,
       // consumption_cleaned_m3 is BIGINT, which node-postgres returns as a
       // string by default (to avoid precision loss past Number.MAX_SAFE_INTEGER).
       // Our values are well within safe integer range, so cast to double
-      // precision to get back a real JS number, same as consumption_data did.
+      // precision to get back a real JS number.
       "SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, consumption_cleaned_m3::double precision AS consumption_m3 FROM izsu_consumption ORDER BY date"
     );
     res.json({ data: result.rows });

@@ -43,14 +43,24 @@ that did not reflect real forecasting performance.
 Evaluated on the 26-month held-out test set:
 
 - **Prophet (default settings):** MAE 1,027,291 m3, RMSE 1,308,929 m3, MAPE 4.86%
+- **Prophet (CV-tuned settings — 0.01 / 1 / multiplicative):** MAPE 5.71%
 - **Seasonal-naive baseline** (repeat last 12 months): MAPE 5.47%
 - **Last-year × growth baseline:** MAPE 6.23%
 - **Prophet cross-validation** (12 folds, training data only): MAPE 6.76%
 
 A 24-combination grid search over `changepoint_prior_scale`,
-`seasonality_prior_scale`, and `seasonality_mode` found no configuration that
-reliably improved on Prophet's defaults when checked against the held-out
-test set, so the defaults remain in production.
+`seasonality_prior_scale` and `seasonality_mode` was run with 12-fold
+cross-validation on the training data only. The best configuration by
+cross-validation RMSE (0.01 / 1 / multiplicative) performed worse than
+Prophet's defaults on the held-out test set (MAPE 5.71% vs 4.86%), so the
+defaults were retained. Because this choice was made after seeing test-set
+results, the 4.86% figure may be slightly optimistic; this is disclosed here
+and in Chapter 5. For future models (e.g. SARIMA), the selection rule is fixed
+using cross-validation before the test set is used, and the test set is used once.
+As required when test results influence a choice, an independent re-evaluation
+of the default vs CV-tuned settings (on newer İZSU months if available,
+otherwise a pre-specified rolling-origin comparison with a Diebold-Mariano
+test) is planned and will be reported in Chapter 5.
 
 ## Sprint II Task Status
 Project objectives: (1) analyse current water management systems and
@@ -89,7 +99,6 @@ validate it.
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
 - The frontend's automated test suite (`App.test.js`) currently fails (Jest/react-router-dom module resolution error).
 - The system runs locally only — no hosting/deployment has been set up.
-- The original `consumption_data` table (from the deprecated Kaggle file) still exists in the database but is unused by the model.
 
 ## Setup Instructions
 
@@ -111,7 +120,17 @@ Copy `.env.example` to `.env` in the project root, then fill in your own values:
 cp .env.example .env
 ```
 
-### 3. Set up the database
+### 3. Prepare the data
+Download the raw İZSU billed-records CSV from the İzmir Metropolitan
+Municipality Open Data Portal:
+https://acikveri.bizizmir.com/en/dataset/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari
+
+Then build the monthly consumption file from it:
+```bash
+python database/preprocess_izsu.py
+```
+
+### 4. Set up the database
 Create the `izsu_consumption` table and load the İZSU consumption data into it:
 ```bash
 psql -U <your_db_user> -d <your_db_name> -f database/create_izsu_consumption.sql
@@ -154,14 +173,14 @@ they exist, add the columns the forecast-saving feature needs:
 psql -U <your_db_user> -d <your_db_name> -f database/alter_forecasts_tables.sql
 ```
 
-### 4. Train the forecasting model
+### 5. Train the forecasting model
 `ml/forecast_api.py` loads a saved model rather than training one on each
 request, so train and save it first:
 ```bash
 python ml/train_model.py
 ```
 
-### 5. Start the application
+### 6. Start the application
 Start the backend (runs on http://localhost:5000):
 ```bash
 cd backend

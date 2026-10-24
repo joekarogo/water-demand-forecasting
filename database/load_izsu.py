@@ -29,8 +29,8 @@ cursor.execute("""
     )
 """)
 
-# Read CSV — official IZSU monthly consumption data
-csv_path = r"C:\Users\HomePC\Documents\izsu_monthly_consumption.csv"
+# Read CSV — official IZSU monthly consumption data (see database/preprocess_izsu.py)
+csv_path = os.getenv("IZSU_MONTHLY_PATH", r"C:\Users\HomePC\Documents\izsu_monthly_consumption.csv")
 df = pd.read_csv(csv_path)
 df['date'] = pd.to_datetime(df['date'])
 
