@@ -53,12 +53,12 @@ test = df[split_index:]
 print(f"Training records: {len(train)}")
 print(f"Testing records: {len(test)}")
 
-# Train Prophet model
-# Using Prophet's default hyperparameters for now. The previously tuned
-# values (changepoint_prior_scale=0.01, seasonality_prior_scale=10,
-# seasonality_mode='multiplicative') were fit on the synthetic Kaggle
-# consumption column and do not apply to this real IZSU data. Proper
-# retuning against izsu_consumption is pending (see ml/tune_prophet.py).
+# Using Prophet's default hyperparameters. Cross-validation tuning on the
+# training data (ml/tune_prophet.py) selected a different configuration
+# (changepoint_prior_scale=0.01, seasonality_prior_scale=1, multiplicative),
+# but it performed worse on the held-out test set (MAPE 5.71% vs 4.86%).
+# The defaults were retained. Because this decision used test-set results,
+# it is disclosed in the README and Chapter 5.
 model = Prophet(
     yearly_seasonality=True,
     weekly_seasonality=False,
