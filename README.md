@@ -105,6 +105,10 @@ validate it.
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
 - The frontend's automated test suite (`App.test.js`) currently fails (Jest/react-router-dom module resolution error).
 - The system runs locally only — no hosting/deployment has been set up.
+- 5.34% of consumption is unpriced (no matching tariff).
+- Tariff duplicates in 32 price dates make some historical months' revenue unavailable.
+- Customer group inferred from type name for 6,186 rows (Aug 2023 onward).
+- Two districts in the 2019 water balance don't balance in the source.
 
 ## Setup Instructions
 
@@ -126,42 +130,30 @@ Copy `.env.example` to `.env` in the project root, then fill in your own values:
 cp .env.example .env
 ```
 
-### 3. Prepare the data
-Download the raw İZSU billed-records CSV from the İzmir Metropolitan
-Municipality Open Data Portal:
-https://acikveri.bizizmir.com/en/dataset/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari
+### 3. Set up the database and load the data
+You'll need three source files from İZSU (the İzmir Metropolitan
+Municipality Open Data Portal — the consumption file is at
+https://acikveri.bizizmir.com/en/dataset/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari,
+the tariff and water-loss files from the same portal): the raw billed
+consumption records, the water/wastewater tariff list, and the 2019
+water-loss (water balance) report. Point `.env` at wherever you put them —
+`IZSU_RAW_PATH`, `IZSU_TARIFF_PATH`, `IZSU_LOSS_PATH` — plus
+`IZSU_DETAIL_PATH` and `IZSU_MONTHLY_PATH` for the two files
+`preprocess_izsu.py` generates from the raw one (step 3 below). All five
+default to paths under `Documents` if left unset in `.env`.
 
-Then build the monthly consumption file from it:
-```bash
-python database/preprocess_izsu.py
-```
+Run these in order:
 
-### 4. Set up the database
-Create the `izsu_consumption` table and load the İZSU consumption data into it:
-```bash
-psql -U <your_db_user> -d <your_db_name> -f database/create_izsu_consumption.sql
-python database/load_izsu.py
-```
-
-The `users` table (used for login) is not created by a script in this repo —
-create it manually, e.g. via `psql`:
-```sql
-CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-Then seed the test accounts (reads `SEED_MANAGER_PASSWORD` and
-`SEED_ADMIN_PASSWORD` from your `.env`, hashes them, and inserts/updates the
-users):
-```bash
-python database/seed_users.py
-```
+1. `psql`/pgAdmin: `database/schema/000_existing_schema.sql` — creates the baseline tables (`users`, `izsu_consumption`, `forecasts`, `forecast_results`) if they don't already exist.
+2. `psql`/pgAdmin: `database/schema/001_foundation.sql` — adds RBAC, consumption detail, tariffs, water balance, settings, production planning and the audit log.
+3. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
+4. `python database/load_izsu.py` — 128 monthly totals.
+5. `python database/load_detail.py` — 86,749 detail rows.
+6. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
+7. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
+8. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
+9. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
+10. `python database/seed_users.py` — creates the two test accounts (reads `SEED_MANAGER_PASSWORD`/`SEED_ADMIN_PASSWORD` from `.env`).
 
 This creates two test accounts:
 | Email | Role |
@@ -169,24 +161,18 @@ This creates two test accounts:
 | manager@water.com | manager |
 | admin@water.com | admin |
 
-The `forecasts` and `forecast_results` tables (used to store generated
-forecasts) are also not created by a script in this repo — like `users`,
-they must already exist with their original columns (`forecasts`:
-forecast_id, user_id, generated_at, forecast_period, mae, rmse;
-`forecast_results`: result_id, forecast_id, date, predicted_value). Once
-they exist, add the columns the forecast-saving feature needs:
-```bash
-psql -U <your_db_user> -d <your_db_name> -f database/alter_forecasts_tables.sql
-```
+`database/propose_tariff_map.py` is not part of this sequence — it's only
+needed if you want to regenerate `tariff_type_map_proposal.csv` (the input
+to step 8) from scratch, e.g. after the detail data changes.
 
-### 5. Train the forecasting model
+### 4. Train the forecasting model
 `ml/forecast_api.py` loads a saved model rather than training one on each
 request, so train and save it first:
 ```bash
 python ml/train_model.py
 ```
 
-### 6. Start the application
+### 5. Start the application
 Start the backend (runs on http://localhost:5000):
 ```bash
 cd backend

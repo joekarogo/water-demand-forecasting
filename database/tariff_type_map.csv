@@ -1,0 +1,91 @@
+consumption_type,tariff_type,is_assumption,note
+KONUT,KONUT ABONELERİ,False,
+ORMAN KÖYÜ VE ESKİ KÖYLER KONUT,KÖY KONUT ABONELERİ,True,village/old-village homes -> village home tariff
+İŞYERİ,İŞYERİ ABONELERİ,False,
+PARKLAR  VE  MEZARLIKLAR,PARK VE MEZARLIK ABONELERİ,True,parks/cemeteries -> parks & cemeteries tariff
+E.A.,,False,no matching tariff in the 2024-07-01 price list
+RESMİ OKUL HASTANELER,RESMİ DAİRE ABONELERİ,True,official schools/hospitals/offices -> official office tariff
+RESMİ DAİRE,RESMİ DAİRE ABONELERİ,False,
+ORGANİZE SANAYİ ABONELERİ(ATIKSU BEDELSİZ,SERBEST BÖLGE VE ORGANİZE SANAYİ ABONELERİ (ATIKSU BEDELSIZ),True,wastewater-exempt organized industry -> free zone/industry tariff (wastewater-exempt)
+BELDE KONUT ABONELERİ,BELDE KONUT ABONELERİ,False,
+BELEDİYE,,False,no matching tariff in the 2024-07-01 price list
+ORMAN KÖYÜ VE ESKİ KÖYLER TARIM/ HAYVAN,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+İNŞAAT (ŞANTİYE),,False,no matching tariff in the 2024-07-01 price list
+ORGANİZE SANAYİ VE SERBEST BÖLGE ABONELERİ(S),SERBEST BÖLGE VE ORGANİZE SANAYİ ABONELERİ,True,organized industry/free zone -> free zone & industry tariff
+ORMAN KÖYÜ VE ESKİ KÖYLER İŞYERİ,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+5216 ESKİ KÖY KONUT,KÖY KONUT ABONELERİ,True,village/old-village homes -> village home tariff
+İBADETHANELER,İBADETHANELER,False,
+İLÇE BELEDİYESİ BAHÇE SUYU,,False,no matching tariff in the 2024-07-01 price list
+RESMİ DAİRE İÇME SUYU,RESMİ DAİRE ABONELERİ,True,official schools/hospitals/offices -> official office tariff
+İLÇE BELEDİYE TARIM / HAYVAN,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+TURİSTİK TESİS,,False,no matching tariff in the 2024-07-01 price list
+BELDE İŞYERİ ABONELERİ,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+KIRSAL KONUT ( KÖY),KÖY KONUT ABONELERİ,True,village/old-village homes -> village home tariff
+FIRIN HAMAM ABONELERİ,,False,no matching tariff in the 2024-07-01 price list
+ÖZEL OKULLAR,,False,no matching tariff in the 2024-07-01 price list
+ŞEHİT GAZİ,ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+SANAYİ,,False,no general industry tariff in the 2024-07-01 price list; zone tariff applies only to organised industrial zones
+BELDE TARIM HAYVAN,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+KONUT (S),KONUT ABONELERİ,True,residential subtypes -> standard residential tariff
+KIRSAL KONUT (MERKEZ),KONUT ABONELERİ,True,residential subtypes -> standard residential tariff
+ÖZEL HASTANELER,ÖZEL HASTANE ABONELERİ,True,private hospitals -> private hospital tariff
+KYK YURTLAR,,False,no matching tariff in the 2024-07-01 price list
+ORGANİZE SANAYİ VE SERBEST BÖLGE ABONELERİ(O),SERBEST BÖLGE VE ORGANİZE SANAYİ ABONELERİ,True,organized industry/free zone -> free zone & industry tariff
+5216 ESKİ KÖY TARIM HAYVAN,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+BELDE ŞANTİYE ABONELERİ,,False,no matching tariff in the 2024-07-01 price list
+KIRSAL KONUT (MAHALLE),KONUT ABONELERİ,True,residential subtypes -> standard residential tariff
+PANDEMİ İŞYERİ,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+ATIKSU BEDELSİZ RESMİ OKUL HASTANE,RESMİ DAİRE ABONELERİ (ATIKSU BEDELSIZ),True,wastewater-exempt official office -> official office tariff (wastewater-exempt)
+PARKLAR VE MEZARLIKLAR (TÜK. BİLD. İNECEK),PARK VE MEZARLIK ABONELERİ,True,parks/cemeteries -> parks & cemeteries tariff
+5216 ESKİ KÖY İŞYERİ,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+NATO ( KDV SİZ)  ABONELER,NATO VE ELÇİLİK ABONELERİ,True,NATO/embassy subtypes -> NATO & embassy tariff
+BAKIMEVLERİ,,False,no matching tariff in the 2024-07-01 price list
+BELDE ENGELLİ ABONELERİ,ENGELLİ ABONELERİ,True,disabled-subscriber subtypes -> disabled-subscriber tariff
+KONUT (AFET),KONUT ABONELERİ,True,residential subtypes -> standard residential tariff
+KÖY ENGELLİ,ENGELLİ ABONELERİ,True,disabled-subscriber subtypes -> disabled-subscriber tariff
+AİLEHEKİM.RES.HAS.,,False,no matching tariff in the 2024-07-01 price list
+SPOR KLUPLERİ,,False,no matching tariff in the 2024-07-01 price list
+BELEDİYE (TÜK BİLD. İNECEK),,False,no matching tariff in the 2024-07-01 price list
+ATIKSU BEDELSİZ KONUT,KONUT ABONELERİ (ATIKSU BEDELSİZ),True,wastewater-exempt home -> residential tariff (wastewater-exempt)
+ATIKSU BEDELSİZ İŞYERİ,İŞYERİ ABONELERİ (ATIKSU BEDELSİZ),True,wastewater-exempt business -> business tariff (wastewater-exempt)
+R. OKUL HAS. (TÜK. BİLD. İNE.),RESMİ DAİRE ABONELERİ,True,official schools/hospitals/offices -> official office tariff
+RESMİ DAİRE (TÜK.BİLD.İNECEK),RESMİ DAİRE ABONELERİ,True,official schools/hospitals/offices -> official office tariff
+KIRSAL E.A.(MERKEZ),,False,no matching tariff in the 2024-07-01 price list
+KIRSAL İŞYERİ ( KÖY),İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+BELDE ŞEHİT- GAZİ ABONELERİ,ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+ORMAN KÖYÜ VE ESKİ KÖYLER BAHÇE SUYU,,False,no matching tariff in the 2024-07-01 price list
+KIRSAL İŞYERİ (MERKEZ),İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+GERİ KAZANIM TARIMSAL,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+KIRSAL KONUT (BELDE),BELDE KONUT ABONELERİ,True,belde (town) rural home -> belde home tariff
+ÖZEL YURTLAR,ÖZEL YURT ABONELERİ,True,private dormitories -> private dormitory tariff
+HAMSU KONUTDIŞI,,False,no matching tariff in the 2024-07-01 price list
+KÖY ŞEHİT GAZİ,ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+BELDE BAHÇE ABONELERİ,,False,no matching tariff in the 2024-07-01 price list
+RESMİ KIZILAY KAN,,False,no matching tariff in the 2024-07-01 price list
+5216 ESKİ KÖY ENGELLİ,ENGELLİ ABONELERİ,True,disabled-subscriber subtypes -> disabled-subscriber tariff
+KIRSAL İŞYERİ ( MAHALLE),İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+KIRSAL BAHÇE SUYU  (MERKEZ),,False,no matching tariff in the 2024-07-01 price list
+PANDEMİ BELDE İŞYERİ,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+LİMAN ABONELERİ,,False,no matching tariff in the 2024-07-01 price list
+KIRSAL E.A. (MAHALLE),,False,no matching tariff in the 2024-07-01 price list
+KIRSAL E.A.( KÖY),,False,no matching tariff in the 2024-07-01 price list
+ATIKSU BEDELSİZ BAHÇE SULAMA,,False,no matching tariff in the 2024-07-01 price list
+İLK KADEME BEL.KONUT,KONUT ABONELERİ,True,residential subtypes -> standard residential tariff
+KIRSAL ŞEHİT GAZİ (MERKEZ),ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+ELÇİLİK  ABONELERİ,NATO VE ELÇİLİK ABONELERİ,True,NATO/embassy subtypes -> NATO & embassy tariff
+5216 ESKİ KÖY BAHÇE SUYU,,False,no matching tariff in the 2024-07-01 price list
+5216 ESKİ KÖY ŞEHİT GAZİ,ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+MUHTARLIKLAR,,False,no matching tariff in the 2024-07-01 price list
+İLK KADEME BEL.TARIM / HAYVAN,TARIMSAL SULAMA VE HAYVANCILIK ABONELERİ,True,farm/livestock subtypes -> agricultural irrigation & livestock tariff
+ATIKSU BEDELSİZ İNŞAAT,,False,no matching tariff in the 2024-07-01 price list
+İŞYERİ TÜRGEV,İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+KIRSAL İŞYERİI (BELDE),İŞYERİ ABONELERİ,True,business subtypes -> standard business tariff
+KIRSAL ŞEHİT GAZİ ( KÖY),ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+KIRSAL BAHÇE SUYU ( KÖY),,False,no matching tariff in the 2024-07-01 price list
+ATIKSU BEDELSİZ ENGELLİ,ENGELLİ ABONELERİ  (ATIKSU BEDELSIZ),True,wastewater-exempt disabled subscriber -> disabled tariff (wastewater-exempt)
+KIRSAL ŞEHİT GAZİ (MAHALLE),ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+KIRSAL E.A (BELDE),,False,no matching tariff in the 2024-07-01 price list
+KÜLTÜR BELGELİ,,False,no matching tariff in the 2024-07-01 price list
+ATIKSU BEDELSİZ ŞEHİT GAZİ,ŞEHİT YAKINI/GAZİ ABONELERİ (ATIKSU BEDELSIZ),True,wastewater-exempt martyr/veteran -> martyr & veteran tariff (wastewater-exempt)
+KIRSAL ŞEHİT GAZİ (BELDE),ŞEHİT YAKINI/GAZİ ABONELERİ,True,martyr family/veteran subtypes -> martyr & veteran tariff
+FIRIN HAMAM ŞİRKET,,False,no matching tariff in the 2024-07-01 price list
