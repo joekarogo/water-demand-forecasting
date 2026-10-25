@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demand Forecast · Water Demand Forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f1f5f9;
+    --surface:#ffffff;
+    --border:#e2e8f0;
+    --border-strong:#cbd5e1;
+    --text:#0f2537;
+    --text-2:#475569;
+    --text-3:#64748b;
+    --navy:#0b3a5c;
+    --navy-2:#0f4c75;
+    --blue:#0b5c8f;
+    --teal:#0d7f80;
+    --teal-soft:#e6f4f4;
+    --teal-band:rgba(13,127,128,.15);
+    --up:#0f7a4a;
+    --up-soft:#e7f5ee;
+    --down:#b42318;
+    --danger:#b42318;
+    --danger-soft:#fdecea;
+    --focus:#2563eb;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(15,37,55,.05),0 2px 8px rgba(15,37,55,.04);
+    --sidebar:240px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  /* ---------- Demo toolbar ---------- */
+  .demo-bar{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;
+    height:34px;padding:0 16px;background:#1e293b;color:#e2e8f0;font-size:12px;
+  }
+  .demo-bar strong{font-weight:600;letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:#94a3b8}
+  .demo-bar .seg{display:inline-flex;background:#0f172a;border-radius:6px;padding:2px}
+  .demo-bar button{
+    background:transparent;border:0;color:#cbd5e1;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;
+  }
+  .demo-bar button[aria-pressed="true"]{background:#334155;color:#fff}
+  .demo-bar .note{margin-left:auto;color:#94a3b8}
+  @media (max-width:600px){.demo-bar .note{display:none}}
+
+  /* ---------- Shell ---------- */
+  .shell{display:flex;min-height:calc(100vh - 34px)}
+  .sidebar{
+    width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#dbeafe;
+    position:fixed;left:0;top:34px;bottom:0;height:calc(100vh - 34px);overflow-y:auto;z-index:30;display:flex;flex-direction:column;
+    padding:20px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px;color:#fff;font-weight:600;font-size:15px;line-height:1.25}
+  .brand-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:0 0 auto}
+  .nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;
+    color:#c7d7e6;text-decoration:none;font-weight:500;
+  }
+  .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav a[aria-current="page"]{background:rgba(94,201,201,.16);color:#fff;box-shadow:inset 3px 0 0 #5ec9c9}
+  .nav svg{flex:0 0 auto;opacity:.9}
+  .sidebar-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#9fb6cb}
+  .sidebar-foot .ver{color:#dbe7f2;font-weight:500}
+  .sidebar-foot .src{font-size:11px;color:#8aa3b9;margin-top:2px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;margin-left:var(--sidebar)}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:18px 32px;background:var(--surface);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
+  .topbar .sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .published{margin:6px 0 0;font-size:12px;color:var(--text-2);line-height:1.45}
+  .published .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--up);margin-right:6px;vertical-align:1px}
+  .published b{font-weight:600;color:var(--text)}
+  .published.data-line{margin-top:2px}
+  .published.data-line .dot{background:#94a3b8}
+  .user{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:600;font-size:13px}
+  .user-name{font-weight:600}
+  .role{display:inline-block;padding:2px 9px;border-radius:999px;background:#e8f0f8;color:var(--navy-2);font-size:12px;font-weight:600;border:1px solid #d3e2f0}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;border:1px solid var(--border-strong);
+    background:var(--surface);cursor:pointer;font-weight:500;font-size:13px;color:var(--text);
+  }
+  .btn:hover{background:#f8fafc;border-color:#94a3b8}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--navy-2);border-color:var(--navy-2)}
+  .close-btn{display:none;margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#fff;cursor:pointer;place-items:center;font-size:16px;line-height:1}
+  .close-btn:hover{background:rgba(255,255,255,.08)}
+  .menu-btn{display:none;border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;width:36px;height:36px;cursor:pointer;place-items:center;font-size:18px;line-height:1;flex:0 0 auto}
+
+  .content{padding:24px 32px 32px;display:flex;flex-direction:column;gap:20px;max-width:1360px;width:100%}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .kpi{padding:18px 20px}
+  .kpi-label{font-size:13px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+  .kpi-value{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:6px 0 4px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .kpi-value .unit{font-size:16px;font-weight:600;color:var(--text-2);margin-left:3px}
+  .kpi-help{font-size:12px;color:var(--text-3)}
+  .kpi .info-btn{width:18px;height:18px}
+  .tip.right{left:auto;right:-8px;transform:none}
+  .tip.right::after{left:auto;right:12px;transform:none}
+  .delta-up{color:var(--up);display:inline-flex;align-items:center;gap:6px}
+  .delta-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--up-soft);color:var(--up)}
+  .kpi.accent{border-top:3px solid var(--teal)}
+
+  /* ---------- Summary ---------- */
+  .summary{
+    display:flex;gap:14px;align-items:flex-start;padding:16px 20px;border-radius:var(--radius);
+    background:linear-gradient(90deg,#e6f4f4,#eef6fb);border:1px solid #c8e6e6;
+  }
+  .summary p{margin:0;font-size:15px;line-height:1.55;color:#0b3340}
+  .summary b{font-weight:600}
+  .summary-icon{flex:0 0 auto;width:32px;height:32px;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--teal);border:1px solid #c8e6e6}
+
+  .insight{margin:-8px 0 0;display:flex;align-items:flex-start;gap:8px;padding:9px 14px;border-radius:8px;background:#fff8e6;border:1px solid #f3e1b3;color:#5c4510;font-size:13px}
+  .insight svg{flex:0 0 auto;margin-top:2px;color:#b7791f}
+
+  /* ---------- Chart card ---------- */
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px 0;flex-wrap:wrap}
+  .card-title{margin:0;font-size:16px;font-weight:600}
+  .card-sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .controls{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .ctl-label{font-size:12px;font-weight:600;color:var(--text-2);margin-right:8px}
+  .segmented{display:inline-flex;background:#eef2f6;border:1px solid var(--border);border-radius:8px;padding:3px}
+  .segmented button{
+    border:0;background:transparent;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);white-space:nowrap;
+  }
+  .segmented button[aria-checked="true"]{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(15,37,55,.12);font-weight:600}
+  .toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text);background:none;border:0;padding:2px}
+  .switch{width:36px;height:20px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .15s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+  .toggle[aria-checked="true"] .switch{background:var(--teal)}
+  .toggle[aria-checked="true"] .switch::after{transform:translateX(16px)}
+  .toggle .state{font-size:11px;color:var(--text-3);font-weight:600;min-width:20px}
+  .ctl-group{display:inline-flex;align-items:center;gap:4px}
+
+  .info{position:relative;display:inline-flex}
+  .info-btn{
+    width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:var(--text-3);cursor:help;display:grid;place-items:center;padding:0;
+  }
+  .info-btn:hover{color:var(--blue)}
+  .tip{
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;
+    background:#0f2537;color:#f1f5f9;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:7px;
+    box-shadow:0 6px 18px rgba(15,37,55,.2);opacity:0;visibility:hidden;transition:opacity .12s;z-index:20;font-weight:400;
+  }
+  .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#0f2537}
+  .info:hover .tip,.info-btn:focus-visible + .tip,.info.open .tip{opacity:1;visibility:visible}
+
+  .chart-wrap{position:relative;height:380px;padding:16px 20px 8px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;padding:0 20px 18px;font-size:12px;color:var(--text-2)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .lg-line{width:22px;height:0;border-top:2.5px solid var(--blue)}
+  .lg-dash{width:22px;height:0;border-top:2.5px dashed var(--teal)}
+  .lg-band{width:18px;height:11px;background:var(--teal-band);border-radius:2px;border:1px solid rgba(13,127,128,.3)}
+  .lg-dot{width:22px;height:0;border-top:2.5px dotted #64748b}
+  .legend .off{opacity:.4}
+
+  /* ---------- Table ---------- */
+  .table-wrap{overflow-x:auto;padding:8px 0 4px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  caption{text-align:left}
+  th,td{padding:11px 20px;text-align:right;white-space:nowrap;border-bottom:1px solid #eef2f6}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:#f8fbfd}
+  tbody tr:first-child td{background:#f3fafa}
+  tbody tr:first-child td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
+  td.month{font-weight:600}
+  td.muted{color:var(--text-3)}
+  .chg-up{color:var(--up);font-weight:600}
+  .chg-down{color:var(--down);font-weight:600}
+  .table-note{padding:10px 20px 16px;font-size:12px;color:var(--text-3)}
+
+  /* ---------- Footer ---------- */
+  .foot{display:flex;flex-direction:column;gap:10px;color:var(--text-3);font-size:13px}
+  .foot-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .foot-line .tip{width:270px}
+
+  /* ---------- Loading / error ---------- */
+  .state-banner{
+    display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:var(--radius);
+    background:#eef6fb;border:1px solid #cfe3f1;color:var(--navy);font-weight:500;
+  }
+  .spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid #bcd6ea;border-top-color:var(--blue);animation:spin .8s linear infinite;flex:0 0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sk{background:linear-gradient(90deg,#e8eef4 25%,#f3f6f9 50%,#e8eef4 75%);background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px}
+  @keyframes shimmer{to{background-position:-200% 0}}
+  .sk-kpi{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .sk-chart{height:420px;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .error-card{padding:40px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .error-icon{width:48px;height:48px;border-radius:50%;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center}
+  .error-card h2{margin:6px 0 0;font-size:17px}
+  .error-card p{margin:0;color:var(--text-2);max-width:440px}
+  .error-card .meta{font-size:12px;color:var(--text-3)}
+  [hidden]{display:none !important}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:1100px){
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:900px){
+    .main{margin-left:0}
+    .sidebar{position:fixed;left:0;top:34px;z-index:40;transform:translateX(-100%);transition:transform .2s}
+    .sidebar.open{transform:none;box-shadow:4px 0 24px rgba(0,0,0,.2)}
+    .scrim{position:fixed;inset:34px 0 0 0;background:rgba(15,37,55,.35);z-index:35}
+    .menu-btn,.close-btn{display:grid}
+    .topbar{padding:14px 16px;gap:12px}
+    .content{padding:16px}
+    .user-name,.logout-label{display:none}
+  }
+  @media (max-width:560px){
+    .segmented button{padding:5px 10px}
+    .ctl-group:first-child{flex-wrap:wrap;row-gap:6px}
+    .kpi{padding:14px}
+    .kpi-value{font-size:23px}
+    .kpi-value .unit{font-size:13px}
+    .role{font-size:11px;padding:2px 7px}
+    .chart-wrap{height:300px;padding:12px 8px 4px}
+    .controls{gap:14px}
+    .topbar h1{font-size:18px}
+    .topbar{flex-wrap:wrap}
+    .topbar > div:nth-child(2){flex:1;min-width:0}
+    .user{gap:8px;flex-basis:100%;margin-left:0;padding-top:10px;border-top:1px solid var(--border)}
+    .user .btn{margin-left:auto}
+    .user .user-name{display:inline}
+    .avatar{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- Demo toolbar (not part of the product) -->
+<div class="demo-bar" role="toolbar" aria-label="Demo states">
+  <strong>Demo states</strong>
+  <div class="seg">
+    <button type="button" data-state="normal" aria-pressed="true">Normal</button>
+    <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+    <button type="button" data-state="error" aria-pressed="false">Error</button>
+  </div>
+  <span class="note">Mockup only · sample data</span>
+</div>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg width="18" height="20" viewBox="0 0 18 22" fill="none"><path d="M9 1.5C9 1.5 2 9.2 2 13.8A7 7 0 0 0 16 13.8C16 9.2 9 1.5 9 1.5Z" fill="#5ec9c9" stroke="#bdeaea" stroke-width="1.2"/><path d="M5.6 14.2a3.4 3.4 0 0 0 3.2 3.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <span>Water Demand<br>Forecasting</span>
+      <button class="close-btn" id="closeBtn" type="button" aria-label="Close navigation">✕</button>
+    </div>
+    <ul class="nav">
+      <li><a href="#" aria-current="page">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/><path d="M15 6h4v4" stroke-dasharray="2 2"/></svg>
+        Forecast</a></li>
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10l5 3V10l5 3V6h4v15"/></svg>
+        Production Planning</a></li>
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 12h5m0 0V5h5m-5 7v7h5"/></svg>
+        Distribution</a></li>
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+        Reports</a></li>
+    </ul>
+    <div class="sidebar-foot"><div class="ver">Version 1.0</div><div class="src">Data: İZSU Open Data (İzmir)</div></div>
+  </nav>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+        <span aria-hidden="true">☰</span>
+      </button>
+      <div>
+        <h1>Demand Forecast</h1>
+        <p class="sub">Monthly billed water demand, İzmir</p>
+        <p class="published"><span class="dot" aria-hidden="true"></span><span>Forecast published <b>25 Oct 2026</b> · model trained on Jan 2014 – Aug 2024</span></p>
+        <p class="published data-line"><span class="dot" aria-hidden="true"></span><span>Latest available data: <b>August 2024</b> · forecasting from there</span></p>
+      </div>
+      <div class="user">
+        <span class="avatar" aria-hidden="true">JK</span>
+        <span class="user-name">Joe Karogo</span>
+        <span class="role" title="Signed-in role">Production Manager</span>
+        <button class="btn" type="button" aria-label="Log out">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+          <span class="logout-label">Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+
+      <!-- ===================== NORMAL STATE ===================== -->
+      <div id="stateNormal" style="display:contents">
+
+        <section class="kpis" aria-label="Key figures">
+          <article class="card kpi accent">
+            <div class="kpi-label">First forecast month: Sep 2024</div>
+            <div class="kpi-value">22.4M<span class="unit">m³</span></div>
+            <div class="kpi-help">80% range 20.9M – 23.9M m³</div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">vs Sep 2023</div>
+            <div class="kpi-value delta-up">
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l7 11H3z" fill="currentColor"/></svg>
+              <span><span class="sr-only">Up </span>3.1<span class="unit">%</span></span>
+            </div>
+            <div class="kpi-help"><span class="delta-pill">Higher</span> than 21.7M m³ last year</div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">Forecast accuracy
+              <span class="info">
+                <button type="button" class="info-btn" aria-label="How is accuracy measured?" aria-describedby="tipAcc">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+                </button>
+                <span class="tip" role="tooltip" id="tipAcc">Measured as MAPE (mean absolute percentage error).</span>
+              </span>
+            </div>
+            <div class="kpi-value">±4.9<span class="unit">%</span></div>
+            <div class="kpi-help">average error on 26 months the model never saw</div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">Recommended production
+              <span class="info">
+                <button type="button" class="info-btn" aria-label="How is this calculated?" aria-describedby="tipProd">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+                </button>
+                <span class="tip right" role="tooltip" id="tipProd"><b>How is this calculated?</b><br>Forecast ÷ (1 − 0.324).<br>Source: İZSU 2019 water balance.</span>
+              </span>
+            </div>
+            <div class="kpi-value">33.1M<span class="unit">m³</span></div>
+            <div class="kpi-help">includes a 32.4% allowance for non-revenue water</div>
+          </article>
+        </section>
+
+        <section class="summary" aria-label="Summary">
+          <span class="summary-icon" aria-hidden="true">
+            <svg width="16" height="18" viewBox="0 0 18 22" fill="none"><path d="M9 1.5C9 1.5 2 9.2 2 13.8A7 7 0 0 0 16 13.8C16 9.2 9 1.5 9 1.5Z" stroke="currentColor" stroke-width="1.8"/></svg>
+          </span>
+          <p>Demand for <b>September 2024</b> is expected to be <b>22.4M m³</b> (likely between 20.9M and 23.9M), about <b>3% higher</b> than September 2023.</p>
+        </section>
+        <p class="insight" aria-live="polite">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
+          <span id="insightText"></span>
+        </p>
+
+        <section class="card" aria-labelledby="chartTitle">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title" id="chartTitle">Actual and forecast demand</h2>
+              <p class="card-sub" id="chartSub">Last 36 months actual · next 6 months forecast · millions of m³</p>
+            </div>
+          </div>
+          <div class="controls" role="group" aria-label="Chart options">
+            <div class="ctl-group">
+              <span class="ctl-label" id="horizonLabel">Show next</span>
+              <div class="segmented" role="radiogroup" aria-labelledby="horizonLabel" id="horizon">
+                <button type="button" role="radio" aria-checked="false" data-h="3" tabindex="-1">3 months</button>
+                <button type="button" role="radio" aria-checked="true" data-h="6">6 months</button>
+                <button type="button" role="radio" aria-checked="false" data-h="12" tabindex="-1">12 months</button>
+              </div>
+            </div>
+            <div class="ctl-group">
+              <button type="button" class="toggle" role="switch" aria-checked="true" id="tBand">
+                <span class="switch" aria-hidden="true"></span>Show 80% range
+              </button>
+              <span class="info">
+                <button type="button" class="info-btn" aria-label="What is the 80% range?" aria-describedby="tipBand">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+                </button>
+                <span class="tip" role="tooltip" id="tipBand">8 out of 10 times, actual demand should fall inside this band</span>
+              </span>
+            </div>
+            <div class="ctl-group">
+              <button type="button" class="toggle" role="switch" aria-checked="false" id="tLy">
+                <span class="switch" aria-hidden="true"></span>Show same months last year
+              </button>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart" role="img" aria-label="Line chart of monthly billed water demand in İzmir: actual values from September 2021 to August 2024 and a forecast with an 80% range. The same numbers are in the Monthly forecast table below."></canvas>
+          </div>
+          <div class="legend" aria-hidden="true">
+            <span><i class="lg-line"></i>Actual</span>
+            <span><i class="lg-dash"></i>Forecast</span>
+            <span id="lgBand"><i class="lg-band"></i>80% range</span>
+            <span id="lgLy" class="off"><i class="lg-dot"></i>Same months last year</span>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="tableTitle">
+          <div class="card-head" style="padding-bottom:6px">
+            <div>
+              <h2 class="card-title" id="tableTitle">Monthly forecast</h2>
+              <p class="card-sub" id="tableSub">Next 6 months · values in m³</p>
+            </div>
+            <button class="btn" type="button" id="exportBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              Export CSV
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">Monthly forecast with 80% range and comparison to the same month last year</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Forecast (m³)</th>
+                  <th scope="col">Low (m³)</th>
+                  <th scope="col">High (m³)</th>
+                  <th scope="col">Same month last year (m³)</th>
+                  <th scope="col">Change (%)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="table-note">Low and High are the 80% range. Change compares the forecast with actual billed demand in the same month one year earlier.</div>
+        </section>
+
+        <footer class="foot">
+          <div class="foot-line">
+            <span>Model: Prophet · trained on Jan 2014 – Aug 2024 (128 months) ·</span>
+            <span class="info">
+              <button type="button" class="info-btn" aria-label="About the model" aria-describedby="tipModel">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+              </button>
+              <span class="tip" role="tooltip" id="tipModel">Prophet learns the long-term trend and the yearly summer/winter pattern from past billed demand. Accuracy was checked on 26 months the model did not see during training.</span>
+            </span>
+          </div>
+        </footer>
+      </div>
+
+      <!-- ===================== LOADING STATE ===================== -->
+      <div id="stateLoading" hidden style="display:contents">
+        <div class="state-banner" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <div>Loading forecast…</div>
+        </div>
+        <section class="kpis" aria-hidden="true">
+          <div class="card sk-kpi"><div class="sk" style="width:55%;height:12px"></div><div class="sk" style="width:70%;height:28px"></div><div class="sk" style="width:85%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:45%;height:12px"></div><div class="sk" style="width:50%;height:28px"></div><div class="sk" style="width:75%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:60%;height:12px"></div><div class="sk" style="width:55%;height:28px"></div><div class="sk" style="width:80%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:65%;height:12px"></div><div class="sk" style="width:70%;height:28px"></div><div class="sk" style="width:90%;height:10px"></div></div>
+        </section>
+        <div class="sk" style="height:58px;border-radius:10px" aria-hidden="true"></div>
+        <div class="card sk-chart" aria-hidden="true">
+          <div class="sk" style="width:30%;height:14px"></div>
+          <div class="sk" style="width:55%;height:30px"></div>
+          <div class="sk" style="flex:1"></div>
+        </div>
+      </div>
+
+      <!-- ===================== ERROR STATE ===================== -->
+      <div id="stateError" hidden style="display:contents">
+        <section class="card error-card" role="alert">
+          <span class="error-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.01"/></svg>
+          </span>
+          <h2>The forecast couldn't be loaded.</h2>
+          <p>Try again in a moment. If it keeps happening, tell your system administrator (reference ERR-1027).</p>
+          <button class="btn btn-primary" type="button" id="retryBtn" style="margin-top:8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+            Retry
+          </button>
+        </section>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+/* ===================== Sample data (millions of m³) ===================== */
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Actual: Sep 2021 – Aug 2024 (36 months)
+const actual = [
+  20.62,18.05,15.92,15.04,                                              // Sep–Dec 2021
+  14.63,14.21,15.34,16.62,18.71,21.18,23.82,24.31,21.12,18.64,16.33,15.42, // 2022
+  15.02,14.68,15.83,17.12,19.41,21.93,24.62,25.14,21.73,19.02,16.71,15.81, // 2023
+  15.38,15.09,16.27,17.58,19.92,22.61,25.38,25.91                       // Jan–Aug 2024
+];
+// Forecast: Sep 2024 – Aug 2025 (12 months)
+const forecast = [22.40,19.58,17.21,16.29,15.81,15.47,16.69,18.08,20.42,23.12,26.02,26.51];
+const halfWidth = forecast.map((v,i)=> v*0.067*(1+0.045*i));
+const low  = forecast.map((v,i)=> v-halfWidth[i]);
+const high = forecast.map((v,i)=> v+halfWidth[i]);
+const lastYear = forecast.map((_,i)=> actual[24+i]); // Sep 2023 onward
+
+function label(offset){ // offset 0 = Sep 2021
+  const m = (8+offset)%12, y = 2021 + Math.floor((8+offset)/12);
+  return MONTHS[m]+" "+y;
+}
+const LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const fmtM = v => v.toFixed(1)+"M";
+const fmtInt = v => Math.round(v*1e6/1000)*1000;
+const fmtNum = v => fmtInt(v).toLocaleString("en-US");
+
+/* ===================== State ===================== */
+let H = 6, showBand = true, showLy = false;
+
+/* ===================== Chart ===================== */
+const css = getComputedStyle(document.documentElement);
+const C = {
+  blue: "#0b5c8f", teal: "#0d7f80", band: "rgba(13,127,128,.15)",
+  grey: "#64748b", grid: "#eef2f6", text: "#475569"
+};
+
+const forecastStartPlugin = {
+  id:"forecastStart",
+  beforeDatasetsDraw(chart){
+    const {ctx, chartArea:a, scales:{x}} = chart;
+    const xs = (x.getPixelForValue(35)+x.getPixelForValue(36))/2;
+    ctx.save();
+    ctx.fillStyle = "rgba(13,127,128,.045)";
+    ctx.fillRect(xs, a.top, a.right-xs, a.bottom-a.top);
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart){
+    const {ctx, chartArea:a, scales:{x}} = chart;
+    const xs = (x.getPixelForValue(35)+x.getPixelForValue(36))/2;
+    ctx.save();
+    ctx.strokeStyle = "#475569"; ctx.lineWidth = 1.2; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(xs, a.top+18); ctx.lineTo(xs, a.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "600 11px Inter, system-ui, sans-serif";
+    const t = "Forecast starts", w = ctx.measureText(t).width + 14;
+    let bx = xs - w/2; bx = Math.min(Math.max(bx, a.left), a.right - w);
+    ctx.fillStyle = "#0f2537";
+    roundRect(ctx, bx, a.top, w, 18, 4); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.textBaseline = "middle";
+    ctx.fillText(t, bx+7, a.top+9.5);
+    ctx.restore();
+  }
+};
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function buildData(){
+  const n = 36 + H;
+  const nulls = k => Array(k).fill(null);
+  return {
+    labels: Array.from({length:n},(_,i)=>label(i)),
+    actual: [...actual, ...nulls(H)],
+    forecast: [...nulls(35), actual[35], ...forecast.slice(0,H)],
+    upper: [...nulls(35), actual[35], ...high.slice(0,H)],
+    lower: [...nulls(35), actual[35], ...low.slice(0,H)],
+    ly: [...nulls(36), ...lastYear.slice(0,H)]
+  };
+}
+
+let chart;
+function initChart(){
+  const d = buildData();
+  chart = new Chart(document.getElementById("chart"), {
+    type:"line",
+    data:{
+      labels:d.labels,
+      datasets:[
+        {label:"Actual", data:d.actual, borderColor:C.blue, backgroundColor:C.blue, borderWidth:2.5, pointRadius:0, pointHoverRadius:5, cubicInterpolationMode:"monotone"},
+        {label:"High", data:d.upper, borderColor:"rgba(13,127,128,.35)", borderWidth:1, pointRadius:0, pointHoverRadius:0, fill:false, cubicInterpolationMode:"monotone", hidden:!showBand},
+        {label:"Low", data:d.lower, borderColor:"rgba(13,127,128,.35)", borderWidth:1, pointRadius:0, pointHoverRadius:0, fill:"-1", backgroundColor:C.band, cubicInterpolationMode:"monotone", hidden:!showBand},
+        {label:"Forecast", data:d.forecast, borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, borderDash:[7,5], pointRadius:ctx=>ctx.dataIndex>=36?3:0, pointBackgroundColor:"#fff", pointBorderWidth:2, pointHoverRadius:6, cubicInterpolationMode:"monotone"},
+        {label:"Same month last year", data:d.ly, borderColor:C.grey, backgroundColor:C.grey, borderWidth:2, borderDash:[2,4], borderCapStyle:"round", pointRadius:2.5, pointHoverRadius:5, cubicInterpolationMode:"monotone", hidden:!showLy}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index", intersect:false},
+      animation:{duration:350},
+      layout:{padding:{top:4}},
+      scales:{
+        y:{min:14, suggestedMax:29, grid:{color:C.grid}, border:{display:false},
+           ticks:{color:C.text, font:{family:"Inter",size:11}, stepSize:3, callback:v=>v===14?"":v+"M"},
+           title:{display:true, text:"Demand (million m³)", color:C.text, font:{family:"Inter",size:11,weight:"500"}}},
+        x:{grid:{display:false}, border:{color:"#cbd5e1"},
+           ticks:{color:C.text, font:{family:"Inter",size:11}, maxRotation:0, autoSkip:true, autoSkipPadding:14}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:"#0f2537", titleFont:{family:"Inter",weight:"600",size:12}, bodyFont:{family:"Inter",size:12},
+          padding:10, cornerRadius:7, boxPadding:4, usePointStyle:true,
+          filter:item=>{
+            if(item.dataset.label==="High"||item.dataset.label==="Low") return false;
+            if(item.dataset.label==="Forecast" && item.dataIndex<36) return false;
+            return item.raw!=null;
+          },
+          callbacks:{
+            title:items=>{
+              const i = items[0].dataIndex;
+              return items[0].label + (i>=36 ? " · Forecast" : " · Actual");
+            },
+            label:item=> `${item.dataset.label}: ${item.raw.toFixed(1)}M m³`,
+            afterBody:items=>{
+              const i = items[0].dataIndex;
+              if(i<36) return "";
+              const k = i-36;
+              return showBand ? `80% range: ${fmtM(low[k])} – ${fmtM(high[k])} m³` : "";
+            }
+          }
+        }
+      }
+    },
+    plugins:[forecastStartPlugin]
+  });
+}
+
+function updateChart(){
+  if (!chart) return;
+  const d = buildData();
+  chart.data.labels = d.labels;
+  const ds = chart.data.datasets;
+  ds[0].data = d.actual; ds[1].data = d.upper; ds[2].data = d.lower; ds[3].data = d.forecast; ds[4].data = d.ly;
+  ds[1].hidden = ds[2].hidden = !showBand;
+  ds[4].hidden = !showLy;
+  chart.options.scales.y.suggestedMax = H===12 ? 30 : 29;
+  chart.update("none");
+  document.getElementById("chartSub").textContent =
+    `Last 36 months actual · next ${H} months forecast · millions of m³`;
+  document.getElementById("lgBand").classList.toggle("off", !showBand);
+  document.getElementById("lgLy").classList.toggle("off", !showLy);
+}
+
+/* ===================== Table ===================== */
+function rows(){
+  return forecast.slice(0,H).map((v,i)=>{
+    const chg = (v-lastYear[i])/lastYear[i]*100;
+    return {month:label(36+i), f:v, lo:low[i], hi:high[i], ly:lastYear[i], chg};
+  });
+}
+function renderInsight(){
+  const el = document.getElementById("insightText");
+  if (H === 12) {
+    const feb = forecast[5], jul = forecast[10];          // Feb 2025, Jul 2025
+    const pct = Math.round((jul - feb) / feb * 100 / 10) * 10;
+    el.innerHTML = `<b>Insight:</b> demand is expected to rise about ${pct}% from February to July 2025 — plan summer production early.`;
+  } else {
+    el.innerHTML = `<b>Insight:</b> demand is expected to fall through winter, reaching its low in February 2025.`;
+  }
+}
+function renderTable(){
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = rows().map(r=>{
+    const up = r.chg>=0;
+    return `<tr>
+      <td class="month">${r.month}</td>
+      <td><b>${fmtNum(r.f)}</b></td>
+      <td class="muted">${fmtNum(r.lo)}</td>
+      <td class="muted">${fmtNum(r.hi)}</td>
+      <td>${fmtNum(r.ly)}</td>
+      <td class="${up?"chg-up":"chg-down"}"><span aria-hidden="true">${up?"▲":"▼"}</span><span class="sr-only">${up?"up":"down"}</span> ${Math.abs(r.chg).toFixed(1)}%</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("tableSub").textContent = `Next ${H} months · values in m³`;
+}
+
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  const head = ["Month","Forecast (m3)","Low (m3)","High (m3)","Same month last year (m3)","Change (%)"];
+  const lines = [head.join(",")].concat(rows().map(r=>[
+    r.month, fmtInt(r.f), fmtInt(r.lo), fmtInt(r.hi), fmtInt(r.ly), r.chg.toFixed(1)
+  ].join(",")));
+  const blob = new Blob([lines.join("\n")],{type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `izmir-demand-forecast-${H}m.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+});
+
+/* ===================== Controls ===================== */
+const hBtns = [...document.querySelectorAll("#horizon button")];
+function setHorizon(btn){
+  hBtns.forEach(b=>{const on=b===btn; b.setAttribute("aria-checked",on); b.tabIndex=on?0:-1;});
+  H = +btn.dataset.h; updateChart(); renderTable(); renderInsight();
+}
+hBtns.forEach((b,i)=>{
+  b.addEventListener("click",()=>setHorizon(b));
+  b.addEventListener("keydown",e=>{
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+      e.preventDefault();
+      const n = hBtns[(i + (e.key==="ArrowRight"?1:-1) + hBtns.length)%hBtns.length];
+      n.focus(); setHorizon(n);
+    }
+  });
+});
+function wireToggle(id, fn){
+  const el = document.getElementById(id);
+  el.addEventListener("click",()=>{
+    const on = el.getAttribute("aria-checked")!=="true";
+    el.setAttribute("aria-checked",on); fn(on); updateChart();
+  });
+}
+wireToggle("tBand", v=>showBand=v);
+wireToggle("tLy", v=>showLy=v);
+
+// Info tooltips: tap support on touch screens, Esc to close
+document.querySelectorAll(".info-btn").forEach(b=>{
+  b.addEventListener("click",e=>{e.stopPropagation(); b.parentElement.classList.toggle("open");});
+  b.addEventListener("keydown",e=>{if(e.key==="Escape") {b.parentElement.classList.remove("open"); b.blur();}});
+});
+document.addEventListener("click",()=>document.querySelectorAll(".info.open").forEach(i=>i.classList.remove("open")));
+
+/* ===================== Mobile sidebar ===================== */
+const sidebar = document.getElementById("sidebar"), scrim = document.getElementById("scrim"), menuBtn = document.getElementById("menuBtn");
+function setNav(open){
+  sidebar.classList.toggle("open",open); scrim.hidden = !open; menuBtn.setAttribute("aria-expanded",open);
+}
+menuBtn.addEventListener("click",()=>{setNav(true); document.getElementById("closeBtn").focus();});
+document.getElementById("closeBtn").addEventListener("click",()=>{setNav(false); menuBtn.focus();});
+scrim.addEventListener("click",()=>setNav(false));
+document.addEventListener("keydown",e=>{if(e.key==="Escape") setNav(false);});
+
+/* ===================== Demo states ===================== */
+const states = {normal:"stateNormal", loading:"stateLoading", error:"stateError"};
+let loadTimer;
+function setState(s){
+  clearTimeout(loadTimer);
+  Object.entries(states).forEach(([k,id])=>document.getElementById(id).hidden = k!==s);
+  document.querySelectorAll(".demo-bar button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.state===s));
+  if(s==="normal") requestAnimationFrame(()=>chart && chart.resize());
+}
+document.querySelectorAll(".demo-bar button").forEach(b=>b.addEventListener("click",()=>setState(b.dataset.state)));
+document.getElementById("retryBtn").addEventListener("click",()=>{
+  setState("loading");
+  loadTimer = setTimeout(()=>setState("normal"), 900);
+});
+
+/* ===================== Init ===================== */
+renderTable();
+renderInsight();
+if (window.Chart) initChart();
+else document.querySelector(".chart-wrap").innerHTML =
+  '<p style="margin:0;padding:60px 0;text-align:center;color:var(--text-3)">Chart library couldn\'t load (offline?). The table below has the same numbers.</p>';
+</script>
+</body>
+</html>

@@ -101,7 +101,7 @@ validate it.
 - Only 128 monthly records are available, limiting how much pattern Prophet can learn.
 - Monthly billing cycles don't align perfectly with calendar months, adding timing noise.
 - 5 outlier months were interpolated rather than using the true billed values.
-- A forecast request takes about 4 seconds (the saved model is loaded, not retrained).
+- The website shows the latest published forecast (`ml/publish_forecast.py`) and does not retrain or regenerate a forecast on request.
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
 - The frontend's automated test suite (`App.test.js`) currently fails (Jest/react-router-dom module resolution error).
 - The system runs locally only — no hosting/deployment has been set up.
@@ -146,14 +146,15 @@ Run these in order:
 
 1. `psql`/pgAdmin: `database/schema/000_existing_schema.sql` — creates the baseline tables (`users`, `izsu_consumption`, `forecasts`, `forecast_results`) if they don't already exist.
 2. `psql`/pgAdmin: `database/schema/001_foundation.sql` — adds RBAC, consumption detail, tariffs, water balance, settings, production planning and the audit log.
-3. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
-4. `python database/load_izsu.py` — 128 monthly totals.
-5. `python database/load_detail.py` — 86,749 detail rows.
-6. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
-7. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
-8. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
-9. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
-10. `python database/seed_users.py` — creates the two test accounts (reads `SEED_MANAGER_PASSWORD`/`SEED_ADMIN_PASSWORD` from `.env`).
+3. `psql`/pgAdmin: `database/schema/002_published_forecast.sql` — adds the columns `forecasts` needs to store a published forecast.
+4. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
+5. `python database/load_izsu.py` — 128 monthly totals.
+6. `python database/load_detail.py` — 86,749 detail rows.
+7. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
+8. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
+9. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
+10. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
+11. `python database/seed_users.py` — creates the two test accounts (reads `SEED_MANAGER_PASSWORD`/`SEED_ADMIN_PASSWORD` from `.env`).
 
 This creates two test accounts:
 | Email | Role |
@@ -163,13 +164,15 @@ This creates two test accounts:
 
 `database/propose_tariff_map.py` is not part of this sequence — it's only
 needed if you want to regenerate `tariff_type_map_proposal.csv` (the input
-to step 8) from scratch, e.g. after the detail data changes.
+to step 9) from scratch, e.g. after the detail data changes.
 
 ### 4. Train the forecasting model
-`ml/forecast_api.py` loads a saved model rather than training one on each
-request, so train and save it first:
+Train and save the model, then publish the forecast the website reads —
+the website shows this published forecast rather than training or
+forecasting on request:
 ```bash
 python ml/train_model.py
+python ml/publish_forecast.py  # publishes the 12-month forecast the website shows
 ```
 
 ### 5. Start the application
@@ -184,6 +187,13 @@ In a separate terminal, start the frontend (runs on http://localhost:3000):
 cd frontend
 npm start
 ```
+In development the frontend talks to the API through `frontend/package.json`'s
+`"proxy": "http://localhost:5000"` (CRA dev-server forwards `/api/...`
+requests there), so no extra configuration is needed locally. For a
+production build pointed at a backend on a different host, set
+`REACT_APP_API_URL` (e.g. `REACT_APP_API_URL=https://api.example.com`)
+before running `npm run build` — it's read once at build time via
+`frontend/src/api.js`.
 
 ## Deployment Requirements (for Sprint III)
 Checked against the current code:
@@ -194,4 +204,4 @@ Checked against the current code:
 - **All `.env` variables** set on the host (see `.env.example`): `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `JWT_SECRET`, `SEED_MANAGER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `RUNS_DIR`, `MODEL_PATH`.
 - **Model storage:** `MODEL_PATH` is now configurable via `.env` (read by `ml/train_model.py` and `ml/forecast_api.py`), so this is no longer a hardcoded blocker — but it still defaults to a Windows path, `G:\My Drive\water-demand-forecasting\models\prophet_model.pkl`, so a non-Windows host must set `MODEL_PATH` explicitly to somewhere it can actually write. `database/load_izsu.py` similarly reads its source CSV from a hardcoded local path.
 - **Frontend build hosting** for the React app (e.g. a static host after `npm run build`), separate from the Node backend.
-- **Hardcoded `http://localhost:5000` API URLs in the frontend** — present in `Login.js`, `Dashboard.js`, and `DataOverview.js` — must become a configurable value (e.g. a build-time environment variable) before the frontend can reach a backend that isn't running on the same machine.
+- **`REACT_APP_API_URL`** set at build time (before `npm run build`) to the deployed backend's origin — the frontend no longer hardcodes `http://localhost:5000` (see `frontend/src/api.js`); in local dev it instead relies on the `proxy` field in `frontend/package.json`, which isn't used in a production build.
