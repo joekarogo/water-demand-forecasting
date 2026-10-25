@@ -28,6 +28,11 @@ MONTHLY_PATH = os.getenv("IZSU_MONTHLY_PATH", DEFAULT_MONTHLY_PATH)
 
 OUTPUT_COLUMNS = ['date', 'consumption_m3', 'consumption_cleaned_m3', 'is_outlier', 'subscribers']
 
+# The first 102 months (Jan 2014 - Jun 2022), matching the model's
+# chronological 80/20 train/test split. Outlier detection must be fitted on
+# training data only, so it never uses test-period information.
+TRAIN_MONTHS = 102
+
 # ---------------------------------------------------------------------------
 # 1. Read the raw file
 # ---------------------------------------------------------------------------
@@ -82,18 +87,30 @@ print(
 monthly = monthly[monthly['date'] < cutoff].reset_index(drop=True)
 
 # ---------------------------------------------------------------------------
-# 6. Flag and interpolate outliers
+# 6. Flag and interpolate outliers — fitted on the TRAINING period only
+#    (TRAIN_MONTHS rows). Test-period rows are never flagged or modified:
+#    their consumption_cleaned_m3 is just consumption_m3, unchanged.
 # ---------------------------------------------------------------------------
-rolling_median = monthly['consumption_m3'].rolling(window=13, center=True, min_periods=5).median()
-is_outlier = (monthly['consumption_m3'] > 1.4 * rolling_median) | (monthly['consumption_m3'] < 0.6 * rolling_median)
+train_consumption = monthly['consumption_m3'].iloc[:TRAIN_MONTHS]
+rolling_median = train_consumption.rolling(window=13, center=True, min_periods=5).median()
+is_outlier_train = (train_consumption > 1.4 * rolling_median) | (train_consumption < 0.6 * rolling_median)
+
+is_outlier = pd.Series(False, index=monthly.index)
+is_outlier.iloc[:TRAIN_MONTHS] = is_outlier_train.values
 monthly['is_outlier'] = is_outlier.map({True: 'yes', False: 'no'})
 
+# Interpolate flagged months using training-period values only — never an
+# anchor from the test period.
+cleaned_train = train_consumption.astype(float).copy()
+cleaned_train[is_outlier_train] = None
+cleaned_train = cleaned_train.interpolate(method='linear')
+
 cleaned = monthly['consumption_m3'].astype(float).copy()
-cleaned[is_outlier] = None
-cleaned = cleaned.interpolate(method='linear')
+cleaned.iloc[:TRAIN_MONTHS] = cleaned_train.values
 monthly['consumption_cleaned_m3'] = cleaned.round().astype(int)
 
 outlier_months = monthly.loc[is_outlier, 'date'].dt.strftime('%Y-%m').tolist()
+print("Outlier detection fitted on training period only (2014-01 to 2022-06).")
 print(f"Outlier months ({len(outlier_months)}): {', '.join(outlier_months)}")
 
 # ---------------------------------------------------------------------------
