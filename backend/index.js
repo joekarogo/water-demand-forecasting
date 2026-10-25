@@ -4,7 +4,6 @@ const path = require('path');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { spawnSync } = require('child_process');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
@@ -44,90 +43,89 @@ app.get('/', (req, res) => {
   res.json({ message: 'Water Demand Forecasting API is running' });
 });
 
-const VALID_HORIZONS = [3, 6, 12];
-
-app.get('/api/forecast', authenticateToken, async (req, res) => {
-  const horizonParam = req.query.horizon;
-  const horizon = horizonParam === undefined ? 6 : parseInt(horizonParam, 10);
-
-  if (!VALID_HORIZONS.includes(horizon)) {
-    return res.status(400).json({
-      error: `Invalid horizon "${horizonParam}". Must be 3, 6, or 12.`,
-    });
+// Short reference for an error response, e.g. "ERR-4F7K2A" — logged
+// server-side next to the full error, shown to the client instead of raw
+// error details.
+function generateErrorReference() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
   }
+  return `ERR-${code}`;
+}
 
-  const projectRoot = path.join(__dirname, '..');
-
-  // forecast_api.py now loads the model trained by ml/train_model.py
-  // instead of retraining on every request, and prints a single JSON
-  // object to stdout (not text for regex parsing).
-  const result = spawnSync('python', ['ml/forecast_api.py', String(horizon)], {
-    cwd: projectRoot,
-    encoding: 'utf-8',
-  });
-
-  if (result.error) {
-    return res.status(500).json({
-      error: 'Failed to run forecast script',
-      details: result.error.message,
-    });
-  }
-
-  if (result.status !== 0) {
-    return res.status(500).json({
-      error: 'Forecast script exited with an error',
-      details: result.stderr,
-    });
-  }
-
-  let data;
+app.get('/api/forecast/published', authenticateToken, async (req, res) => {
   try {
-    data = JSON.parse(result.stdout);
-  } catch (err) {
-    return res.status(500).json({
-      error: 'Could not parse forecast output',
-      raw_output: result.stdout,
-    });
-  }
-
-  // Save this forecast: one row in `forecasts`, one row per predicted
-  // month in `forecast_results`. A failure to save never fails the
-  // request — the manager still gets their forecast either way.
-  try {
-    const insertForecast = await pool.query(
-      `INSERT INTO forecasts (user_id, generated_at, horizon, model_name, mae, rmse, mape)
-       VALUES ($1, NOW(), $2, $3, $4, $5, $6)
-       RETURNING forecast_id`,
-      [req.user.user_id, horizon, data.model_name, data.metrics.mae, data.metrics.rmse, data.metrics.mape]
-    );
-    const forecastId = insertForecast.rows[0].forecast_id;
-
-    for (const row of data.forecast) {
-      await pool.query(
-        `INSERT INTO forecast_results (forecast_id, date, predicted_value, yhat_lower, yhat_upper)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [forecastId, row.date, row.yhat, row.yhat_lower, row.yhat_upper]
-      );
-    }
-  } catch (err) {
-    console.error('Failed to save forecast:', err);
-  }
-
-  res.json(data);
-});
-
-app.get('/api/forecasts/recent', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT forecast_id, generated_at, horizon, model_name, mae, rmse, mape
+    const forecastResult = await pool.query(
+      `SELECT forecast_id, generated_at, model_name, mae, rmse, mape,
+              TO_CHAR(data_up_to, 'YYYY-MM-DD') AS data_up_to,
+              TO_CHAR(train_start, 'YYYY-MM-DD') AS train_start,
+              TO_CHAR(train_end, 'YYYY-MM-DD') AS train_end,
+              interval_width::double precision AS interval_width
        FROM forecasts
+       WHERE kind = 'published'
        ORDER BY generated_at DESC
-       LIMIT 5`
+       LIMIT 1`
     );
-    res.json({ data: result.rows });
+
+    if (forecastResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No forecast has been published yet.' });
+    }
+
+    const publishedForecast = forecastResult.rows[0];
+
+    const resultsResult = await pool.query(
+      `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, predicted_value, yhat_lower, yhat_upper
+       FROM forecast_results
+       WHERE forecast_id = $1
+       ORDER BY date`,
+      [publishedForecast.forecast_id]
+    );
+
+    const historyResult = await pool.query(
+      `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, consumption_cleaned_m3::double precision AS actual
+       FROM izsu_consumption
+       ORDER BY date`
+    );
+
+    const lossRateResult = await pool.query(
+      `SELECT value, source FROM settings WHERE key = 'loss_rate'`
+    );
+    const lossRateRow = lossRateResult.rows[0];
+
+    res.json({
+      published_at: publishedForecast.generated_at,
+      model_name: publishedForecast.model_name,
+      train_start: publishedForecast.train_start,
+      train_end: publishedForecast.train_end,
+      data_up_to: publishedForecast.data_up_to,
+      interval_width: publishedForecast.interval_width,
+      metrics: {
+        mae: publishedForecast.mae,
+        rmse: publishedForecast.rmse,
+        mape: publishedForecast.mape,
+      },
+      loss_rate: lossRateRow ? Number(lossRateRow.value) : null,
+      loss_rate_source: lossRateRow ? lossRateRow.source : null,
+      forecast: resultsResult.rows.map((row) => ({
+        date: row.date,
+        yhat: row.predicted_value,
+        yhat_lower: row.yhat_lower,
+        yhat_upper: row.yhat_upper,
+      })),
+      history: historyResult.rows.map((row) => ({
+        date: row.date,
+        actual: row.actual,
+      })),
+    });
   } catch (err) {
-    console.error('Recent forecasts error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    const reference = generateErrorReference();
+    console.error(`[${reference}] /api/forecast/published failed:`, err);
+    res.status(500).json({
+      error: 'Unable to load the published forecast right now.',
+      reference,
+    });
   }
 });
 
@@ -180,7 +178,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { user_id: user.user_id, email: user.email, role: user.role },
+      { user_id: user.user_id, name: user.name, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );

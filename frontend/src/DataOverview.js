@@ -9,8 +9,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import Sidebar from './Sidebar';
-import Header from './Header';
+import { API_BASE } from './api';
+import AppLayout from './layout/AppLayout';
 import { getUserRole } from './utils/decodeToken';
 import './App.css';
 
@@ -43,7 +43,7 @@ function DataOverview() {
       setError('');
 
       try {
-        const response = await fetch('http://localhost:5000/api/consumption-history', {
+        const response = await fetch(`${API_BASE}/api/consumption-history`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -85,11 +85,7 @@ function DataOverview() {
       : null;
 
   return (
-    <div className="app-layout">
-      <Sidebar />
-      <main className="dashboard-container">
-        <Header title="Historical Analysis" />
-
+    <AppLayout title="Historical Analysis" subtitle="Monthly billed water consumption, İzmir">
         {loading && (
           <div className="spinner-container">
             <div className="spinner" />
@@ -145,8 +141,7 @@ function DataOverview() {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }
 

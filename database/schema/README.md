@@ -16,16 +16,22 @@ there is no automated migration runner in this project yet.
    `role_permissions`, and new columns on `users`), and adds the tables for
    the planned modules (consumption detail, tariffs, water balance,
    settings, production planning, audit log). Runs as a single transaction.
+3. `002_published_forecast.sql` — adds the columns `forecasts` needs to
+   distinguish a published forecast (`kind`, `data_up_to`, `train_start`,
+   `train_end`, `interval_width`) from the old on-demand ones, plus an
+   index on `(kind, generated_at)`. Existing rows default to `kind =
+   'on_demand'`, preserving them as history. Runs as a single transaction.
 
-To roll back **in development only**, run `001_foundation_down.sql`. It is
-not a safe production rollback — see the comment at the top of that file
-for what it does and does not undo.
+To roll back **in development only**, run `001_foundation_down.sql` and/or
+`002_published_forecast_down.sql`. Neither is a safe production rollback —
+see the comment at the top of each file for what it does and does not undo.
 
 ## Running a file
 
 ```bash
 psql -U <your_db_user> -d <your_db_name> -f database/schema/000_existing_schema.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/001_foundation.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/002_published_forecast.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and
