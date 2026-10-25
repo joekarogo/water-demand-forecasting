@@ -21,9 +21,15 @@ https://acikveri.bizizmir.com/en/dataset/yillik-ilce-ve-mahalle-bazli-su-tuketim
 wastewater excluded) were aggregated into 128 monthly city-wide totals
 spanning January 2014 to August 2024. Five outlier months were interpolated
 using a centered 13-month rolling median (values beyond 1.4x / below 0.6x the
-median were treated as outliers): the September 2019 billing spike, the
-April-June 2020 COVID-19 meter-reading suspension and subsequent catch-up,
-and August 2020.
+median were treated as outliers), with the rule fitted on the training
+period only (Jan 2014 - Jun 2022) so no test-period months were used or
+flagged: the September 2019 billing spike, the April-June 2020 COVID-19
+meter-reading suspension and subsequent catch-up, and August 2020.
+
+**Data provenance:**
+- Raw consumption file: `izsu-yillik-ilce-mahalle-su-tuketimi.csv`, downloaded 18 October 2026, 1,143,347 rows, Jan 2014 - Sep 2024 (Sep 2024 incomplete, excluded). SHA-256: `c8199e62993d99cb811af24833864d06b7be83985b48285d558cd7b8db917b4d`
+- Tariff file: `su-atiksu-tarifeleri.csv`, downloaded 25 October 2026. SHA-256: `a605ba7cc0b2315d70c1a8c201f05ab479ef13e68c6ee80e94c54cee11d80811`
+- Water-loss report (2019, the only year published): `su-kayiplari-2019.csv`, downloaded 25 October 2026. SHA-256: `57f6b34bf9bdc5c3b91fce8cffb6211665fa2f5969c4374eaaf279467da1981d`
 
 An earlier version of this project used a Kaggle dataset
 ("Izmir dataset.csv"). That dataset was replaced because its consumption
