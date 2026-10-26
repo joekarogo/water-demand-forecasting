@@ -35,6 +35,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from eval_common import (
     PROPHET_DEFAULT_PARAMS,
     PROPHET_TUNED_PARAMS,
+    conf_int_bounds,
     ensure_results_dir,
     fit_prophet_and_predict,
     last_year_growth_forecast,
@@ -66,9 +67,7 @@ def sarima_forecast(train_y, order, seasonal_order, periods):
     fit = model.fit(disp=False)
     forecast = fit.get_forecast(steps=periods)
     yhat = np.asarray(forecast.predicted_mean)
-    ci = forecast.conf_int(alpha=1 - INTERVAL_WIDTH)
-    lower = np.asarray(ci.iloc[:, 0])
-    upper = np.asarray(ci.iloc[:, 1])
+    lower, upper = conf_int_bounds(forecast, alpha=1 - INTERVAL_WIDTH)
     return yhat, lower, upper
 
 

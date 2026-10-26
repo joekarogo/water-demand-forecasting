@@ -115,6 +115,17 @@ def last_year_growth_forecast(train_y, horizon):
     ])
 
 
+def conf_int_bounds(forecast_result, alpha):
+    """Returns (lower, upper) as numpy arrays from a statsmodels
+    PredictionResultsWrapper's conf_int(alpha=...). conf_int() comes back
+    as a pandas DataFrame when the SARIMAX model was fit on a
+    pandas-indexed series, but as a plain ndarray when fit on a raw numpy
+    array (as these scripts do) — np.asarray() + positional indexing
+    handles both without assuming either shape."""
+    ci = np.asarray(forecast_result.conf_int(alpha=alpha))
+    return ci[:, 0], ci[:, 1]
+
+
 def fit_prophet_and_predict(train_df, params, periods, freq='MS'):
     """Fits Prophet on train_df (columns ds, y) with the given
     hyperparameters (changepoint_prior_scale / seasonality_prior_scale /

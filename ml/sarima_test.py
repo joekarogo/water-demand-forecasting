@@ -23,6 +23,7 @@ from eval_common import (
     PROPHET_DEFAULT_PARAMS,
     TEST_MONTHS,
     TRAIN_MONTHS,
+    conf_int_bounds,
     ensure_results_dir,
     evaluate,
     fit_prophet_and_predict,
@@ -69,9 +70,7 @@ def main():
     sarima_fit = sarima_model.fit(disp=False)
     sarima_forecast = sarima_fit.get_forecast(steps=TEST_MONTHS)
     sarima_yhat = np.asarray(sarima_forecast.predicted_mean)
-    sarima_ci = sarima_forecast.conf_int(alpha=1 - INTERVAL_WIDTH)
-    sarima_lower = np.asarray(sarima_ci.iloc[:, 0])
-    sarima_upper = np.asarray(sarima_ci.iloc[:, 1])
+    sarima_lower, sarima_upper = conf_int_bounds(sarima_forecast, alpha=1 - INTERVAL_WIDTH)
     sarima_metrics = evaluate(sarima_yhat, actual)
 
     sarima_label = f"SARIMA{order}x{seasonal_order}"
