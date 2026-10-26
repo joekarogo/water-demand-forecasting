@@ -1,19 +1,23 @@
 import { useNavigate } from 'react-router-dom';
-import { decodeToken } from '../utils/decodeToken';
+import { apiFetch } from '../apiClient';
+import { useSession } from '../session';
 import { getInitials } from '../utils/format';
-import { ROLE_LABELS } from './menuConfig';
 import { LogoutIcon } from './icons';
 
 function TopBar({ title, subtitle, extraLines, onMenuClick, menuBtnRef, navOpen }) {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const decoded = decodeToken(token);
-  const name = decoded?.name || '';
-  const role = decoded?.role;
-  const roleLabel = ROLE_LABELS[role] || role || '';
+  const { session, clearSession } = useSession();
+  const name = session?.name || '';
+  const roleLabel = session?.role_label || '';
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      // ignore — we're signing out locally regardless
+    }
     localStorage.removeItem('token');
+    clearSession();
     navigate('/login', { replace: true });
   };
 
