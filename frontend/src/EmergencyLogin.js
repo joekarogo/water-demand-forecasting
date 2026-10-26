@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
 import { getFirstPermittedPath } from './layout/menuConfig';
+import { AlertCircleIcon, ErrorTriangleIcon } from './layout/icons';
+import AuthLayout from './AuthLayout';
 import './App.css';
 
 // Not linked from any nav — reached only by typing /emergency-login. Lets an
@@ -12,6 +14,7 @@ function EmergencyLogin() {
   const { refreshSession } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -50,37 +53,62 @@ function EmergencyLogin() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1 className="login-title">Emergency access</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="login-field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="login-error">{error}</p>}
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+    <AuthLayout title="Emergency access">
+      <div className="banner-amber">
+        <ErrorTriangleIcon />
+        <span>For system outages only. Every use is recorded and reviewed.</span>
       </div>
-    </div>
+
+      <div className="msg-slot" role="alert">
+        {error && (
+          <div className="msg red">
+            <AlertCircleIcon />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+
+      <form className="form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label htmlFor="emEmail">Email</label>
+          <input
+            className="input"
+            type="email"
+            id="emEmail"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="emPass">Password</label>
+          <input
+            className="input"
+            type={showPassword ? 'text' : 'password'}
+            id="emPass"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
+          Show password
+        </label>
+        <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+          {loading ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              <span>Signing in…</span>
+            </>
+          ) : (
+            'Sign in'
+          )}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
 

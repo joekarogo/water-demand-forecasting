@@ -131,3 +131,32 @@ export function ErrorTriangleIcon() {
     </svg>
   );
 }
+
+// ---- Sign-in / Emergency access pages (docs/design/sign_in_mockup.html) ----
+
+export function ClockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+export function AlertCircleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M12 7.5v5.5M12 16.5v.01" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M8 12.5l2.7 2.7L16 9.8" />
+    </svg>
+  );
+}

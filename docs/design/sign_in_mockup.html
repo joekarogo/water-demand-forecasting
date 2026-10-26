@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Water Demand Forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f1f5f9;
+    --surface:#ffffff;
+    --border:#e2e8f0;
+    --border-strong:#cbd5e1;
+    --text:#0f2537;
+    --text-2:#475569;
+    --text-3:#64748b;
+    --navy:#0b3a5c;
+    --navy-2:#0f4c75;
+    --blue:#0b5c8f;
+    --teal:#0d7f80;
+    --teal-soft:#e6f4f4;
+    --teal-band:rgba(13,127,128,.15);
+    --up:#0f7a4a;
+    --up-soft:#e7f5ee;
+    --down:#b42318;
+    --danger:#b42318;
+    --danger-soft:#fdecea;
+    --focus:#2563eb;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(15,37,55,.05),0 2px 8px rgba(15,37,55,.04);
+    --sidebar:240px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  /* ---------- Demo toolbar ---------- */
+  .demo-bar{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;
+    height:34px;padding:0 16px;background:#1e293b;color:#e2e8f0;font-size:12px;
+  }
+  .demo-bar strong{font-weight:600;letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:#94a3b8}
+  .demo-bar .seg{display:inline-flex;background:#0f172a;border-radius:6px;padding:2px}
+  .demo-bar button{
+    background:transparent;border:0;color:#cbd5e1;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;
+  }
+  .demo-bar button[aria-pressed="true"]{background:#334155;color:#fff}
+  .demo-bar .note{margin-left:auto;color:#94a3b8}
+  @media (max-width:600px){.demo-bar .note{display:none}}
+
+  /* ---------- Shell ---------- */
+  .shell{display:flex;min-height:calc(100vh - 34px)}
+  .sidebar{
+    width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#dbeafe;
+    position:fixed;left:0;top:34px;bottom:0;height:calc(100vh - 34px);overflow-y:auto;z-index:30;display:flex;flex-direction:column;
+    padding:20px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px;color:#fff;font-weight:600;font-size:15px;line-height:1.25}
+  .brand-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:0 0 auto}
+  .nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;
+    color:#c7d7e6;text-decoration:none;font-weight:500;
+  }
+  .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav a[aria-current="page"]{background:rgba(94,201,201,.16);color:#fff;box-shadow:inset 3px 0 0 #5ec9c9}
+  .nav svg{flex:0 0 auto;opacity:.9}
+  .sidebar-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#9fb6cb}
+  .sidebar-foot .ver{color:#dbe7f2;font-weight:500}
+  .sidebar-foot .src{font-size:11px;color:#8aa3b9;margin-top:2px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;margin-left:var(--sidebar)}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:18px 32px;background:var(--surface);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
+  .topbar .sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .published{margin:6px 0 0;font-size:12px;color:var(--text-2);line-height:1.45}
+  .published .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--up);margin-right:6px;vertical-align:1px}
+  .published b{font-weight:600;color:var(--text)}
+  .published.data-line{margin-top:2px}
+  .published.data-line .dot{background:#94a3b8}
+  .user{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:600;font-size:13px}
+  .user-name{font-weight:600}
+  .role{display:inline-block;padding:2px 9px;border-radius:999px;background:#e8f0f8;color:var(--navy-2);font-size:12px;font-weight:600;border:1px solid #d3e2f0}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;border:1px solid var(--border-strong);
+    background:var(--surface);cursor:pointer;font-weight:500;font-size:13px;color:var(--text);
+  }
+  .btn:hover{background:#f8fafc;border-color:#94a3b8}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--navy-2);border-color:var(--navy-2)}
+  .close-btn{display:none;margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#fff;cursor:pointer;place-items:center;font-size:16px;line-height:1}
+  .close-btn:hover{background:rgba(255,255,255,.08)}
+  .menu-btn{display:none;border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;width:36px;height:36px;cursor:pointer;place-items:center;font-size:18px;line-height:1;flex:0 0 auto}
+
+  .content{padding:24px 32px 32px;display:flex;flex-direction:column;gap:20px;max-width:1360px;width:100%}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .kpi{padding:18px 20px}
+  .kpi-label{font-size:13px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+  .kpi-value{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:6px 0 4px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .kpi-value .unit{font-size:16px;font-weight:600;color:var(--text-2);margin-left:3px}
+  .kpi-help{font-size:12px;color:var(--text-3)}
+  .kpi .info-btn{width:18px;height:18px}
+  .tip.right{left:auto;right:-8px;transform:none}
+  .tip.right::after{left:auto;right:12px;transform:none}
+  .delta-up{color:var(--up);display:inline-flex;align-items:center;gap:6px}
+  .delta-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--up-soft);color:var(--up)}
+  .kpi.accent{border-top:3px solid var(--teal)}
+
+  /* ---------- Summary ---------- */
+  .summary{
+    display:flex;gap:14px;align-items:flex-start;padding:16px 20px;border-radius:var(--radius);
+    background:linear-gradient(90deg,#e6f4f4,#eef6fb);border:1px solid #c8e6e6;
+  }
+  .summary p{margin:0;font-size:15px;line-height:1.55;color:#0b3340}
+  .summary b{font-weight:600}
+  .summary-icon{flex:0 0 auto;width:32px;height:32px;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--teal);border:1px solid #c8e6e6}
+
+  .insight{margin:-8px 0 0;display:flex;align-items:flex-start;gap:8px;padding:9px 14px;border-radius:8px;background:#fff8e6;border:1px solid #f3e1b3;color:#5c4510;font-size:13px}
+  .insight svg{flex:0 0 auto;margin-top:2px;color:#b7791f}
+
+  /* ---------- Chart card ---------- */
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px 0;flex-wrap:wrap}
+  .card-title{margin:0;font-size:16px;font-weight:600}
+  .card-sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .controls{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .ctl-label{font-size:12px;font-weight:600;color:var(--text-2);margin-right:8px}
+  .segmented{display:inline-flex;background:#eef2f6;border:1px solid var(--border);border-radius:8px;padding:3px}
+  .segmented button{
+    border:0;background:transparent;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);white-space:nowrap;
+  }
+  .segmented button[aria-checked="true"]{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(15,37,55,.12);font-weight:600}
+  .toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text);background:none;border:0;padding:2px}
+  .switch{width:36px;height:20px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .15s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+  .toggle[aria-checked="true"] .switch{background:var(--teal)}
+  .toggle[aria-checked="true"] .switch::after{transform:translateX(16px)}
+  .toggle .state{font-size:11px;color:var(--text-3);font-weight:600;min-width:20px}
+  .ctl-group{display:inline-flex;align-items:center;gap:4px}
+
+  .info{position:relative;display:inline-flex}
+  .info-btn{
+    width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:var(--text-3);cursor:help;display:grid;place-items:center;padding:0;
+  }
+  .info-btn:hover{color:var(--blue)}
+  .tip{
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;
+    background:#0f2537;color:#f1f5f9;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:7px;
+    box-shadow:0 6px 18px rgba(15,37,55,.2);opacity:0;visibility:hidden;transition:opacity .12s;z-index:20;font-weight:400;
+  }
+  .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#0f2537}
+  .info:hover .tip,.info-btn:focus-visible + .tip,.info.open .tip{opacity:1;visibility:visible}
+
+  .chart-wrap{position:relative;height:380px;padding:16px 20px 8px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;padding:0 20px 18px;font-size:12px;color:var(--text-2)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .lg-line{width:22px;height:0;border-top:2.5px solid var(--blue)}
+  .lg-dash{width:22px;height:0;border-top:2.5px dashed var(--teal)}
+  .lg-band{width:18px;height:11px;background:var(--teal-band);border-radius:2px;border:1px solid rgba(13,127,128,.3)}
+  .lg-dot{width:22px;height:0;border-top:2.5px dotted #64748b}
+  .legend .off{opacity:.4}
+
+  /* ---------- Table ---------- */
+  .table-wrap{overflow-x:auto;padding:8px 0 4px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  caption{text-align:left}
+  th,td{padding:11px 20px;text-align:right;white-space:nowrap;border-bottom:1px solid #eef2f6}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:#f8fbfd}
+  tbody tr:first-child td{background:#f3fafa}
+  tbody tr:first-child td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
+  td.month{font-weight:600}
+  td.muted{color:var(--text-3)}
+  .chg-up{color:var(--up);font-weight:600}
+  .chg-down{color:var(--down);font-weight:600}
+  .table-note{padding:10px 20px 16px;font-size:12px;color:var(--text-3)}
+
+  /* ---------- Footer ---------- */
+  .foot{display:flex;flex-direction:column;gap:10px;color:var(--text-3);font-size:13px}
+  .foot-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .foot-line .tip{width:270px}
+
+  /* ---------- Loading / error ---------- */
+  .state-banner{
+    display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:var(--radius);
+    background:#eef6fb;border:1px solid #cfe3f1;color:var(--navy);font-weight:500;
+  }
+  .spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid #bcd6ea;border-top-color:var(--blue);animation:spin .8s linear infinite;flex:0 0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sk{background:linear-gradient(90deg,#e8eef4 25%,#f3f6f9 50%,#e8eef4 75%);background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px}
+  @keyframes shimmer{to{background-position:-200% 0}}
+  .sk-kpi{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .sk-chart{height:420px;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .error-card{padding:40px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .error-icon{width:48px;height:48px;border-radius:50%;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center}
+  .error-card h2{margin:6px 0 0;font-size:17px}
+  .error-card p{margin:0;color:var(--text-2);max-width:440px}
+  .error-card .meta{font-size:12px;color:var(--text-3)}
+  [hidden]{display:none !important}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:1100px){
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:900px){
+    .main{margin-left:0}
+    .sidebar{position:fixed;left:0;top:34px;z-index:40;transform:translateX(-100%);transition:transform .2s}
+    .sidebar.open{transform:none;box-shadow:4px 0 24px rgba(0,0,0,.2)}
+    .scrim{position:fixed;inset:34px 0 0 0;background:rgba(15,37,55,.35);z-index:35}
+    .menu-btn,.close-btn{display:grid}
+    .topbar{padding:14px 16px;gap:12px}
+    .content{padding:16px}
+    .user-name,.logout-label{display:none}
+  }
+  @media (max-width:560px){
+    .segmented button{padding:5px 10px}
+    .ctl-group:first-child{flex-wrap:wrap;row-gap:6px}
+    .kpi{padding:14px}
+    .kpi-value{font-size:23px}
+    .kpi-value .unit{font-size:13px}
+    .role{font-size:11px;padding:2px 7px}
+    .chart-wrap{height:300px;padding:12px 8px 4px}
+    .controls{gap:14px}
+    .topbar h1{font-size:18px}
+    .topbar{flex-wrap:wrap}
+    .topbar > div:nth-child(2){flex:1;min-width:0}
+    .user{gap:8px;flex-basis:100%;margin-left:0;padding-top:10px;border-top:1px solid var(--border)}
+    .user .btn{margin-left:auto}
+    .user .user-name{display:inline}
+    .avatar{display:none}
+  }
+
+  /* =====================================================================
+     Sign-in page — additions on top of the shared design system
+     ===================================================================== */
+  .demo-bar{overflow-x:auto;scrollbar-width:none}
+  .demo-bar::-webkit-scrollbar{display:none}
+  .demo-bar .seg{flex:0 0 auto}
+  .demo-bar button{white-space:nowrap}
+  .demo-bar .grp{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+  .demo-bar .grp + .grp{padding-left:10px;border-left:1px solid #334155}
+
+  /* ---- Single centred card on the app's plain background ---- */
+  .auth-page{
+    min-height:calc(100vh - 34px);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:20px;background:var(--bg);padding:24px 12px;
+  }
+  .auth-card{
+    width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:32px 16px 28px;
+  }
+  .logo-row{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--text);margin-bottom:36px}
+  .logo-row .brand-icon{background:var(--navy)}
+  .auth-card h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .auth-sub{margin:6px 0 24px;color:var(--text-2);font-size:14px}
+  .auth-note{margin:14px 0 0;font-size:12px;color:var(--text-3);line-height:1.5}
+
+  /* Inline messages */
+  .msg-slot:empty{display:none}
+  .msg-slot{margin:0 0 16px}
+  .msg{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:8px;font-size:13.5px;line-height:1.45;border:1px solid}
+  .msg svg{flex:0 0 auto;margin-top:1px}
+  .msg.red{background:var(--danger-soft);border-color:#f5c6c0;color:#8f1d14}
+  .msg.amber{background:#fff8e6;border-color:#f3e1b3;color:#6b4800}
+  .msg.green{background:var(--up-soft);border-color:#c5e6d4;color:#0c5d39}
+
+  /* Google button placeholder (light theme, rectangular) */
+  .gsi-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  .gsi-btn{
+    display:inline-flex;align-items:center;gap:10px;width:300px;max-width:100%;height:40px;padding:0 12px;
+    background:#fff;border:1px solid #747775;border-radius:4px;cursor:pointer;
+    font-family:"Roboto",Arial,sans-serif;font-weight:500;font-size:14px;letter-spacing:.25px;color:#1f1f1f;
+    transition:background .15s, box-shadow .15s;
+  }
+  .gsi-btn:hover{background:#f8fafd;box-shadow:0 1px 2px rgba(60,64,67,.3),0 1px 3px 1px rgba(60,64,67,.15)}
+  .gsi-btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+  .gsi-btn .g-slot{width:18px;height:18px;flex:0 0 auto;border:1.5px dashed #9aa0a6;border-radius:3px;display:grid;place-items:center;font-size:8px;font-weight:700;color:#80868b;font-family:Arial,sans-serif}
+  .gsi-btn .txt{flex:1;text-align:center;padding-right:18px}
+  .gsi-note{font-size:11.5px;color:var(--text-3)}
+  .gsi-busy{display:flex;align-items:center;justify-content:center;gap:10px;width:300px;max-width:100%;height:40px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text-2);font-weight:500}
+  .gsi-busy .spinner{width:16px;height:16px;border-width:2px}
+
+  .help{margin:22px 0 0;font-size:13.5px;color:var(--text-2)}
+  .auth-foot{font-size:12px;color:var(--text-3);text-align:center}
+
+  /* Emergency access form */
+  .banner-amber{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:8px;background:#fff8e6;border:1px solid #f3e1b3;color:#6b4800;font-size:13.5px;font-weight:500;line-height:1.45;margin:14px 0 20px}
+  .banner-amber svg{flex:0 0 auto;margin-top:1px;color:#b7791f}
+  .form{display:flex;flex-direction:column;gap:16px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:13px;font-weight:600;color:var(--text)}
+  .input{height:42px;width:100%;border:1px solid var(--border-strong);border-radius:8px;padding:0 12px;font:inherit;font-size:14px;background:#fff;color:var(--text)}
+  .input:hover{border-color:#94a3b8}
+  .input:focus-visible{outline:3px solid var(--focus);outline-offset:1px;border-radius:8px}
+  .input[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+  .field-err{font-size:12px;color:var(--danger);font-weight:500}
+  .field-err::before{content:"⚠ "}
+  .check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer;width:max-content}
+  .check input{width:16px;height:16px;accent-color:var(--blue);margin:0}
+  .btn-block{height:42px;justify-content:center;font-size:14px;font-weight:600}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .btn .spinner{width:15px;height:15px;border-width:2px;border-color:rgba(255,255,255,.4);border-top-color:#fff}
+
+  @media (max-width:380px){
+    .gsi-btn,.gsi-busy{width:100%}
+  }
+</style>
+</head>
+<body>
+
+<!-- Demo toolbar (not part of the product) -->
+<div class="demo-bar" role="toolbar" aria-label="Demo states">
+  <div class="grp">
+    <strong>Page</strong>
+    <div class="seg" id="pageSeg">
+      <button type="button" data-page="signin" aria-pressed="true">Sign in</button>
+      <button type="button" data-page="emergency" aria-pressed="false">Emergency access</button>
+    </div>
+  </div>
+  <div class="grp">
+    <strong>Demo states</strong>
+    <div class="seg" id="stateSeg"></div>
+  </div>
+  <span class="note">Mockup only</span>
+</div>
+
+<div class="auth-page" id="main">
+
+  <!-- ---------- Sign in ---------- -->
+  <div class="auth-card" id="pageSignin">
+    <div class="logo-row">
+      <span class="brand-icon" aria-hidden="true">
+        <svg width="18" height="20" viewBox="0 0 18 22" fill="none"><path d="M9 1.5C9 1.5 2 9.2 2 13.8A7 7 0 0 0 16 13.8C16 9.2 9 1.5 9 1.5Z" fill="#5ec9c9" stroke="#bdeaea" stroke-width="1.2"/><path d="M5.6 14.2a3.4 3.4 0 0 0 3.2 3.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <span>Water Demand Forecasting</span>
+    </div>
+    <h1 id="signinTitle">Sign in</h1>
+    <p class="auth-sub">Use your registered Google account.</p>
+
+    <div class="msg-slot" id="siAlert" role="alert"></div>
+    <div class="msg-slot" id="siStatus" role="status"></div>
+
+    <div class="gsi-wrap" id="gsiArea">
+      <button type="button" class="gsi-btn" id="gsiBtn">
+        <span class="g-slot" aria-hidden="true" title="Google's “G” mark goes here">G</span>
+        <span class="txt">Sign in with Google</span>
+      </button>
+      <span class="gsi-note">Rendered by Google in the real system</span>
+    </div>
+
+    <p class="help">No access? Contact your system administrator.</p>
+    <p class="auth-note">Sign-ins and actions are recorded.</p>
+  </div>
+
+  <!-- ---------- Emergency access ---------- -->
+  <div class="auth-card" id="pageEmergency" hidden>
+    <div class="logo-row">
+      <span class="brand-icon" aria-hidden="true">
+        <svg width="18" height="20" viewBox="0 0 18 22" fill="none"><path d="M9 1.5C9 1.5 2 9.2 2 13.8A7 7 0 0 0 16 13.8C16 9.2 9 1.5 9 1.5Z" fill="#5ec9c9" stroke="#bdeaea" stroke-width="1.2"/><path d="M5.6 14.2a3.4 3.4 0 0 0 3.2 3.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <span>Water Demand Forecasting</span>
+    </div>
+    <h1 id="emTitle">Emergency access</h1>
+    <div class="banner-amber">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.01"/></svg>
+      <span>For system outages only. Every use is recorded and reviewed.</span>
+    </div>
+
+    <div class="msg-slot" id="emAlert" role="alert"></div>
+
+    <form class="form" id="emForm" novalidate>
+      <div class="field">
+        <label for="emEmail">Email</label>
+        <input class="input" type="email" id="emEmail" autocomplete="username" aria-describedby="emEmailErr">
+        <span class="field-err" id="emEmailErr" hidden>Enter your email address</span>
+      </div>
+      <div class="field">
+        <label for="emPass">Password</label>
+        <input class="input" type="password" id="emPass" autocomplete="current-password" aria-describedby="emPassErr">
+        <span class="field-err" id="emPassErr" hidden>Enter your password</span>
+      </div>
+      <label class="check"><input type="checkbox" id="showPass"> Show password</label>
+      <button type="submit" class="btn btn-primary btn-block" id="emSubmit">Sign in</button>
+    </form>
+  </div>
+
+  <footer class="auth-foot">Version 1.0 · Data: İZSU Open Data (İzmir)</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ICON = {
+  red:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>',
+  amber: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3 2"/></svg>',
+  green: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.5l2.7 2.7L16 9.8"/></svg>'
+};
+const msgHTML = (tone, text) => `<div class="msg ${tone}">${ICON[tone]}<span>${text}</span></div>`;
+
+/* ---------- Sign-in states ---------- */
+const SIGNIN_STATES = [
+  {id:"normal",   label:"Normal"},
+  {id:"signing",  label:"Signing in…"},
+  {id:"denied",   label:"Not authorised",        tone:"red",   role:"alert",  text:"This Google account isn’t authorised for this system. Contact your administrator."},
+  {id:"expired",  label:"Session expired",       tone:"amber", role:"status", text:"Your session has expired. Please sign in again."},
+  {id:"signedout",label:"Signed out",            tone:"green", role:"status", text:"You’ve signed out."},
+  {id:"offline",  label:"Can’t reach the server",tone:"red",   role:"alert",  text:"We couldn’t reach the server. Check your connection and try again."}
+];
+const EM_STATES = [
+  {id:"normal",   label:"Normal"},
+  {id:"wrong",    label:"Incorrect password"},
+  {id:"locked",   label:"Too many attempts (429)"}
+];
+
+const GSI_BUTTON = $("gsiArea").innerHTML;
+let page = "signin", busyTimer;
+
+function setSigninState(id){
+  clearTimeout(busyTimer);
+  const s = SIGNIN_STATES.find(x=>x.id===id);
+  $("siAlert").innerHTML = ""; $("siStatus").innerHTML = "";
+  if (s.tone) $(s.role==="alert" ? "siAlert" : "siStatus").innerHTML = msgHTML(s.tone, s.text);
+  if (id === "signing"){
+    $("gsiArea").innerHTML = '<div class="gsi-busy"><span class="spinner" aria-hidden="true"></span><span>Signing you in…</span></div>';
+    $("siStatus").innerHTML = '<span class="sr-only">Signing you in…</span>';
+  } else {
+    $("gsiArea").innerHTML = GSI_BUTTON;
+    $("gsiBtn").addEventListener("click", ()=> pickState("signing"));
+  }
+}
+
+/* ---------- Emergency access ---------- */
+function setErr(inputId, errId, on){ $(errId).hidden = !on; $(inputId).setAttribute("aria-invalid", on ? "true" : "false"); }
+function clearFieldErrs(){ setErr("emEmail","emEmailErr",false); setErr("emPass","emPassErr",false); }
+function setEmState(id){
+  clearTimeout(busyTimer); clearFieldErrs();
+  $("emAlert").innerHTML = "";
+  $("emSubmit").disabled = false; $("emSubmit").textContent = "Sign in";
+  if (id === "wrong") $("emAlert").innerHTML = msgHTML("red", "Incorrect email or password.");
+  if (id === "locked"){
+    $("emAlert").innerHTML = msgHTML("red", "Too many attempts. Try again in 15 minutes.");
+    $("emSubmit").disabled = true;
+  }
+}
+$("showPass").addEventListener("change", e => { $("emPass").type = e.target.checked ? "text" : "password"; });
+$("emForm").addEventListener("submit", e=>{
+  e.preventDefault();
+  if ($("emSubmit").disabled) return;
+  $("emAlert").innerHTML = "";
+  const eEmail = $("emEmail").value.trim() === "", ePass = $("emPass").value === "";
+  setErr("emEmail","emEmailErr",eEmail); setErr("emPass","emPassErr",ePass);
+  if (eEmail){ $("emEmail").focus(); return; }
+  if (ePass){ $("emPass").focus(); return; }
+  // Mockup: there are no accounts, so any attempt is rejected after a short wait.
+  $("emSubmit").disabled = true;
+  $("emSubmit").innerHTML = '<span class="spinner" aria-hidden="true"></span> Signing in…';
+  busyTimer = setTimeout(()=>{
+    pickState("wrong");
+    $("emPass").value = ""; $("emPass").focus();
+  }, 900);
+});
+["emEmail","emPass"].forEach(id => $(id).addEventListener("input", ()=>{
+  if (!$(id+"Err").hidden) setErr(id, id+"Err", $(id).value.trim()==="");
+}));
+
+/* ---------- Toolbar ---------- */
+let current = "normal";
+function renderStateButtons(){
+  const list = page === "signin" ? SIGNIN_STATES : EM_STATES;
+  $("stateSeg").innerHTML = list.map(s=>`<button type="button" data-state="${s.id}" aria-pressed="${s.id===current}">${s.label}</button>`).join("");
+}
+function pickState(id){
+  current = id; renderStateButtons();
+  if (page === "signin") setSigninState(id); else setEmState(id);
+}
+function setPage(p){
+  page = p; current = "normal";
+  document.querySelectorAll("#pageSeg button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.page===p));
+  $("pageSignin").hidden = p !== "signin";
+  $("pageEmergency").hidden = p !== "emergency";
+  document.title = (p === "signin" ? "Sign in" : "Emergency access") + " · Water Demand Forecasting";
+  $("emForm").reset(); $("emPass").type = "password";
+  pickState("normal");
+}
+document.querySelectorAll("#pageSeg button").forEach(b=>b.addEventListener("click",()=>setPage(b.dataset.page)));
+$("stateSeg").addEventListener("click", e=>{ const b = e.target.closest("button"); if (b) pickState(b.dataset.state); });
+
+setPage("signin");
+</script>
+</body>
+</html>
