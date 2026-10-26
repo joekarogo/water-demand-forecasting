@@ -92,3 +92,26 @@ of this writing.
 | D6 | Two browser tabs both load the same month, one saves a plan, the other then saves with its (now stale) `expected_version` | Second save gets 409 "This plan was changed by someone else." |
 | D7 | `POST /api/production/stock` with `recorded_on` set to tomorrow | 400 naming `recorded_on`, rejected against the database's date, not the browser's |
 | D8 | After D3/D5(fixed)/any successful plan save | A new row appears in `audit_log` with `action = 'plan.save'` or `'stock.record'`, the correct `user_id`, and `details` containing the month/plan_type/chosen_m3/version (or recorded_on/stock_m3) |
+
+## Part E - Accounts (Module 1, Part 1)
+
+Database and account-provisioning scripts only — no login route changes
+yet (Google sign-in and the emergency-login lockout rule are later parts
+of this module). The existing password login was not touched and must
+keep working exactly as before.
+
+**Manual checks to run after applying `database/schema/004_accounts.sql`:**
+
+| # | Check | Expected |
+|---|---|---|
+| E1 | `\d users` in `psql` | `password` is nullable; `google_sub` (`varchar(255)`, unique) and `last_login_at` (`timestamptz`) exist; a `users_auth_provider_check` CHECK constraint exists |
+| E2 | `INSERT ... users (auth_provider) VALUES ('google')` / `'emergency'` | Both succeed; `UPDATE users SET auth_provider = 'bogus'` is rejected by the CHECK |
+| E3 | `SELECT p.code FROM role_permissions rp JOIN roles r ON r.role_id=rp.role_id JOIN permissions p ON p.permission_id=rp.permission_id WHERE r.name='admin'` | Does **not** include `distribution:view`, `tariff:view`, `revenue:view`, or `plan:view` (removed in 003); **does** include `data:view` |
+| E4 | `\d login_attempts` | Table exists with `attempt_id`, `ip_address`, `attempted_at`, `succeeded`; an index on `(ip_address, attempted_at)` |
+| E5 | `python database/create_emergency_admin.py` with `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD` unset | Exits with a clear error, no traceback |
+| E6 | Same script with `EMERGENCY_ADMIN_PASSWORD` set to 10 characters | Exits with a clear "at least 16 characters" error |
+| E7 | Same script with both set validly, run twice | First run creates the user (`auth_provider='emergency'`, `role='admin'`, `status='active'`); second run updates the same row (same `user_id`) rather than erroring or duplicating; `audit_log` gets one `emergency_admin.set` row per run; the password itself never appears in terminal output |
+| E8 | `python database/invite_user.py --name "..." --email ... --role production_manager` | Creates a `status='invited'`, `auth_provider='google'`, `password IS NULL` row with `role='manager'` and the matching `role_id`; an `audit_log` row with `action='user.invited'` |
+| E9 | Same command again with the same `--email` | Refuses with a clear "already exists" error; no second row, no audit row |
+| E10 | `python database/invite_user.py --role bogus ...` | `argparse` rejects it immediately (invalid choice), before touching the database |
+| E11 | `POST /api/auth/login` with an existing password-based account's correct credentials | Still 200 + JWT, unchanged — confirms making `password` nullable didn't break the existing bcrypt comparison for rows that still have one |
