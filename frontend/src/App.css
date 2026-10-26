@@ -541,19 +541,18 @@ svg {
   right: 6px;
   transform: none;
 }
-.delta-up {
-  color: var(--up);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+/* Neutral on purpose: higher or lower demand is a fact to plan around,
+   not a good/bad result, so these never use the green/red "up"/"down"
+   palette — only the ▲/▼ glyph (plus the sr-only word) carries direction. */
+.delta-up,
 .delta-down {
-  color: var(--down);
+  color: var(--text);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.delta-pill {
+.delta-pill,
+.delta-pill.down {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -561,12 +560,8 @@ svg {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--up-soft);
-  color: var(--up);
-}
-.delta-pill.down {
-  background: var(--danger-soft);
-  color: var(--down);
+  background: #eef2f6;
+  color: var(--text-2);
 }
 .kpi.accent {
   border-top: 3px solid var(--teal);
@@ -877,12 +872,10 @@ svg {
 .table-wrap td.muted {
   color: var(--text-3);
 }
-.chg-up {
-  color: var(--up);
-  font-weight: 600;
-}
+/* Neutral on purpose — see .delta-up/.delta-down above. */
+.chg-up,
 .chg-down {
-  color: var(--down);
+  color: var(--text);
   font-weight: 600;
 }
 .table-note {

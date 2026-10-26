@@ -433,7 +433,7 @@ function Dashboard() {
               <div className="kpi-label">
                 Forecast accuracy
                 <InfoTip id="tipAcc" label="How is accuracy measured?" align="right">
-                  Measured as MAPE (mean absolute percentage error).
+                  Measured as MAPE (mean absolute percentage error) on the test period Jul 2022 – Aug 2024.
                 </InfoTip>
               </div>
               <div className="kpi-value">

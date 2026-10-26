@@ -104,7 +104,7 @@ print(f"Growth MAE: {growth_metrics['mae']:,.2f} m3")
 print(f"Growth RMSE: {growth_metrics['rmse']:,.2f} m3")
 print(f"Growth MAPE: {growth_metrics['mape']:,.2f}%")
 
-# Retrain on all data and save — this is the model forecast_api.py will load.
+# Retrain on all data and save — this is the model ml/publish_forecast.py will load.
 final_model = Prophet(**PARAMS)
 final_model.fit(df)
 print(f"\nFinal model retrained on all {len(df)} records")

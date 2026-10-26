@@ -114,7 +114,7 @@ if tuned_result['rmse'] < default_result['rmse']:
 else:
     print(f"RESULT: Tuned model does NOT beat defaults on the test set "
           f"(RMSE {tuned_result['rmse']:,.2f} >= {default_result['rmse']:,.2f}). "
-          f"Keep defaults in ml/forecast_api.py.")
+          f"Keep defaults in ml/train_model.py.")
 
 # Log this run: all four models' metrics, keyed by label.
 save_run(
