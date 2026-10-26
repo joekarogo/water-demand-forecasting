@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
@@ -9,32 +9,29 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { API_BASE } from './api';
+import { apiFetch } from './apiClient';
+import { useSession } from './session';
 import AppLayout from './layout/AppLayout';
-import { getUserRole } from './utils/decodeToken';
 import './App.css';
 
 function DataOverview() {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const role = getUserRole(token);
+  const { session, loading: sessionLoading, clearSession } = useSession();
+  const hasDataView = useMemo(() => Boolean(session?.permissions?.includes('data:view')), [session]);
 
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!token) {
-      navigate('/login', { replace: true });
-      return;
-    }
-    if (role !== 'admin') {
+    if (sessionLoading || !session) return;
+    if (!hasDataView) {
       navigate('/dashboard', { replace: true });
     }
-  }, [token, role, navigate]);
+  }, [sessionLoading, session, hasDataView, navigate]);
 
   useEffect(() => {
-    if (!token || role !== 'admin') {
+    if (sessionLoading || !session || !hasDataView) {
       return;
     }
 
@@ -43,11 +40,21 @@ function DataOverview() {
       setError('');
 
       try {
-        const response = await fetch(`${API_BASE}/api/consumption-history`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await apiFetch('/api/consumption-history');
+
+        if (response.status === 401) {
+          clearSession();
+          navigate('/login', {
+            replace: true,
+            state: { message: 'Your session has expired. Please sign in again.' },
+          });
+          return;
+        }
+
+        if (response.status === 403) {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
 
         const data = await response.json();
 
@@ -65,9 +72,9 @@ function DataOverview() {
     };
 
     fetchHistory();
-  }, [token, role]);
+  }, [sessionLoading, session, hasDataView, navigate, clearSession]);
 
-  if (!token || role !== 'admin') {
+  if (sessionLoading || !session || !hasDataView) {
     return null;
   }
 

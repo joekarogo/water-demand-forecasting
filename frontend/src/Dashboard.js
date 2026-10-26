@@ -12,7 +12,8 @@ import {
   ReferenceArea,
   ResponsiveContainer,
 } from 'recharts';
-import { API_BASE } from './api';
+import { apiFetch } from './apiClient';
+import { useSession } from './session';
 import AppLayout from './layout/AppLayout';
 import InfoTip from './components/InfoTip';
 import {
@@ -40,7 +41,7 @@ import './App.css';
 
 const SHOW_NEXT_OPTIONS = [3, 6, 12];
 const HISTORY_MONTHS_SHOWN = 36;
-const API_URL = `${API_BASE}/api/forecast/published`;
+const API_URL = '/api/forecast/published';
 
 // The model is evaluated on a fixed, 26-month held-out test split (102
 // training / 26 test months, documented in README.md) — not something the
@@ -147,7 +148,7 @@ function exportCsv(rows, showNext) {
 
 function Dashboard() {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const { session, loading: sessionLoading, clearSession } = useSession();
 
   const [status, setStatus] = useState('loading'); // loading | ready | empty | error
   const [errorReference, setErrorReference] = useState(null);
@@ -160,15 +161,13 @@ function Dashboard() {
   const narrowChart = viewportWidth < 600;
 
   const fetchForecast = useCallback(async () => {
-    if (!token) return;
     setStatus('loading');
     try {
-      const response = await fetch(API_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(API_URL);
 
       if (response.status === 401 || response.status === 403) {
         localStorage.removeItem('token');
+        clearSession();
         navigate('/login', {
           replace: true,
           state: { message: 'Your session has expired. Please sign in again.' },
@@ -195,15 +194,12 @@ function Dashboard() {
       setErrorReference(null);
       setStatus('error');
     }
-  }, [token, navigate]);
+  }, [navigate, clearSession]);
 
   useEffect(() => {
-    if (!token) {
-      navigate('/login', { replace: true });
-      return;
-    }
+    if (sessionLoading || !session) return;
     fetchForecast();
-  }, [token, navigate, fetchForecast]);
+  }, [sessionLoading, session, fetchForecast]);
 
   const computed = useMemo(() => {
     if (!data) return null;
@@ -311,10 +307,6 @@ function Dashboard() {
       trainedMonths,
     };
   }, [data, showNext, showBand, showLastYear]);
-
-  if (!token) {
-    return null;
-  }
 
   const subtitle = 'Monthly billed water demand, İzmir';
   const extraLines =

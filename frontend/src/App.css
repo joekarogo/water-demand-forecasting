@@ -137,6 +137,38 @@
   cursor: not-allowed;
 }
 
+.google-btn-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  min-height: 40px;
+}
+
+.login-note {
+  font-size: 0.8rem;
+  color: #777;
+  margin: 0 0 20px;
+  line-height: 1.4;
+}
+
+.login-toggle {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  font-size: 0.85rem;
+  color: #555;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.login-toggle:hover,
+.login-toggle:focus-visible {
+  color: #282c34;
+}
+
 .dashboard-error {
   color: #b00020;
   font-weight: bold;

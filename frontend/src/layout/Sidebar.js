@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { getUserRole } from '../utils/decodeToken';
+import { useSession } from '../session';
 import { MENU_ITEMS } from './menuConfig';
 import { BrandIcon } from './icons';
 
 function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
-  const token = localStorage.getItem('token');
-  const role = getUserRole(token);
-  const visibleItems = MENU_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
+  const { session } = useSession();
+  const permissions = session?.permissions || [];
+  const visibleItems = MENU_ITEMS.filter((item) => permissions.includes(item.permission));
 
   return (
     <nav className={`sidebar${open ? ' open' : ''}`} id="sidebar" aria-label="Main navigation">

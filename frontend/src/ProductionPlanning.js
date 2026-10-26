@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { API_BASE } from './api';
+import { apiFetch } from './apiClient';
+import { useSession } from './session';
 import AppLayout from './layout/AppLayout';
 import InfoTip from './components/InfoTip';
 import { InfoIcon, RetryIcon, ErrorTriangleIcon, EmptyForecastIcon } from './layout/icons';
@@ -19,8 +20,8 @@ import {
 import './App.css';
 
 const SHOW_NEXT_OPTIONS = [3, 6, 12];
-const PLAN_API_URL = `${API_BASE}/api/production/plan`;
-const STOCK_API_URL = `${API_BASE}/api/production/stock`;
+const PLAN_API_URL = '/api/production/plan';
+const STOCK_API_URL = '/api/production/stock';
 
 const PLAN_TYPE_LABELS = { normal: 'Normal', safe: 'Safe', custom: 'Custom' };
 const REASON_LABELS = {
@@ -31,10 +32,6 @@ const REASON_LABELS = {
   other: 'Other',
 };
 const REASON_OPTIONS = Object.entries(REASON_LABELS);
-
-function authHeaders(token) {
-  return { Authorization: `Bearer ${token}` };
-}
 
 // Clears one field's stale server-side error as soon as the user edits
 // that field, rather than leaving a red border/message that no longer
@@ -177,7 +174,7 @@ function StockTrendTooltip({ active, payload }) {
 
 function ProductionPlanning() {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const { session, loading: sessionLoading, clearSession } = useSession();
 
   const [status, setStatus] = useState('loading'); // loading | ready | empty | error | forbidden
   const [errorReference, setErrorReference] = useState(null);
@@ -220,6 +217,7 @@ function ProductionPlanning() {
     (response) => {
       if (response.status === 401) {
         localStorage.removeItem('token');
+        clearSession();
         navigate('/login', {
           replace: true,
           state: { message: 'Your session has expired. Please sign in again.' },
@@ -228,14 +226,13 @@ function ProductionPlanning() {
       }
       return false;
     },
-    [navigate]
+    [navigate, clearSession]
   );
 
   const fetchPlan = useCallback(async ({ silent } = {}) => {
-    if (!token) return undefined;
     if (!silent) setStatus('loading');
     try {
-      const response = await fetch(PLAN_API_URL, { headers: authHeaders(token) });
+      const response = await apiFetch(PLAN_API_URL);
       if (handleAuthError(response)) return undefined;
       if (response.status === 403) {
         setStatus('forbidden');
@@ -259,13 +256,12 @@ function ProductionPlanning() {
       setStatus('error');
       return undefined;
     }
-  }, [token, handleAuthError]);
+  }, [handleAuthError]);
 
   const fetchStock = useCallback(async () => {
-    if (!token) return;
     setStockError(false);
     try {
-      const response = await fetch(STOCK_API_URL, { headers: authHeaders(token) });
+      const response = await apiFetch(STOCK_API_URL);
       if (handleAuthError(response)) return;
       if (!response.ok) {
         setStockError(true);
@@ -276,15 +272,12 @@ function ProductionPlanning() {
     } catch (err) {
       setStockError(true);
     }
-  }, [token, handleAuthError]);
+  }, [handleAuthError]);
 
   useEffect(() => {
-    if (!token) {
-      navigate('/login', { replace: true });
-      return;
-    }
+    if (sessionLoading || !session) return;
     fetchPlan();
-  }, [token, navigate, fetchPlan]);
+  }, [sessionLoading, session, fetchPlan]);
 
   useEffect(() => {
     if (status === 'ready' || status === 'empty') {
@@ -327,7 +320,7 @@ function ProductionPlanning() {
 
       setPanelHistory([]);
       setPanelHistoryLoading(true);
-      fetch(`${PLAN_API_URL}/${month.month}/history`, { headers: authHeaders(token) })
+      apiFetch(`${PLAN_API_URL}/${month.month}/history`)
         .then(async (response) => {
           if (handleAuthError(response)) return;
           if (!response.ok) return;
@@ -337,7 +330,7 @@ function ProductionPlanning() {
         .catch(() => {})
         .finally(() => setPanelHistoryLoading(false));
     },
-    [computed, token, handleAuthError]
+    [computed, handleAuthError]
   );
 
   const closePanel = useCallback(() => {
@@ -434,9 +427,9 @@ function ProductionPlanning() {
     setPanelFieldErrors({});
     setPanelConflict(null);
     try {
-      const response = await fetch(PLAN_API_URL, {
+      const response = await apiFetch(PLAN_API_URL, {
         method: 'POST',
-        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (handleAuthError(response)) return;
@@ -478,9 +471,9 @@ function ProductionPlanning() {
     setStockFieldErrors({});
     const amount = parseFormattedAmount(stockAmount);
     try {
-      const response = await fetch(STOCK_API_URL, {
+      const response = await apiFetch(STOCK_API_URL, {
         method: 'POST',
-        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recorded_on: stockDate, stock_m3: amount }),
       });
       if (handleAuthError(response)) return;
@@ -538,7 +531,7 @@ function ProductionPlanning() {
     return { domain: [domainMinM * 1_000_000, domainMaxM * 1_000_000], ticks };
   }, [stockTrendPoints]);
 
-  if (!token) {
+  if (sessionLoading || !session) {
     return null;
   }
 
