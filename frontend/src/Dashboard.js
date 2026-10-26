@@ -149,8 +149,9 @@ function exportCsv(rows, showNext) {
 function Dashboard() {
   const navigate = useNavigate();
   const { session, loading: sessionLoading, clearSession } = useSession();
+  const hasForecastView = useMemo(() => Boolean(session?.permissions?.includes('forecast:view')), [session]);
 
-  const [status, setStatus] = useState('loading'); // loading | ready | empty | error
+  const [status, setStatus] = useState('loading'); // loading | ready | empty | error | forbidden
   const [errorReference, setErrorReference] = useState(null);
   const [data, setData] = useState(null);
 
@@ -165,13 +166,17 @@ function Dashboard() {
     try {
       const response = await apiFetch(API_URL);
 
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token');
+      if (response.status === 401) {
         clearSession();
         navigate('/login', {
           replace: true,
           state: { message: 'Your session has expired. Please sign in again.' },
         });
+        return;
+      }
+
+      if (response.status === 403) {
+        setStatus('forbidden');
         return;
       }
 
@@ -197,9 +202,9 @@ function Dashboard() {
   }, [navigate, clearSession]);
 
   useEffect(() => {
-    if (sessionLoading || !session) return;
+    if (sessionLoading || !session || !hasForecastView) return;
     fetchForecast();
-  }, [sessionLoading, session, fetchForecast]);
+  }, [sessionLoading, session, hasForecastView, fetchForecast]);
 
   const computed = useMemo(() => {
     if (!data) return null;
@@ -329,7 +334,7 @@ function Dashboard() {
     ) : null;
 
   return (
-    <AppLayout title="Demand Forecast" subtitle={subtitle} extraLines={extraLines}>
+    <AppLayout title="Demand Forecast" subtitle={subtitle} extraLines={extraLines} requiredPermission="forecast:view">
       {status === 'loading' && (
         <>
           <div className="state-banner" role="status" aria-live="polite">
@@ -361,6 +366,15 @@ function Dashboard() {
           </span>
           <h2>No forecast has been published yet.</h2>
           <p>Ask your administrator to publish one.</p>
+        </section>
+      )}
+
+      {status === 'forbidden' && (
+        <section className="card error-card" role="alert">
+          <span className="error-icon" aria-hidden="true">
+            <ErrorTriangleIcon />
+          </span>
+          <h2>You don't have permission to view the forecast.</h2>
         </section>
       )}
 

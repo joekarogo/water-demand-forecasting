@@ -145,3 +145,30 @@ and setting `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD`/`GOOGLE_CLIENT_ID
 | F10 | `POST /api/auth/login` (the original password route) with correct credentials | Still 200 + JWT, byte-for-byte the same response shape as before — confirms the Bearer/password path is genuinely untouched |
 | F11 | Wait past the idle timeout (30 min admin / 60 min others) without any request, then make one | 401 "Your session has expired. Please sign in again."; the expired `sessions` row is deleted by that same request |
 | F12 | Keep a session alive with requests every few minutes past the 8-hour mark from `created_at` | Still expires at the 8-hour absolute limit regardless of how recently the last request was |
+
+## Part G - Removing password login (Module 1, Part 3A)
+
+Automated: `backend/test/auth.test.js` and `backend/test/planning.test.js`
+are unaffected by this part (neither touches `users.role` or the login
+route) — `npm test` in `backend/` should still show the same pass count as
+Part F. `frontend/src/App.test.js` was replaced (the default CRA
+"learn react" test never meant anything here) with five small tests of
+`getFirstPermittedPath` in `layout/menuConfig.js`; `npm test --
+--watchAll=false` in `frontend/` should pass.
+
+**Manual checks to run after applying `database/schema/006_remove_password_login.sql`:**
+
+| # | Check | Expected |
+|---|---|---|
+| G1 | `\d users` in `psql` | No `role` column; `role_id` is still there |
+| G2 | Before running 006, note every `user_id` with `auth_provider = 'password'`; after running it, `SELECT status, deactivated_at, deactivation_reason FROM users WHERE user_id = ...` for each | `status = 'deactivated'`, `deactivated_at` set, `deactivation_reason = 'Password login removed; replaced by Google sign-in'`; the row still exists (not deleted) |
+| G3 | `SELECT * FROM audit_log WHERE action = 'user.deactivated'` | One row per account from G2, `user_id IS NULL`, `entity = 'users'`, `entity_id` = that account's id, `details->>'reason'` matches the deactivation reason |
+| G4 | `SELECT * FROM sessions WHERE user_id = <a deactivated account's id>` | No rows — any session that account had is gone |
+| G5 | `POST /api/auth/login` (any credentials) | 404 — the route no longer exists |
+| G6 | `GET /api/me` (or any protected route) with an old `Authorization: Bearer <JWT>` header and no `sid` cookie | 401 "Your session has expired. Please sign in again." — the Bearer fallback is gone, cookie sessions only |
+| G7 | `POST /api/auth/google` with a valid Google credential, and `POST /api/auth/emergency-login` with the emergency admin's credentials | Both still 200, set the `sid` cookie, and return the same payload shape as Part F — unaffected by this part |
+| G8 | `GET /api/consumption-history` (or any `requirePermission`-guarded route) signed in as a user without that permission | 403 "You don't have permission to do this."; `SELECT * FROM audit_log WHERE action = 'permission.denied' ORDER BY occurred_at DESC LIMIT 1` shows a fresh row with `details` containing the permission code, HTTP method and path |
+| G9 | Temporarily stop the database (or revoke the DB user's privileges) and repeat G8 | Still 403 is never returned as a 500 instead — `requirePermission`'s audit-log write failure (logged to the console) must not change the response; confirms the audit write is best-effort |
+| G10 | In the browser, sign in as a user who lacks `data:view` (or `plan:view`) and open `/data-overview` (or `/production-planning`) directly | The page's normal sidebar/topbar still show; the content area shows "You don't have access to this page." with a button that goes to a page the user does have permission for |
+| G11 | Sign in, then use the top bar's Logout button | Redirected to `/login`; the page shows "You've signed out." |
+| G12 | `cat backend/package.json` | No `jsonwebtoken` in `dependencies` |

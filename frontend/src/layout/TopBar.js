@@ -16,9 +16,8 @@ function TopBar({ title, subtitle, extraLines, onMenuClick, menuBtnRef, navOpen 
     } catch (err) {
       // ignore — we're signing out locally regardless
     }
-    localStorage.removeItem('token');
     clearSession();
-    navigate('/login', { replace: true });
+    navigate('/login', { replace: true, state: { message: "You've signed out." } });
   };
 
   return (

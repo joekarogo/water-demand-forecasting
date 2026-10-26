@@ -175,6 +175,7 @@ function StockTrendTooltip({ active, payload }) {
 function ProductionPlanning() {
   const navigate = useNavigate();
   const { session, loading: sessionLoading, clearSession } = useSession();
+  const hasPlanView = useMemo(() => Boolean(session?.permissions?.includes('plan:view')), [session]);
 
   const [status, setStatus] = useState('loading'); // loading | ready | empty | error | forbidden
   const [errorReference, setErrorReference] = useState(null);
@@ -216,7 +217,6 @@ function ProductionPlanning() {
   const handleAuthError = useCallback(
     (response) => {
       if (response.status === 401) {
-        localStorage.removeItem('token');
         clearSession();
         navigate('/login', {
           replace: true,
@@ -275,9 +275,9 @@ function ProductionPlanning() {
   }, [handleAuthError]);
 
   useEffect(() => {
-    if (sessionLoading || !session) return;
+    if (sessionLoading || !session || !hasPlanView) return;
     fetchPlan();
-  }, [sessionLoading, session, fetchPlan]);
+  }, [sessionLoading, session, hasPlanView, fetchPlan]);
 
   useEffect(() => {
     if (status === 'ready' || status === 'empty') {
@@ -552,7 +552,7 @@ function ProductionPlanning() {
   );
 
   return (
-    <AppLayout title="Production Planning" subtitle={subtitle} extraLines={extraLines}>
+    <AppLayout title="Production Planning" subtitle={subtitle} extraLines={extraLines} requiredPermission="plan:view">
       {status === 'loading' && (
         <>
           <div className="state-banner" role="status" aria-live="polite">

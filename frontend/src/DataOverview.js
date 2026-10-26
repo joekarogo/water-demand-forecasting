@@ -22,13 +22,7 @@ function DataOverview() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (sessionLoading || !session) return;
-    if (!hasDataView) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [sessionLoading, session, hasDataView, navigate]);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     if (sessionLoading || !session || !hasDataView) {
@@ -38,6 +32,7 @@ function DataOverview() {
     const fetchHistory = async () => {
       setLoading(true);
       setError('');
+      setForbidden(false);
 
       try {
         const response = await apiFetch('/api/consumption-history');
@@ -52,7 +47,7 @@ function DataOverview() {
         }
 
         if (response.status === 403) {
-          navigate('/dashboard', { replace: true });
+          setForbidden(true);
           return;
         }
 
@@ -74,10 +69,6 @@ function DataOverview() {
     fetchHistory();
   }, [sessionLoading, session, hasDataView, navigate, clearSession]);
 
-  if (sessionLoading || !session || !hasDataView) {
-    return null;
-  }
-
   const formatMonth = (dateStr) =>
     new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 
@@ -92,62 +83,72 @@ function DataOverview() {
       : null;
 
   return (
-    <AppLayout title="Historical Analysis" subtitle="Monthly billed water consumption, İzmir">
-        {loading && (
-          <div className="spinner-container">
-            <div className="spinner" />
-            <p>Loading historical data...</p>
+    <AppLayout
+      title="Historical Analysis"
+      subtitle="Monthly billed water consumption, İzmir"
+      requiredPermission="data:view"
+    >
+      {forbidden && (
+        <section className="card error-card" role="alert">
+          <h2>You don't have permission to view this data.</h2>
+        </section>
+      )}
+
+      {!forbidden && loading && (
+        <div className="spinner-container">
+          <div className="spinner" />
+          <p>Loading historical data...</p>
+        </div>
+      )}
+
+      {!forbidden && error && <p className="dashboard-error">{error}</p>}
+
+      {!forbidden && !loading && !error && history.length > 0 && (
+        <>
+          <div className="metric-cards">
+            <div className="metric-card">
+              <h3>Date Range</h3>
+              <p>
+                {formatMonth(history[0].date)} – {formatMonth(history[totalRecords - 1].date)}
+              </p>
+            </div>
+            <div className="metric-card">
+              <h3>Total Records</h3>
+              <p>{totalRecords}</p>
+            </div>
+            <div className="metric-card">
+              <h3>Avg Monthly Consumption</h3>
+              <p>{Math.round(avgConsumption).toLocaleString()} m3</p>
+            </div>
+            <div className="metric-card">
+              <h3>Peak Month</h3>
+              <p>
+                {formatMonth(peakRow.date)}
+                <br />
+                {peakRow.consumption_m3.toLocaleString()} m3
+              </p>
+            </div>
           </div>
-        )}
 
-        {error && <p className="dashboard-error">{error}</p>}
-
-        {!loading && !error && history.length > 0 && (
-          <>
-            <div className="metric-cards">
-              <div className="metric-card">
-                <h3>Date Range</h3>
-                <p>
-                  {formatMonth(history[0].date)} – {formatMonth(history[totalRecords - 1].date)}
-                </p>
-              </div>
-              <div className="metric-card">
-                <h3>Total Records</h3>
-                <p>{totalRecords}</p>
-              </div>
-              <div className="metric-card">
-                <h3>Avg Monthly Consumption</h3>
-                <p>{Math.round(avgConsumption).toLocaleString()} m3</p>
-              </div>
-              <div className="metric-card">
-                <h3>Peak Month</h3>
-                <p>
-                  {formatMonth(peakRow.date)}
-                  <br />
-                  {peakRow.consumption_m3.toLocaleString()} m3
-                </p>
-              </div>
-            </div>
-
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={history}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={false} />
-                  <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} />
-                  <Tooltip formatter={(value) => value.toLocaleString()} />
-                  <Line
-                    dataKey="consumption_m3"
-                    stroke="#282c34"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Consumption (m3)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        )}
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={history}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={false} />
+                <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} />
+                <Tooltip formatter={(value) => value.toLocaleString()} />
+                <Line
+                  dataKey="consumption_m3"
+                  stroke="#282c34"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Consumption (m3)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
     </AppLayout>
   );
 }

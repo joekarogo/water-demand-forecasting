@@ -92,7 +92,7 @@ try:
         cursor.execute(
             """
             UPDATE users
-            SET password = %s, role = 'admin', role_id = %s, status = 'active', auth_provider = 'emergency'
+            SET password = %s, role_id = %s, status = 'active', auth_provider = 'emergency'
             WHERE user_id = %s
             """,
             (password_hash, admin_role_id, user_id)
@@ -100,8 +100,8 @@ try:
     else:
         cursor.execute(
             """
-            INSERT INTO users (name, email, password, role, role_id, status, auth_provider)
-            VALUES (%s, %s, %s, 'admin', %s, 'active', 'emergency')
+            INSERT INTO users (name, email, password, role_id, status, auth_provider)
+            VALUES (%s, %s, %s, %s, 'active', 'emergency')
             RETURNING user_id
             """,
             (EMERGENCY_ADMIN_NAME, email, password_hash, admin_role_id)

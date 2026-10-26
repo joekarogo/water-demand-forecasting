@@ -13,11 +13,7 @@ function Login() {
   const { refreshSession } = useSession();
   const googleButtonRef = useRef(null);
 
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState(location.state?.message || '');
-  const [loading, setLoading] = useState(false);
 
   // Google Identity Services renders its own button into this div once the
   // gsi/client script (loaded in public/index.html) is ready; we poll for
@@ -69,36 +65,6 @@ function Login() {
     };
   }, [navigate, refreshSession]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Login failed');
-        return;
-      }
-
-      localStorage.setItem('token', data.token);
-      window.location.href = '/dashboard';
-    } catch (err) {
-      setError('Unable to reach the server. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="login-page">
       <div className="login-card">
@@ -117,44 +83,6 @@ function Login() {
         <p className="login-note">
           We store your name, email and actions in this system for accountability.
         </p>
-
-        <button
-          type="button"
-          className="login-toggle"
-          onClick={() => setShowPasswordForm((v) => !v)}
-          aria-expanded={showPasswordForm}
-          aria-controls="password-login-form"
-        >
-          {showPasswordForm ? 'Hide password sign-in' : 'Sign in with password (temporary)'}
-        </button>
-
-        {showPasswordForm && (
-          <form id="password-login-form" onSubmit={handleSubmit}>
-            <div className="login-field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="login-field">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <button type="submit" className="login-button" disabled={loading}>
-              {loading ? 'Logging in...' : 'Log In'}
-            </button>
-          </form>
-        )}
       </div>
     </div>
   );

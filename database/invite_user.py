@@ -19,20 +19,14 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 
-# New (RBAC) role name -> the old users.role value the current login route
-# and frontend still read (that column is dropped in Part 3).
-OLD_ROLE_VALUES = {
-    'admin': 'admin',
-    'production_manager': 'manager',
-    'commercial_officer': 'commercial_officer',
-}
+ROLE_NAMES = ['admin', 'production_manager', 'commercial_officer']
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Invite a new user (Google sign-in, no password).')
     parser.add_argument('--name', required=True, help="The user's full name.")
     parser.add_argument('--email', required=True, help="The user's email address.")
-    parser.add_argument('--role', required=True, choices=sorted(OLD_ROLE_VALUES.keys()), help='Role to assign.')
+    parser.add_argument('--role', required=True, choices=sorted(ROLE_NAMES), help='Role to assign.')
     return parser.parse_args()
 
 
@@ -71,16 +65,15 @@ def main():
         conn.close()
         sys.exit(f"ERROR: no role named '{role_name}' found. Run database/schema/001_foundation.sql first.")
     role_id = row[0]
-    old_role_value = OLD_ROLE_VALUES[role_name]
 
     try:
         cursor.execute(
             """
-            INSERT INTO users (name, email, password, role, role_id, status, auth_provider)
-            VALUES (%s, %s, NULL, %s, %s, 'invited', 'google')
+            INSERT INTO users (name, email, password, role_id, status, auth_provider)
+            VALUES (%s, %s, NULL, %s, 'invited', 'google')
             RETURNING user_id
             """,
-            (name, email, old_role_value, role_id)
+            (name, email, role_id)
         )
         user_id = cursor.fetchone()[0]
 
