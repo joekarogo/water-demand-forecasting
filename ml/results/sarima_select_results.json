@@ -1,0 +1,2444 @@
+{
+  "candidates": [
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1349004.6528250203,
+      "mean_mae": 1088633.1111544764,
+      "mean_mape": 5.564286392398736,
+      "aic": 2402.4160139230435,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1359666.9238335865,
+      "mean_mae": 1098518.0345910774,
+      "mean_mape": 5.624195035431915,
+      "aic": 2758.161478206932,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1367336.885358698,
+      "mean_mae": 1088841.6402544386,
+      "mean_mape": 5.570903540484654,
+      "aic": 2373.4653020721344,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1373348.1068433577,
+      "mean_mae": 1087490.0353753949,
+      "mean_mape": 5.558645255883451,
+      "aic": 2400.0825298612767,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1373993.1516278083,
+      "mean_mae": 1103753.6497278516,
+      "mean_mape": 5.687092897170637,
+      "aic": 2748.351054487776,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1377356.5547907453,
+      "mean_mae": 1107050.2083333333,
+      "mean_mape": 5.6693870689424175,
+      "aic": 2799.5194854791466,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1377556.8899086602,
+      "mean_mae": 1083067.495885201,
+      "mean_mape": 5.540177317282956,
+      "aic": 2433.1570629913645,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1378318.6396414263,
+      "mean_mae": 1111886.9667097952,
+      "mean_mape": 5.700293275589051,
+      "aic": 2726.191194167438,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1387171.3931276815,
+      "mean_mae": 1106470.2787938388,
+      "mean_mape": 5.665895181884065,
+      "aic": 2405.903788118439,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1388264.2832466613,
+      "mean_mae": 1122152.6093929464,
+      "mean_mape": 5.757556951178663,
+      "aic": 2787.446379745365,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1400164.5608170535,
+      "mean_mae": 1108558.5933871197,
+      "mean_mape": 5.685979292301977,
+      "aic": 2435.7014935479538,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1402895.1047942853,
+      "mean_mae": 1132610.8265422059,
+      "mean_mape": 5.933364275937266,
+      "aic": 2394.1310533027236,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 1406684.8289903218,
+      "mean_mae": 1131823.2880051858,
+      "mean_mape": 5.930431741140975,
+      "aic": 3115.571118776871,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1408824.419071137,
+      "mean_mae": 1164472.9069341877,
+      "mean_mape": 6.169377462072377,
+      "aic": 3184.197476250886,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 1408826.3165333534,
+      "mean_mae": 1137911.1375634784,
+      "mean_mape": 5.9664743256116175,
+      "aic": 3082.245843768973,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1413557.4696939455,
+      "mean_mae": 1140635.9922033495,
+      "mean_mape": 5.847762997613214,
+      "aic": 2758.296986329446,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1416648.3186579917,
+      "mean_mae": 1173365.0973076525,
+      "mean_mape": 6.209685141827734,
+      "aic": 3186.195884173543,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1432076.6631054133,
+      "mean_mae": 1147179.0836674534,
+      "mean_mape": 5.865579462223608,
+      "aic": 2399.707832283671,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1433767.6131306037,
+      "mean_mae": 1172111.0366218481,
+      "mean_mape": 6.066920758999639,
+      "aic": 2402.7540967740556,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1438580.0474540768,
+      "mean_mae": 1123233.5958674282,
+      "mean_mape": 5.749140841514209,
+      "aic": 2429.5500046532243,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1442722.9397105621,
+      "mean_mae": 1198077.2710937825,
+      "mean_mape": 6.363254757258967,
+      "aic": 2817.8207196223398,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1459507.2906925743,
+      "mean_mae": 1159636.210401272,
+      "mean_mape": 5.958054031006781,
+      "aic": 2340.416722095415,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1491175.4811171761,
+      "mean_mae": 1230664.7050484295,
+      "mean_mape": 6.346063713907811,
+      "aic": 2696.16974648782,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1500524.7689560421,
+      "mean_mae": 1208515.0078973714,
+      "mean_mape": 6.210714909052484,
+      "aic": 2400.9771989798346,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1542296.4803031802,
+      "mean_mae": 1248553.6088814337,
+      "mean_mape": 6.562543041136746,
+      "aic": 2369.788303058855,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1545995.419406038,
+      "mean_mae": 1276652.6534349339,
+      "mean_mape": 6.570550241020984,
+      "aic": 2704.588717134455,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1557507.0026338426,
+      "mean_mae": 1288573.110050833,
+      "mean_mape": 6.631606315051162,
+      "aic": 2703.731539933614,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1576470.8054492825,
+      "mean_mae": 1239524.3098664999,
+      "mean_mape": 6.4298597128097335,
+      "aic": 2337.672618355627,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1582325.984626066,
+      "mean_mae": 1312981.2411076408,
+      "mean_mape": 6.760506013111585,
+      "aic": 2732.4966098025548,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1636431.2635105175,
+      "mean_mae": 1373787.9912225257,
+      "mean_mape": 7.020609422266888,
+      "aic": 2739.8082150877926,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1637274.003384257,
+      "mean_mae": 1353634.1755890471,
+      "mean_mape": 6.981751918370887,
+      "aic": 2346.530565751336,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1719413.4123591986,
+      "mean_mae": 1466915.8915819349,
+      "mean_mape": 7.704329842793331,
+      "aic": 2424.799485651892,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1807965.7908139983,
+      "mean_mae": 1533575.4479239068,
+      "mean_mape": 8.435073940365495,
+      "aic": 2337.9348665301904,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1833441.543692467,
+      "mean_mae": 1592464.569444444,
+      "mean_mape": 8.317314717035096,
+      "aic": 2790.050534341174,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1839123.830793556,
+      "mean_mae": 1533421.9043093466,
+      "mean_mape": 8.401568064104724,
+      "aic": 2339.3721666938263,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1839504.761882174,
+      "mean_mae": 1594414.2601360416,
+      "mean_mape": 8.245975469434935,
+      "aic": 2778.3483286344285,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 1844647.5830838624,
+      "mean_mae": 1601670.4381862888,
+      "mean_mape": 8.520159168001099,
+      "aic": 2722.6377227321404,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 1858652.1956817226,
+      "mean_mae": 1552846.7148066778,
+      "mean_mape": 8.091042593768984,
+      "aic": 2367.6060881569806,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 1931307.1754210684,
+      "mean_mae": 1667384.1383167116,
+      "mean_mape": 8.75531391476096,
+      "aic": 2697.047946056357,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1956809.7560931698,
+      "mean_mae": 1669031.756098199,
+      "mean_mape": 8.783747105099158,
+      "aic": 2733.192185079408,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1961785.5767629507,
+      "mean_mae": 1707549.6617974278,
+      "mean_mape": 9.041485014102571,
+      "aic": 2787.9958863332645,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 1962321.0219099668,
+      "mean_mae": 1651052.6670981527,
+      "mean_mape": 8.912460824891964,
+      "aic": 2374.9709793286165,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 1986486.3154370252,
+      "mean_mae": 1732340.216318126,
+      "mean_mape": 9.133789059100476,
+      "aic": 2729.9502677156547,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 1997222.769009213,
+      "mean_mae": 1737430.674381055,
+      "mean_mape": 9.19824800627253,
+      "aic": 2794.525310003213,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2003371.7901015899,
+      "mean_mae": 1736716.9313861958,
+      "mean_mape": 9.185190628598773,
+      "aic": 2761.057898860483,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2029771.9405414863,
+      "mean_mae": 1745636.8343130888,
+      "mean_mape": 9.218117425074766,
+      "aic": 2792.5031739842234,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2041629.291072175,
+      "mean_mae": 1781478.0475843952,
+      "mean_mape": 9.36643727224567,
+      "aic": 2763.295738797159,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2049567.07252464,
+      "mean_mae": 1738700.7224538745,
+      "mean_mape": 9.603924007338607,
+      "aic": 2369.048435690388,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2103089.3791444344,
+      "mean_mae": 1789289.3273918189,
+      "mean_mape": 9.634308353588663,
+      "aic": 2378.137066866597,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2103918.909796812,
+      "mean_mae": 1781032.8976671454,
+      "mean_mape": 9.961521947819305,
+      "aic": 2401.306808472353,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2120873.74266742,
+      "mean_mae": 1888179.0183078637,
+      "mean_mape": 9.909102483556,
+      "aic": 2756.713314592649,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2127168.077346468,
+      "mean_mae": 1879031.020525941,
+      "mean_mape": 9.868007685298462,
+      "aic": 2697.307480232652,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2158330.6209894656,
+      "mean_mae": 1899818.9824539248,
+      "mean_mape": 9.996884230043692,
+      "aic": 2736.4199746073336,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2192976.0181668946,
+      "mean_mae": 1939432.7913921338,
+      "mean_mape": 10.199946654396845,
+      "aic": 2734.0672029499606,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2286224.5083632437,
+      "mean_mae": 2061367.4364531648,
+      "mean_mape": 10.86596375746447,
+      "aic": 2798.2329003460923,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2292155.993277307,
+      "mean_mae": 2009089.672472607,
+      "mean_mape": 11.259104129373007,
+      "aic": 2387.6053105815836,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2345355.5728830807,
+      "mean_mae": 2089002.1656913718,
+      "mean_mape": 10.931254709286485,
+      "aic": 2795.185006659221,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2366158.140056944,
+      "mean_mae": 2063766.3201822953,
+      "mean_mape": 11.30571630924936,
+      "aic": 2346.0023305928657,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2380681.3072073516,
+      "mean_mae": 2182182.468314623,
+      "mean_mape": 11.458087691289629,
+      "aic": 2765.1746852646256,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 2380763.233822477,
+      "mean_mae": 1894446.283963794,
+      "mean_mape": 10.621458639154971,
+      "aic": 2340.007305719429,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2383142.474482235,
+      "mean_mae": 2049488.7883612907,
+      "mean_mape": 11.41459903147837,
+      "aic": 2388.968085172882,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 2403042.7512631253,
+      "mean_mae": 2044489.7422435724,
+      "mean_mape": 10.920620157934655,
+      "aic": 2376.584705027456,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2431534.17673933,
+      "mean_mae": 2210342.1696035718,
+      "mean_mape": 11.614284412315607,
+      "aic": 2767.799276067386,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 2442568.115712334,
+      "mean_mae": 2214683.729513348,
+      "mean_mape": 11.623737768635772,
+      "aic": 2769.5842704965166,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2461858.3687206726,
+      "mean_mae": 2214445.5310183447,
+      "mean_mape": 11.428228473594379,
+      "aic": 2802.34133772256,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2485687.7296819957,
+      "mean_mae": 2276283.360757776,
+      "mean_mape": 11.95235143772984,
+      "aic": 2769.434672639672,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 2486719.0364649794,
+      "mean_mae": 2222618.721046915,
+      "mean_mape": 11.645211184566833,
+      "aic": 2763.3783102554953,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3051983.002776258,
+      "mean_mae": 2773774.588155814,
+      "mean_mape": 14.518852969423593,
+      "aic": 2775.9772514287724,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3150167.9892603233,
+      "mean_mae": 2875134.343123108,
+      "mean_mape": 14.9723838924457,
+      "aic": 2808.9108489697614,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3202118.8475869526,
+      "mean_mae": 2943950.7367655407,
+      "mean_mape": 15.364305202756066,
+      "aic": 2748.9482949248786,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3214430.238185136,
+      "mean_mae": 2948111.8742746743,
+      "mean_mape": 15.47409035280559,
+      "aic": 2777.6026256028067,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3288589.907290378,
+      "mean_mae": 3008373.1705000573,
+      "mean_mape": 15.796257634973962,
+      "aic": 2779.224215405635,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3303020.5451119873,
+      "mean_mae": 3035643.2245987854,
+      "mean_mape": 15.934378395227435,
+      "aic": 2810.838766258356,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3552050.244890773,
+      "mean_mae": 3280138.1330362745,
+      "mean_mape": 17.26388034944625,
+      "aic": 2779.9615273702248,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3645025.743563596,
+      "mean_mae": 3391657.5516819414,
+      "mean_mape": 17.581178088332454,
+      "aic": 3110.424276296206,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3717201.2455877014,
+      "mean_mae": 3465860.552132809,
+      "mean_mape": 18.00249988407929,
+      "aic": 3143.5420166795016,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3743861.310264151,
+      "mean_mae": 3497862.4709574752,
+      "mean_mape": 18.17978378884113,
+      "aic": 3142.645686776194,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3746336.972625895,
+      "mean_mae": 3496370.2343255193,
+      "mean_mape": 18.181189701214084,
+      "aic": 3106.7119255279777,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3818065.363705249,
+      "mean_mae": 3551943.9444444445,
+      "mean_mape": 18.49430365073474,
+      "aic": 3172.711242060656,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3850804.3689970556,
+      "mean_mae": 3592567.5673595746,
+      "mean_mape": 18.756982236564202,
+      "aic": 3108.9449129952322,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3951689.4883575086,
+      "mean_mae": 3693495.798473092,
+      "mean_mape": 19.277863862232888,
+      "aic": 3143.300352736275,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3964710.780048655,
+      "mean_mae": 3708675.703452568,
+      "mean_mape": 19.363569273709697,
+      "aic": 3173.7798038869582,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 3994099.0337398485,
+      "mean_mae": 3743157.7764875474,
+      "mean_mape": 19.579390835295744,
+      "aic": 3144.3711823574267,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 4072071.9690778726,
+      "mean_mae": 3814366.911742198,
+      "mean_mape": 20.01615994234403,
+      "aic": 3175.7696539674184,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 6519480.04212441,
+      "mean_mae": 3604275.6018875544,
+      "mean_mape": 22.120272625479107,
+      "aic": 2363.3748639785726,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 12820522.985714555,
+      "mean_mae": 12670791.282897452,
+      "mean_mape": 66.67520041700455,
+      "aic": 3181.1386541941706,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 16993163.216676347,
+      "mean_mae": 16245115.635285823,
+      "mean_mape": 85.13713248051097,
+      "aic": 3513.3005789820045,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "mean_rmse": 19099249.117495127,
+      "mean_mae": 19048326.694444448,
+      "mean_mape": 100.0,
+      "aic": 3668.3283843053878,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 30295603.39399171,
+      "mean_mae": 17657208.16567398,
+      "mean_mape": 93.5144661841045,
+      "aic": 2395.1492755390973,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 43431860.65287201,
+      "mean_mae": 43216493.79846894,
+      "mean_mape": 252.26305471666907,
+      "aic": 2746.8695871112586,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 192449836.64011267,
+      "mean_mae": 79439522.56137517,
+      "mean_mape": 518.8223257773944,
+      "aic": 2401.3762642722772,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "mean_rmse": 554955836.9519311,
+      "mean_mae": 269889859.09312916,
+      "mean_mape": 1390.8207323915556,
+      "aic": 2379.444019572384,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 20534898810.571888,
+      "mean_mae": 20012759546.972412,
+      "mean_mape": 96353.98744244142,
+      "aic": 2377.5941236062163,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 22798394524.324383,
+      "mean_mae": 22756828739.364037,
+      "mean_mape": 127924.61663241277,
+      "aic": 2306.397339353787,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 23762862240.307392,
+      "mean_mae": 23703792148.699284,
+      "mean_mape": 122192.17821906846,
+      "aic": 2304.3955082599596,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 25618311335.233753,
+      "mean_mae": 24969458823.39152,
+      "mean_mape": 121209.78541902633,
+      "aic": 2377.940946118428,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 42914560674.236176,
+      "mean_mae": 42778591097.012245,
+      "mean_mape": 216288.79769484568,
+      "aic": 2304.93658909616,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 50502282857.598015,
+      "mean_mae": 50402312862.57874,
+      "mean_mape": 241480.75946549096,
+      "aic": 2305.850423501448,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "mean_rmse": 104535553228.38947,
+      "mean_mae": 104225203662.7085,
+      "mean_mape": 499157.54532647115,
+      "aic": 2306.148302905377,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 4378405991687640.5,
+      "mean_mae": 4212429147408464.5,
+      "mean_mape": 21041371083.31896,
+      "aic": 2716.4924735577138,
+      "cv_folds": 12
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "mean_rmse": 3.2372337746836116e+18,
+      "mean_mae": 1.3215951543635295e+18,
+      "mean_mape": 7474105795181.921,
+      "aic": 3122.243201810834,
+      "cv_folds": 12
+    }
+  ],
+  "excluded": [
+    {
+      "order": [
+        0,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "full-sample fit failed: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        0,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        0,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        0
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        1,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "reason": "full-sample fit failed: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        0,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        0,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        0,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        0,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    },
+    {
+      "order": [
+        2,
+        1,
+        2
+      ],
+      "seasonal_order": [
+        1,
+        1,
+        1,
+        12
+      ],
+      "reason": "ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals"
+    }
+  ],
+  "chosen": {
+    "order": [
+      1,
+      0,
+      0
+    ],
+    "seasonal_order": [
+      0,
+      1,
+      1,
+      12
+    ],
+    "mean_rmse": 1349004.6528250203,
+    "mean_mae": 1088633.1111544764,
+    "mean_mape": 5.564286392398736,
+    "aic": 2402.4160139230435,
+    "cv_folds": 12
+  }
+}

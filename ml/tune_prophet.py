@@ -35,7 +35,7 @@ df = df.sort_values('ds').reset_index(drop=True)
 
 print(f"Data loaded: {len(df)} records", flush=True)
 
-# Train test split—80/20 (same split used by forecast.py / forecast_api.py,
+# Train test split—80/20 (same split used by forecast.py / train_model.py,
 # so results are comparable). Tuning only ever touches `train` below — the
 # test set is never used for cross-validation or parameter selection.
 split_index = int(len(df) * 0.8)

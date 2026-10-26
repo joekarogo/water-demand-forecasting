@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Planning · Water Demand Forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f1f5f9;
+    --surface:#ffffff;
+    --border:#e2e8f0;
+    --border-strong:#cbd5e1;
+    --text:#0f2537;
+    --text-2:#475569;
+    --text-3:#64748b;
+    --navy:#0b3a5c;
+    --navy-2:#0f4c75;
+    --blue:#0b5c8f;
+    --teal:#0d7f80;
+    --teal-soft:#e6f4f4;
+    --teal-band:rgba(13,127,128,.15);
+    --up:#0f7a4a;
+    --up-soft:#e7f5ee;
+    --down:#b42318;
+    --danger:#b42318;
+    --danger-soft:#fdecea;
+    --focus:#2563eb;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(15,37,55,.05),0 2px 8px rgba(15,37,55,.04);
+    --sidebar:240px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  /* ---------- Demo toolbar ---------- */
+  .demo-bar{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;
+    height:34px;padding:0 16px;background:#1e293b;color:#e2e8f0;font-size:12px;
+  }
+  .demo-bar strong{font-weight:600;letter-spacing:.02em;text-transform:uppercase;font-size:11px;color:#94a3b8}
+  .demo-bar .seg{display:inline-flex;background:#0f172a;border-radius:6px;padding:2px}
+  .demo-bar button{
+    background:transparent;border:0;color:#cbd5e1;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;
+  }
+  .demo-bar button[aria-pressed="true"]{background:#334155;color:#fff}
+  .demo-bar .note{margin-left:auto;color:#94a3b8}
+  @media (max-width:600px){.demo-bar .note{display:none}}
+
+  /* ---------- Shell ---------- */
+  .shell{display:flex;min-height:calc(100vh - 34px)}
+  .sidebar{
+    width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--navy);color:#dbeafe;
+    position:fixed;left:0;top:34px;bottom:0;height:calc(100vh - 34px);overflow-y:auto;z-index:30;display:flex;flex-direction:column;
+    padding:20px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px;color:#fff;font-weight:600;font-size:15px;line-height:1.25}
+  .brand-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:0 0 auto}
+  .nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;
+    color:#c7d7e6;text-decoration:none;font-weight:500;
+  }
+  .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav a[aria-current="page"]{background:rgba(94,201,201,.16);color:#fff;box-shadow:inset 3px 0 0 #5ec9c9}
+  .nav svg{flex:0 0 auto;opacity:.9}
+  .sidebar-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#9fb6cb}
+  .sidebar-foot .ver{color:#dbe7f2;font-weight:500}
+  .sidebar-foot .src{font-size:11px;color:#8aa3b9;margin-top:2px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;margin-left:var(--sidebar)}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:18px 32px;background:var(--surface);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
+  .topbar .sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .published{margin:6px 0 0;font-size:12px;color:var(--text-2);line-height:1.45}
+  .published .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--up);margin-right:6px;vertical-align:1px}
+  .published b{font-weight:600;color:var(--text)}
+  .published.data-line{margin-top:2px}
+  .published.data-line .dot{background:#94a3b8}
+  .user{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:600;font-size:13px}
+  .user-name{font-weight:600}
+  .role{display:inline-block;padding:2px 9px;border-radius:999px;background:#e8f0f8;color:var(--navy-2);font-size:12px;font-weight:600;border:1px solid #d3e2f0}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;border:1px solid var(--border-strong);
+    background:var(--surface);cursor:pointer;font-weight:500;font-size:13px;color:var(--text);
+  }
+  .btn:hover{background:#f8fafc;border-color:#94a3b8}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--navy-2);border-color:var(--navy-2)}
+  .close-btn{display:none;margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#fff;cursor:pointer;place-items:center;font-size:16px;line-height:1}
+  .close-btn:hover{background:rgba(255,255,255,.08)}
+  .menu-btn{display:none;border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;width:36px;height:36px;cursor:pointer;place-items:center;font-size:18px;line-height:1;flex:0 0 auto}
+
+  .content{padding:24px 32px 32px;display:flex;flex-direction:column;gap:20px;max-width:1360px;width:100%}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .kpi{padding:18px 20px}
+  .kpi-label{font-size:13px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+  .kpi-value{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:6px 0 4px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .kpi-value .unit{font-size:16px;font-weight:600;color:var(--text-2);margin-left:3px}
+  .kpi-help{font-size:12px;color:var(--text-3)}
+  .kpi .info-btn{width:18px;height:18px}
+  .tip.right{left:auto;right:-8px;transform:none}
+  .tip.right::after{left:auto;right:12px;transform:none}
+  .delta-up{color:var(--up);display:inline-flex;align-items:center;gap:6px}
+  .delta-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--up-soft);color:var(--up)}
+  .kpi.accent{border-top:3px solid var(--teal)}
+
+  /* ---------- Summary ---------- */
+  .summary{
+    display:flex;gap:14px;align-items:flex-start;padding:16px 20px;border-radius:var(--radius);
+    background:linear-gradient(90deg,#e6f4f4,#eef6fb);border:1px solid #c8e6e6;
+  }
+  .summary p{margin:0;font-size:15px;line-height:1.55;color:#0b3340}
+  .summary b{font-weight:600}
+  .summary-icon{flex:0 0 auto;width:32px;height:32px;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--teal);border:1px solid #c8e6e6}
+
+  .insight{margin:-8px 0 0;display:flex;align-items:flex-start;gap:8px;padding:9px 14px;border-radius:8px;background:#fff8e6;border:1px solid #f3e1b3;color:#5c4510;font-size:13px}
+  .insight svg{flex:0 0 auto;margin-top:2px;color:#b7791f}
+
+  /* ---------- Chart card ---------- */
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px 0;flex-wrap:wrap}
+  .card-title{margin:0;font-size:16px;font-weight:600}
+  .card-sub{margin:2px 0 0;color:var(--text-3);font-size:13px}
+  .controls{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .ctl-label{font-size:12px;font-weight:600;color:var(--text-2);margin-right:8px}
+  .segmented{display:inline-flex;background:#eef2f6;border:1px solid var(--border);border-radius:8px;padding:3px}
+  .segmented button{
+    border:0;background:transparent;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);white-space:nowrap;
+  }
+  .segmented button[aria-checked="true"]{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(15,37,55,.12);font-weight:600}
+  .toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text);background:none;border:0;padding:2px}
+  .switch{width:36px;height:20px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .15s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+  .toggle[aria-checked="true"] .switch{background:var(--teal)}
+  .toggle[aria-checked="true"] .switch::after{transform:translateX(16px)}
+  .toggle .state{font-size:11px;color:var(--text-3);font-weight:600;min-width:20px}
+  .ctl-group{display:inline-flex;align-items:center;gap:4px}
+
+  .info{position:relative;display:inline-flex}
+  .info-btn{
+    width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:var(--text-3);cursor:help;display:grid;place-items:center;padding:0;
+  }
+  .info-btn:hover{color:var(--blue)}
+  .tip{
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;
+    background:#0f2537;color:#f1f5f9;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:7px;
+    box-shadow:0 6px 18px rgba(15,37,55,.2);opacity:0;visibility:hidden;transition:opacity .12s;z-index:20;font-weight:400;
+  }
+  .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#0f2537}
+  .info:hover .tip,.info-btn:focus-visible + .tip,.info.open .tip{opacity:1;visibility:visible}
+
+  .chart-wrap{position:relative;height:380px;padding:16px 20px 8px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;padding:0 20px 18px;font-size:12px;color:var(--text-2)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .lg-line{width:22px;height:0;border-top:2.5px solid var(--blue)}
+  .lg-dash{width:22px;height:0;border-top:2.5px dashed var(--teal)}
+  .lg-band{width:18px;height:11px;background:var(--teal-band);border-radius:2px;border:1px solid rgba(13,127,128,.3)}
+  .lg-dot{width:22px;height:0;border-top:2.5px dotted #64748b}
+  .legend .off{opacity:.4}
+
+  /* ---------- Table ---------- */
+  .table-wrap{overflow-x:auto;padding:8px 0 4px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  caption{text-align:left}
+  th,td{padding:11px 20px;text-align:right;white-space:nowrap;border-bottom:1px solid #eef2f6}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:#f8fbfd}
+  tbody tr:first-child td{background:#f3fafa}
+  tbody tr:first-child td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
+  td.month{font-weight:600}
+  td.muted{color:var(--text-3)}
+  .chg-up{color:var(--up);font-weight:600}
+  .chg-down{color:var(--down);font-weight:600}
+  .table-note{padding:10px 20px 16px;font-size:12px;color:var(--text-3)}
+
+  /* ---------- Footer ---------- */
+  .foot{display:flex;flex-direction:column;gap:10px;color:var(--text-3);font-size:13px}
+  .foot-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .foot-line .tip{width:270px}
+
+  /* ---------- Loading / error ---------- */
+  .state-banner{
+    display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:var(--radius);
+    background:#eef6fb;border:1px solid #cfe3f1;color:var(--navy);font-weight:500;
+  }
+  .spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid #bcd6ea;border-top-color:var(--blue);animation:spin .8s linear infinite;flex:0 0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sk{background:linear-gradient(90deg,#e8eef4 25%,#f3f6f9 50%,#e8eef4 75%);background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px}
+  @keyframes shimmer{to{background-position:-200% 0}}
+  .sk-kpi{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .sk-chart{height:420px;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .error-card{padding:40px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .error-icon{width:48px;height:48px;border-radius:50%;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center}
+  .error-card h2{margin:6px 0 0;font-size:17px}
+  .error-card p{margin:0;color:var(--text-2);max-width:440px}
+  .error-card .meta{font-size:12px;color:var(--text-3)}
+  [hidden]{display:none !important}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:1100px){
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:900px){
+    .main{margin-left:0}
+    .sidebar{position:fixed;left:0;top:34px;z-index:40;transform:translateX(-100%);transition:transform .2s}
+    .sidebar.open{transform:none;box-shadow:4px 0 24px rgba(0,0,0,.2)}
+    .scrim{position:fixed;inset:34px 0 0 0;background:rgba(15,37,55,.35);z-index:35}
+    .menu-btn,.close-btn{display:grid}
+    .topbar{padding:14px 16px;gap:12px}
+    .content{padding:16px}
+    .user-name,.logout-label{display:none}
+  }
+  @media (max-width:560px){
+    .segmented button{padding:5px 10px}
+    .ctl-group:first-child{flex-wrap:wrap;row-gap:6px}
+    .kpi{padding:14px}
+    .kpi-value{font-size:23px}
+    .kpi-value .unit{font-size:13px}
+    .role{font-size:11px;padding:2px 7px}
+    .chart-wrap{height:300px;padding:12px 8px 4px}
+    .controls{gap:14px}
+    .topbar h1{font-size:18px}
+    .topbar{flex-wrap:wrap}
+    .topbar > div:nth-child(2){flex:1;min-width:0}
+    .user{gap:8px;flex-basis:100%;margin-left:0;padding-top:10px;border-top:1px solid var(--border)}
+    .user .btn{margin-left:auto}
+    .user .user-name{display:inline}
+    .avatar{display:none}
+  }
+
+  /* =====================================================================
+     Production Planning page — additions on top of the shared design system
+     ===================================================================== */
+  .kpi-value .unit.of{font-size:16px}
+  .kpi-link{border:0;background:none;padding:0;color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .kpi-link:hover{color:var(--navy-2)}
+
+  /* Explanation strip */
+  .explain{display:flex;align-items:flex-start;gap:10px;padding:11px 16px;border-radius:8px;background:#f5f9fc;border:1px solid #dbe7f1;color:var(--text-2);font-size:13px;line-height:1.55}
+  .explain > svg{flex:0 0 auto;margin-top:2px;color:var(--blue)}
+  .explain b{color:var(--text);font-weight:600}
+  .explain .info{vertical-align:-4px;margin-left:2px}
+  .explain .tip{width:300px}
+
+  /* Grid card */
+  .grid-summary{font-size:12px;color:var(--text-2);display:flex;gap:14px;flex-wrap:wrap}
+  .grid-summary span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:10px;height:10px;border-radius:3px;background:#cfdbe7;display:inline-block}
+  .sw.teal{background:var(--teal)}
+
+  .spark-wrap{padding:16px 20px 4px}
+  .spark-cap{font-size:12px;color:var(--text-3);margin:0 0 6px}
+  .spark{display:flex;align-items:stretch;gap:6px;height:92px}
+  .spark .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;min-width:0;cursor:pointer;border:0;background:none;padding:0;font:inherit}
+  .spark .col:hover .bar{filter:brightness(.92)}
+  .spark .bar{width:100%;max-width:38px;border-radius:4px 4px 0 0;background:#cfdbe7;position:relative}
+  .spark .col.planned .bar{background:var(--teal)}
+  .spark .col.planned .bar::before{content:"✓";position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--teal);font-weight:700}
+  .spark .col.out{opacity:.3}
+  .spark .lbl{font-size:10.5px;color:var(--text-3);line-height:1}
+
+  .plan-table th.l,.plan-table td.l{text-align:left}
+  .plan-table th,.plan-table td{padding-left:14px;padding-right:14px}
+  .plan-table th:first-child,.plan-table td:first-child{padding-left:20px}
+  .plan-table th:last-child,.plan-table td:last-child{padding-right:20px}
+  .plan-table thead th{white-space:normal;line-height:1.3;vertical-align:bottom}
+  .plan-table .warn-pill{display:flex;width:max-content;margin:4px 0 0}
+  .plan-table tbody tr{cursor:pointer}
+  .plan-table tbody tr:first-child td{background:transparent}
+  .plan-table tbody tr:first-child td:first-child{box-shadow:none}
+  .plan-table tbody tr:hover td{background:#f5f9fc}
+  .plan-table tbody tr.selected td{background:#eaf3fa}
+  .plan-table tbody tr.selected td:first-child{box-shadow:inset 3px 0 0 var(--blue)}
+  .row-btn{border:0;background:none;padding:0;font-weight:600;cursor:pointer;color:var(--text);text-align:left;font-size:14px}
+  .row-btn:hover{color:var(--blue);text-decoration:underline;text-underline-offset:2px}
+  .tag-next{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:4px;background:#fff1d6;color:#7a5200;margin-left:8px;vertical-align:1px}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+  .badge.ok{background:var(--up-soft);color:var(--up);border-color:#c5e6d4}
+  .plan-table .badge{min-width:108px}
+  .demo-bar .sm-txt{display:none}
+  @media (max-width:600px){.demo-bar .lg-txt{display:none}.demo-bar .sm-txt{display:inline}.demo-bar{gap:6px;padding:0 8px}.demo-bar button{padding:3px 7px}}
+  .badge.none{background:#f1f5f9;color:var(--text-2);border-color:var(--border)}
+  .warn-pill{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--danger-soft);color:var(--danger)}
+  td.dash{color:var(--text-3)}
+  td b{font-weight:600}
+  .row-chev{color:var(--text-3);margin-left:10px;vertical-align:-3px}
+
+  /* Stock card */
+  .stock-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px;padding:14px 20px 20px}
+  .stock-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;gap:12px;align-items:start}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .field > label,.label{font-size:12px;font-weight:600;color:var(--text-2)}
+  .label .req{color:var(--danger);margin-left:2px}
+  .input{height:38px;width:100%;border:1px solid var(--border-strong);border-radius:8px;padding:0 11px;font:inherit;background:#fff;color:var(--text)}
+  .input:hover{border-color:#94a3b8}
+  .input:focus-visible{outline:3px solid var(--focus);outline-offset:1px;border-radius:8px}
+  .input[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+  textarea.input{height:auto;min-height:72px;padding:9px 11px;resize:vertical;line-height:1.45}
+  .input-suffix{position:relative}
+  .input-suffix .input{padding-right:42px}
+  .input-suffix > span{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px;pointer-events:none}
+  .field-err{font-size:12px;color:var(--danger);font-weight:500}
+  .field-err::before{content:"⚠ "}
+  .field-hint{font-size:12px;color:var(--text-3)}
+  .btn-spacer{height:23px}
+  .mini-title{margin:0 0 6px;font-size:13px;font-weight:600}
+  .mini th,.mini td{padding:8px 0;text-align:left}
+  .mini th:last-child,.mini td:last-child{text-align:right}
+  .mini td:nth-child(2),.mini th:nth-child(2){text-align:right;padding-right:18px}
+  .mini thead th{background:transparent}
+  .mini tbody tr:first-child td{background:transparent;box-shadow:none}
+  .mini tbody tr:hover{background:transparent}
+  .new-tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--up-soft);color:var(--up);margin-left:6px;text-transform:uppercase}
+
+  /* Side panel */
+  .panel-scrim{position:fixed;inset:34px 0 0 0;background:rgba(15,37,55,.35);z-index:60}
+  .panel{
+    position:fixed;top:34px;right:0;bottom:0;width:460px;max-width:100%;background:#fff;z-index:61;
+    display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(15,37,55,.18);
+    transform:translateX(100%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s;
+  }
+  .panel.open{transform:none;visibility:visible;transition:transform .22s ease}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--border)}
+  .panel-head h2{margin:0;font-size:17px;font-weight:700}
+  .panel-head .kicker{font-size:12px;color:var(--text-3);margin:0}
+  .icon-btn{margin-left:auto;width:34px;height:34px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;cursor:pointer;display:grid;place-items:center;font-size:15px;flex:0 0 auto}
+  .icon-btn:hover{background:#f8fafc}
+  .panel-body{flex:1;overflow-y:auto;padding:18px 22px 22px;display:flex;flex-direction:column;gap:18px}
+  .panel-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--border);background:#fafcfd}
+  .fc-box{padding:14px 16px;border-radius:10px;background:var(--teal-soft);border:1px solid #c8e6e6}
+  .fc-box .lab{font-size:12px;color:var(--text-2);font-weight:500}
+  .fc-box .val{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:2px 0;font-variant-numeric:tabular-nums}
+  .fc-box .val .unit{font-size:15px;color:var(--text-2);font-weight:600;margin-left:3px}
+  .fc-box .rng{font-size:12px;color:var(--text-2)}
+  .current{font-size:12px;color:var(--text-2);padding:8px 12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px}
+  .current b{color:var(--text);font-weight:600}
+  fieldset{border:0;margin:0;padding:0;min-width:0}
+  legend{font-size:13px;font-weight:600;margin:0 0 8px;padding:0}
+  .choices{display:flex;flex-direction:column;gap:8px}
+  .choice{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border-strong);border-radius:10px;cursor:pointer;background:#fff}
+  .choice:hover{border-color:#94a3b8}
+  .choice input{margin:3px 0 0;accent-color:var(--blue);width:16px;height:16px;flex:0 0 auto}
+  .choice:has(input:checked){border-color:var(--blue);box-shadow:0 0 0 1px var(--blue);background:#f5f9fd}
+  .choice:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+  .choice input:focus-visible{outline:none}
+  .choice-main{flex:1;min-width:0}
+  .choice .t{font-weight:600;display:flex;justify-content:space-between;gap:10px}
+  .choice .amt{font-variant-numeric:tabular-nums}
+  .choice .d{font-size:12px;color:var(--text-3)}
+  .custom-fields{display:flex;flex-direction:column;gap:14px;padding:14px;border:1px dashed var(--border-strong);border-radius:10px;background:#fbfcfe}
+  .preview{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+  .alert{display:flex;gap:6px;padding:8px 10px;border-radius:8px;font-size:12.5px;font-weight:500;line-height:1.4}
+  .alert.danger{background:var(--danger-soft);color:var(--danger);border:1px solid #f5c6c0}
+  .alert.amber{background:#fff8e6;color:#6b4800;border:1px solid #f3e1b3}
+  .history h3{margin:0 0 10px;font-size:13px;font-weight:600}
+  .hist{list-style:none;margin:0 0 0 5px;padding:0;border-left:2px solid var(--border)}
+  .hist li{position:relative;padding:0 0 14px 16px;font-size:13px}
+  .hist li:last-child{padding-bottom:0}
+  .hist li::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #94a3b8}
+  .hist li.cur::before{border-color:var(--teal);background:var(--teal)}
+  .hist .h1{font-weight:600}
+  .hist .meta{font-size:12px;color:var(--text-3)}
+  .hist .why{font-size:12px;color:var(--text-2);margin-top:2px}
+  .cur-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:4px;background:var(--teal-soft);color:var(--teal);margin-left:6px;vertical-align:1px}
+  .hist-empty{font-size:13px;color:var(--text-3);margin:0}
+
+  /* Toast */
+  .toast{position:fixed;right:24px;bottom:24px;z-index:80;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;background:#0f2537;color:#fff;box-shadow:0 10px 30px rgba(15,37,55,.25);font-weight:500;transform:translateY(16px);opacity:0;transition:transform .2s,opacity .2s;pointer-events:none}
+  .toast.show{transform:none;opacity:1}
+  .toast .tick{width:20px;height:20px;border-radius:50%;background:#22a06b;display:grid;place-items:center;font-size:12px;flex:0 0 auto}
+
+  /* Empty state */
+  .empty-icon{width:48px;height:48px;border-radius:50%;background:#eef6fb;color:var(--blue);display:grid;place-items:center}
+  .sk-table{padding:20px;display:flex;flex-direction:column;gap:12px}
+
+  @media (max-width:1100px){
+    .stock-body{grid-template-columns:1fr;gap:22px}
+  }
+  @media (max-width:640px){
+    .panel{width:100%}
+    .stock-form{grid-template-columns:1fr}
+    .btn-spacer{display:none}
+    .toast{left:16px;right:16px;bottom:16px}
+    .spark{height:80px;gap:3px}
+    .spark .lbl{font-size:9.5px}
+  }
+</style>
+</head>
+<body>
+
+<!-- Demo toolbar (not part of the product) -->
+<div class="demo-bar" role="toolbar" aria-label="Demo states">
+  <strong>Demo states</strong>
+  <div class="seg">
+    <button type="button" data-state="normal" aria-pressed="true">Normal</button>
+    <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+    <button type="button" data-state="error" aria-pressed="false">Error</button>
+    <button type="button" data-state="empty" aria-pressed="false"><span class="lg-txt">No forecast published</span><span class="sm-txt" aria-hidden="true">No forecast</span></button>
+  </div>
+  <span class="note">Mockup only · sample data</span>
+</div>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg width="18" height="20" viewBox="0 0 18 22" fill="none"><path d="M9 1.5C9 1.5 2 9.2 2 13.8A7 7 0 0 0 16 13.8C16 9.2 9 1.5 9 1.5Z" fill="#5ec9c9" stroke="#bdeaea" stroke-width="1.2"/><path d="M5.6 14.2a3.4 3.4 0 0 0 3.2 3.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <span>Water Demand<br>Forecasting</span>
+      <button class="close-btn" id="closeBtn" type="button" aria-label="Close navigation">✕</button>
+    </div>
+    <ul class="nav">
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/><path d="M15 6h4v4" stroke-dasharray="2 2"/></svg>
+        Forecast</a></li>
+      <li><a href="#" aria-current="page">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10l5 3V10l5 3V6h4v15"/></svg>
+        Production Planning</a></li>
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 12h5m0 0V5h5m-5 7v7h5"/></svg>
+        Distribution</a></li>
+      <li><a href="#">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+        Reports</a></li>
+    </ul>
+    <div class="sidebar-foot"><div class="ver">Version 1.0</div><div class="src">Data: İZSU Open Data (İzmir)</div></div>
+  </nav>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+        <span aria-hidden="true">☰</span>
+      </button>
+      <div>
+        <h1>Production Planning</h1>
+        <p class="sub">Plan monthly water production from the published forecast</p>
+        <p class="published" id="basedOn"><span class="dot" aria-hidden="true"></span><span>Based on forecast published <b>25 Oct 2026</b> · latest available data: <b>August 2024</b></span></p>
+      </div>
+      <div class="user">
+        <span class="avatar" aria-hidden="true">JK</span>
+        <span class="user-name">Joe Karogo</span>
+        <span class="role" title="Signed-in role">Production Manager</span>
+        <button class="btn" type="button" aria-label="Log out">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+          <span class="logout-label">Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+
+      <!-- ===================== NORMAL STATE ===================== -->
+      <div id="stateNormal" style="display:contents">
+
+        <section class="kpis" aria-label="Key figures">
+          <article class="card kpi accent">
+            <div class="kpi-label">Months planned</div>
+            <div class="kpi-value"><span id="kPlanned">3</span><span class="unit of">of 12</span></div>
+            <div class="kpi-help">Sep 2024 – Aug 2025</div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">Next unplanned month</div>
+            <div class="kpi-value" id="kNext">Dec 2024</div>
+            <div class="kpi-help" id="kNextHelp"></div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">Current stock</div>
+            <div class="kpi-value"><span id="kStock">62.0M</span><span class="unit">m³</span></div>
+            <div class="kpi-help" id="kStockHelp">recorded 25 Oct 2026</div>
+          </article>
+          <article class="card kpi">
+            <div class="kpi-label">Days of cover
+              <span class="info">
+                <button type="button" class="info-btn" aria-label="What does days of cover mean?" aria-describedby="tipCover">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+                </button>
+                <span class="tip right" role="tooltip" id="tipCover">How long current stored water would last at the planned production rate.</span>
+              </span>
+            </div>
+            <div class="kpi-value"><span id="kCover">≈ 47</span><span class="unit">days</span></div>
+            <div class="kpi-help">stock ÷ daily planned production (Sep 2024)</div>
+          </article>
+        </section>
+
+        <section class="explain" aria-label="How the plans work">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+          <p style="margin:0"><b>Normal plan</b> covers expected demand. <b>Safe plan</b> covers demand in about 9 out of 10 months. Both include a 32.4% allowance for non-revenue water.
+            <span class="info">
+              <button type="button" class="info-btn" aria-label="How is this calculated?" aria-describedby="tipCalc">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+              </button>
+              <span class="tip" role="tooltip" id="tipCalc"><b>How is this calculated?</b><br>Normal = forecast ÷ (1 − 0.324).<br>Safe = upper end of the 80% range ÷ (1 − 0.324).<br>Source: İZSU 2019 water balance.</span>
+            </span>
+          </p>
+        </section>
+
+        <section class="card" aria-labelledby="gridTitle">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title" id="gridTitle">Monthly production plan</h2>
+              <p class="card-sub" id="gridSub">Next 12 months · select a month to plan it</p>
+            </div>
+            <div class="grid-summary" aria-live="polite">
+              <span><i class="sw teal" aria-hidden="true"></i><span id="sumPlanned">3 planned</span></span>
+              <span><i class="sw" aria-hidden="true"></i><span id="sumOpen">9 not planned</span></span>
+            </div>
+          </div>
+          <div class="controls" role="group" aria-label="Grid options">
+            <div class="ctl-group">
+              <span class="ctl-label" id="horizonLabel">Show next</span>
+              <div class="segmented" role="radiogroup" aria-labelledby="horizonLabel" id="horizon">
+                <button type="button" role="radio" aria-checked="false" data-h="3" tabindex="-1">3 months</button>
+                <button type="button" role="radio" aria-checked="false" data-h="6" tabindex="-1">6 months</button>
+                <button type="button" role="radio" aria-checked="true" data-h="12">12 months</button>
+              </div>
+            </div>
+          </div>
+          <div class="spark-wrap">
+            <p class="spark-cap" id="sparkCap">Forecast demand by month · ✓ = planned</p>
+            <div class="spark" id="spark" role="group" aria-label="Forecast demand by month. Select a bar to plan that month."></div>
+          </div>
+          <div class="table-wrap">
+            <table class="plan-table">
+              <caption class="sr-only">Monthly production plan. Select a month to open its plan.</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Month</th>
+                  <th scope="col">Forecast demand (m³)</th>
+                  <th scope="col">Normal plan (m³)</th>
+                  <th scope="col">Safe plan (m³)</th>
+                  <th scope="col">Chosen plan (m³)</th>
+                  <th scope="col" class="l">Plan type</th>
+                  <th scope="col" class="l">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="table-note">Values in millions of m³. Chosen plan is the amount the production team will produce that month.</div>
+        </section>
+      </div>
+
+      <!-- ===================== LOADING STATE ===================== -->
+      <div id="stateLoading" hidden style="display:contents">
+        <div class="state-banner" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <div>Loading production plan…</div>
+        </div>
+        <section class="kpis" aria-hidden="true">
+          <div class="card sk-kpi"><div class="sk" style="width:55%;height:12px"></div><div class="sk" style="width:60%;height:28px"></div><div class="sk" style="width:80%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:60%;height:12px"></div><div class="sk" style="width:65%;height:28px"></div><div class="sk" style="width:70%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:45%;height:12px"></div><div class="sk" style="width:60%;height:28px"></div><div class="sk" style="width:75%;height:10px"></div></div>
+          <div class="card sk-kpi"><div class="sk" style="width:50%;height:12px"></div><div class="sk" style="width:55%;height:28px"></div><div class="sk" style="width:90%;height:10px"></div></div>
+        </section>
+        <div class="sk" style="height:46px;border-radius:8px" aria-hidden="true"></div>
+        <div class="card sk-table" aria-hidden="true">
+          <div class="sk" style="width:30%;height:14px"></div>
+          <div class="sk" style="width:40%;height:28px"></div>
+          <div class="sk" style="height:70px"></div>
+          <div class="sk" style="height:16px"></div><div class="sk" style="height:16px"></div><div class="sk" style="height:16px"></div><div class="sk" style="height:16px"></div><div class="sk" style="height:16px"></div>
+        </div>
+      </div>
+
+      <!-- ===================== ERROR STATE ===================== -->
+      <div id="stateError" hidden style="display:contents">
+        <section class="card error-card" role="alert">
+          <span class="error-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.01"/></svg>
+          </span>
+          <h2>The production plan couldn't be loaded.</h2>
+          <p>Try again in a moment. If it keeps happening, tell your system administrator (reference ERR-1031).</p>
+          <button class="btn btn-primary" type="button" id="retryBtn" style="margin-top:8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+            Retry
+          </button>
+        </section>
+      </div>
+
+      <!-- ===================== NO FORECAST STATE ===================== -->
+      <div id="stateEmpty" hidden style="display:contents">
+        <section class="card error-card" role="status">
+          <span class="empty-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7" stroke-dasharray="3 3"/></svg>
+          </span>
+          <h2>No forecast published</h2>
+          <p>No forecast has been published yet. Ask your administrator to publish one.</p>
+          <span class="meta">You can still record stock below. Monthly plans need a published forecast.</span>
+        </section>
+      </div>
+
+      <!-- ===================== STOCK CARD (normal + no-forecast) ===================== -->
+      <section class="card" id="stockCard" aria-labelledby="stockTitle">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title" id="stockTitle">Record stock</h2>
+            <p class="card-sub">Water currently held in reservoirs and tanks</p>
+          </div>
+        </div>
+        <div class="stock-body">
+          <form class="stock-form" id="stockForm" novalidate>
+            <div class="field">
+              <label for="stockDate">Date</label>
+              <input class="input" type="date" id="stockDate" value="2026-10-25" max="2026-10-25" aria-describedby="stockDateErr">
+              <span class="field-err" id="stockDateErr" hidden>Choose a date</span>
+            </div>
+            <div class="field">
+              <label for="stockAmt">Amount (m³)</label>
+              <div class="input-suffix">
+                <input class="input" type="number" id="stockAmt" inputmode="numeric" min="1" step="1000" placeholder="e.g. 61500000" aria-describedby="stockAmtHint stockAmtErr">
+                <span aria-hidden="true">m³</span>
+              </div>
+              <span class="field-hint" id="stockAmtHint">Whole cubic metres</span>
+              <span class="field-err" id="stockAmtErr" hidden>Enter a positive amount in m³</span>
+            </div>
+            <div class="field">
+              <span class="btn-spacer" aria-hidden="true"></span>
+              <button class="btn btn-primary" type="submit" style="height:38px;justify-content:center">Save</button>
+            </div>
+          </form>
+          <div>
+            <h3 class="mini-title">Last 3 stock records</h3>
+            <table class="mini">
+              <thead><tr><th scope="col">Date</th><th scope="col">Amount (m³)</th><th scope="col">Recorded by</th></tr></thead>
+              <tbody id="stockList"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== SIDE PANEL ===================== -->
+<div class="panel-scrim" id="panelScrim" hidden></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle" aria-hidden="true">
+  <div class="panel-head">
+    <div>
+      <p class="kicker">Production plan</p>
+      <h2 id="panelTitle">Plan for Dec 2024</h2>
+    </div>
+    <button type="button" class="icon-btn" id="panelClose" aria-label="Close panel">✕</button>
+  </div>
+  <form class="panel-body" id="planForm" novalidate>
+    <div class="fc-box">
+      <div class="lab">Forecast demand</div>
+      <div class="val"><span id="pFc">20.1M</span><span class="unit">m³</span></div>
+      <div class="rng" id="pRange">80% range 18.8M – 21.4M m³</div>
+    </div>
+    <div class="current" id="pCurrent" hidden></div>
+
+    <fieldset>
+      <legend>Choose a plan</legend>
+      <div class="choices">
+        <label class="choice">
+          <input type="radio" name="ptype" value="Normal">
+          <span class="choice-main">
+            <span class="t"><span>Normal</span><span class="amt" id="pNormal">29.7M m³</span></span>
+            <span class="d">covers expected demand</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="ptype" value="Safe">
+          <span class="choice-main">
+            <span class="t"><span>Safe</span><span class="amt" id="pSafe">31.6M m³</span></span>
+            <span class="d">covers demand in about 9 of 10 months</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="ptype" value="Custom">
+          <span class="choice-main">
+            <span class="t"><span>Custom</span><span class="amt" id="pCustomAmt"></span></span>
+            <span class="d">set your own amount, with a reason</span>
+          </span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="custom-fields" id="customFields" hidden>
+      <div class="field">
+        <label for="cAmt">Custom amount (m³)<span class="sr-only"> required</span></label>
+        <div class="input-suffix">
+          <input class="input" type="number" id="cAmt" inputmode="numeric" min="1" step="100000" placeholder="e.g. 29000000" aria-describedby="cAmtPrev cAmtErr cAmtWarn">
+          <span aria-hidden="true">m³</span>
+        </div>
+        <span class="preview" id="cAmtPrev"></span>
+        <span class="field-err" id="cAmtErr" hidden>Enter a positive amount in m³</span>
+        <div id="cAmtWarn" aria-live="polite"></div>
+      </div>
+      <div class="field">
+        <label for="cReason">Reason<span class="sr-only"> required</span></label>
+        <select class="input" id="cReason" aria-describedby="cReasonErr">
+          <option value="">Choose a reason…</option>
+          <option>Planned maintenance</option>
+          <option>Drought restrictions</option>
+          <option>Expected event</option>
+          <option>Supply constraint</option>
+          <option>Other</option>
+        </select>
+        <span class="field-err" id="cReasonErr" hidden>Choose a reason</span>
+      </div>
+      <div class="field">
+        <label for="cNote">Note<span class="sr-only"> required</span></label>
+        <textarea class="input" id="cNote" rows="3" placeholder="What is the plan based on? e.g. which works, dates, restrictions" aria-describedby="cNoteErr"></textarea>
+        <span class="field-err" id="cNoteErr" hidden>Add a short note</span>
+      </div>
+    </div>
+
+    <section class="history" aria-labelledby="histTitle">
+      <h3 id="histTitle">Plan history</h3>
+      <div id="pHistory"></div>
+    </section>
+  </form>
+  <div class="panel-foot">
+    <button type="button" class="btn" id="panelCancel">Cancel</button>
+    <button type="submit" class="btn btn-primary" form="planForm">Save plan</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span class="tick" aria-hidden="true">✓</span><span id="toastText"></span></div>
+
+<script>
+/* ===================== Data (million m³) ===================== */
+const NRW = 0.324;
+const MONTHS = ["Sep 2024","Oct 2024","Nov 2024","Dec 2024","Jan 2025","Feb 2025","Mar 2025","Apr 2025","May 2025","Jun 2025","Jul 2025","Aug 2025"];
+const DAYS   = [30,31,30,31,31,28,31,30,31,30,31,31];
+const fc     = [25.4,22.9,20.8,20.1,19.9,19.2,18.7,20.3,21.8,23.2,25.2,26.1];
+const normal = [37.6,33.9,30.8,29.7,29.5,28.4,27.7,30.1,32.2,34.3,37.3,38.6];
+const safe   = [39.3,35.7,32.6,31.6,31.4,30.3,29.6,32.0,34.0,36.0,39.2,40.6];
+// 80% range: upper = safe × (1 − NRW); lower mirrors it around the forecast
+const hi = safe.map(v => v * (1 - NRW));
+const lo = fc.map((v,i) => 2*v - hi[i]);
+
+const plans = {
+  0: {type:"Safe",   amount:39.3},
+  1: {type:"Normal", amount:33.9},
+  2: {type:"Custom", amount:29.0, reason:"Planned maintenance", note:"Treatment plant maintenance 10–20 Nov; reduced output agreed with operations."}
+};
+const history = {
+  0: [{when:"20 Oct 2026, 10:12", user:"Joe Karogo", type:"Safe",   amount:39.3}],
+  1: [{when:"20 Oct 2026, 10:15", user:"Joe Karogo", type:"Normal", amount:33.9}],
+  2: [{when:"24 Oct 2026, 14:05", user:"Joe Karogo", type:"Custom", amount:29.0, reason:"Planned maintenance", note:plans[2].note},
+      {when:"20 Oct 2026, 10:18", user:"Joe Karogo", type:"Normal", amount:30.8}]
+};
+const stock = [
+  {date:"25 Oct 2026", amount:62000000, user:"Joe Karogo"},
+  {date:"18 Oct 2026", amount:63400000, user:"Mehmet Yılmaz"},
+  {date:"11 Oct 2026", amount:64100000, user:"Joe Karogo"}
+];
+let H = 12, newStock = false;
+
+/* ===================== Helpers ===================== */
+const $ = id => document.getElementById(id);
+const fmtM = v => v.toFixed(1) + "M";
+const fmtInt = n => Math.round(n).toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const belowExpected = (i, amt) => amt < normal[i];
+const nextUnplanned = () => MONTHS.findIndex((_,i) => !plans[i]);
+const CHEV = '<svg class="row-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+/* ===================== Render ===================== */
+function renderKPIs(){
+  const n = Object.keys(plans).length;
+  $("kPlanned").textContent = n;
+  $("sumPlanned").textContent = `${n} planned`;
+  $("sumOpen").textContent = `${12-n} not planned`;
+  const nx = nextUnplanned();
+  if (nx === -1){
+    $("kNext").textContent = "None";
+    $("kNextHelp").textContent = "all 12 months are planned";
+  } else {
+    $("kNext").textContent = MONTHS[nx];
+    $("kNextHelp").innerHTML = `forecast ${fmtM(fc[nx])} m³ · <button type="button" class="kpi-link" data-open="${nx}">Plan it</button>`;
+  }
+  const s = stock[0];
+  $("kStock").textContent = fmtM(s.amount/1e6);
+  $("kStockHelp").textContent = "recorded " + s.date;
+  if (plans[0]){
+    const perDay = plans[0].amount / DAYS[0];
+    $("kCover").textContent = "≈ " + Math.round((s.amount/1e6) / perDay);
+  } else $("kCover").textContent = "—";
+}
+
+function renderTable(){
+  const nx = nextUnplanned();
+  $("tbody").innerHTML = MONTHS.slice(0,H).map((m,i)=>{
+    const p = plans[i];
+    let chosen = '<td class="dash">—</td>', type = '<td class="l dash">—</td>';
+    if (p){
+      chosen = `<td><b>${fmtM(p.amount)}</b></td>`;
+      const warn = p.type==="Custom" && belowExpected(i,p.amount)
+        ? `<span class="warn-pill"><span aria-hidden="true">⚠</span> Below expected demand</span>` : "";
+      type = `<td class="l"><span class="type-txt">${p.type}</span>${warn}</td>`;
+    }
+    const status = p
+      ? `<span class="badge ok"><span aria-hidden="true">✓</span> Planned</span>`
+      : `<span class="badge none"><span aria-hidden="true">○</span> Not planned</span>`;
+    return `<tr data-i="${i}">
+      <td><button type="button" class="row-btn" aria-label="${p?"Edit":"Plan"} ${m}" aria-haspopup="dialog">${m}</button>${i===nx?'<span class="tag-next">Next</span>':''}</td>
+      <td>${fmtM(fc[i])}</td>
+      <td>${fmtM(normal[i])}</td>
+      <td>${fmtM(safe[i])}</td>
+      ${chosen}${type}
+      <td class="l">${status}${CHEV}</td>
+    </tr>`;
+  }).join("");
+  $("gridSub").textContent = `Next ${H} months · select a month to plan it`;
+}
+
+function renderSpark(){
+  const max = Math.max(...fc), min = 15;
+  $("spark").innerHTML = MONTHS.map((m,i)=>{
+    const h = 18 + (fc[i]-min)/(max-min)*82;  // % of column height
+    const cls = ["col", plans[i]?"planned":"", i>=H?"out":""].join(" ");
+    return `<button type="button" class="${cls}" data-open="${i}" aria-label="${m}: forecast ${fmtM(fc[i])} m³, ${plans[i]?"planned":"not planned"}" ${i>=H?'tabindex="-1"':''}>
+      <span class="bar" style="height:${h*0.72}%"></span><span class="lbl">${m.slice(0,3)}</span></button>`;
+  }).join("");
+}
+
+function renderStock(){
+  $("stockList").innerHTML = stock.slice(0,3).map((s,k)=>
+    `<tr><td>${s.date}${k===0&&newStock?'<span class="new-tag">New</span>':''}</td><td>${fmtInt(s.amount)}</td><td>${esc(s.user)}</td></tr>`
+  ).join("");
+}
+
+function renderAll(){ renderKPIs(); renderTable(); renderSpark(); renderStock(); }
+
+/* ===================== Horizon filter ===================== */
+const hBtns = [...document.querySelectorAll("#horizon button")];
+function setHorizon(btn){
+  hBtns.forEach(b=>{const on=b===btn; b.setAttribute("aria-checked",on); b.tabIndex=on?0:-1;});
+  H = +btn.dataset.h; renderTable(); renderSpark();
+}
+hBtns.forEach((b,i)=>{
+  b.addEventListener("click",()=>setHorizon(b));
+  b.addEventListener("keydown",e=>{
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+      e.preventDefault();
+      const n = hBtns[(i + (e.key==="ArrowRight"?1:-1) + hBtns.length)%hBtns.length];
+      n.focus(); setHorizon(n);
+    }
+  });
+});
+
+/* ===================== Side panel ===================== */
+const panel = $("panel"), pScrim = $("panelScrim");
+let cur = null, opener = null, tried = false;
+
+function radios(){ return [...document.querySelectorAll('input[name="ptype"]')]; }
+function selectedType(){ const r = radios().find(r=>r.checked); return r ? r.value : null; }
+
+function openPanel(i, from){
+  cur = i; opener = from || document.activeElement; tried = false;
+  const m = MONTHS[i], p = plans[i];
+  $("panelTitle").textContent = "Plan for " + m;
+  $("pFc").textContent = fmtM(fc[i]);
+  $("pRange").textContent = `80% range ${fmtM(lo[i])} – ${fmtM(hi[i])} m³`;
+  $("pNormal").textContent = fmtM(normal[i]) + " m³";
+  $("pSafe").textContent = fmtM(safe[i]) + " m³";
+  if (p){
+    $("pCurrent").hidden = false;
+    const h0 = history[i] && history[i][0];
+    $("pCurrent").innerHTML = `Current plan: <b>${p.type} · ${fmtM(p.amount)} m³</b>${h0?` · saved ${h0.when} by ${esc(h0.user)}`:""}`;
+  } else $("pCurrent").hidden = true;
+
+  const type = p ? p.type : "Normal";
+  radios().forEach(r => r.checked = r.value === type);
+  $("cAmt").value = p && p.type==="Custom" ? Math.round(p.amount*1e6) : "";
+  $("cReason").value = p && p.type==="Custom" ? (p.reason||"") : "";
+  $("cNote").value = p && p.type==="Custom" ? (p.note||"") : "";
+  clearErrors(); syncCustom(); renderHistory(i);
+
+  document.querySelectorAll(".plan-table tbody tr").forEach(tr=>tr.classList.toggle("selected", +tr.dataset.i===i));
+  pScrim.hidden = false; panel.classList.add("open"); panel.setAttribute("aria-hidden","false");
+  document.body.style.overflow = "hidden";
+  setTimeout(()=> (radios().find(r=>r.checked)||$("panelClose")).focus(), 60);
+}
+
+function closePanel(){
+  if (!panel.classList.contains("open")) return;
+  panel.classList.remove("open"); panel.setAttribute("aria-hidden","true");
+  pScrim.hidden = true; document.body.style.overflow = "";
+  document.querySelectorAll(".plan-table tbody tr.selected").forEach(tr=>tr.classList.remove("selected"));
+  if (opener && document.body.contains(opener)) opener.focus();
+  else { const b = document.querySelector(`.plan-table tr[data-i="${cur}"] .row-btn`); if (b) b.focus(); }
+}
+
+function renderHistory(i){
+  const h = history[i] || [];
+  if (!h.length){ $("pHistory").innerHTML = '<p class="hist-empty">No plans saved for this month yet.</p>'; return; }
+  $("pHistory").innerHTML = '<ol class="hist">' + h.map((v,k)=>`
+    <li class="${k===0?"cur":""}">
+      <div class="h1">${v.type} · ${fmtM(v.amount)} m³${k===0?'<span class="cur-tag">Current</span>':''}</div>
+      <div class="meta">${v.when} · ${esc(v.user)}</div>
+      <div class="why">Reason: ${v.reason ? esc(v.reason) + (v.note ? " — " + esc(v.note) : "") : "—"}</div>
+    </li>`).join("") + "</ol>";
+}
+
+function syncCustom(){
+  const isC = selectedType() === "Custom";
+  $("customFields").hidden = !isC;
+  updateAmountFeedback();
+}
+
+function updateAmountFeedback(){
+  const raw = $("cAmt").value, v = parseFloat(raw);
+  $("cAmtPrev").textContent = raw !== "" && v > 0 ? `= ${fmtM(v/1e6)} m³` : "";
+  $("pCustomAmt").textContent = selectedType()==="Custom" && v > 0 ? fmtM(v/1e6) + " m³" : "";
+  let w = "";
+  if (v > 0){
+    const amt = v/1e6;
+    if (amt < normal[cur]) w = `<div class="alert danger"><span aria-hidden="true">⚠</span><span>Below expected demand: risk of shortfall (normal plan is ${fmtM(normal[cur])} m³).</span></div>`;
+    else if (amt > safe[cur]*1.10) w = `<div class="alert amber"><span aria-hidden="true">▲</span><span>Above the safe plan: possible over-production (safe plan is ${fmtM(safe[cur])} m³).</span></div>`;
+  }
+  $("cAmtWarn").innerHTML = w;
+}
+
+function setErr(inputId, errId, on){
+  $(errId).hidden = !on;
+  $(inputId).setAttribute("aria-invalid", on ? "true" : "false");
+}
+function clearErrors(){
+  [["cAmt","cAmtErr"],["cReason","cReasonErr"],["cNote","cNoteErr"]].forEach(([a,b])=>setErr(a,b,false));
+}
+function validateCustom(){
+  const v = parseFloat($("cAmt").value);
+  const eAmt = !($("cAmt").value !== "" && v > 0);
+  const eReason = $("cReason").value === "";
+  const eNote = $("cNote").value.trim() === "";
+  setErr("cAmt","cAmtErr",eAmt); setErr("cReason","cReasonErr",eReason); setErr("cNote","cNoteErr",eNote);
+  const first = eAmt ? "cAmt" : eReason ? "cReason" : eNote ? "cNote" : null;
+  return first;
+}
+
+radios().forEach(r => r.addEventListener("change", ()=>{ syncCustom(); if (tried) validateCustom(); }));
+["cAmt","cReason","cNote"].forEach(id => $(id).addEventListener("input", ()=>{ if (id==="cAmt") updateAmountFeedback(); if (tried) validateCustom(); }));
+
+function nowStamp(){
+  const d = new Date();
+  return "25 Oct 2026, " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+}
+
+$("planForm").addEventListener("submit", e=>{
+  e.preventDefault();
+  const type = selectedType(), i = cur;
+  let entry;
+  if (type === "Custom"){
+    tried = true;
+    const bad = validateCustom();
+    if (bad){ $(bad).focus(); return; }
+    entry = {type, amount: Math.round(parseFloat($("cAmt").value)/1e5)/10, reason:$("cReason").value, note:$("cNote").value.trim()};
+  } else {
+    entry = {type, amount: type==="Normal" ? normal[i] : safe[i]};
+  }
+  plans[i] = entry;
+  (history[i] = history[i] || []).unshift({when: nowStamp(), user:"Joe Karogo", ...entry});
+  renderAll();
+  opener = document.querySelector(`.plan-table tr[data-i="${i}"] .row-btn`) || opener;
+  closePanel();
+  showToast(`Plan for ${MONTHS[i]} saved`);
+  const row = document.querySelector(`.plan-table tr[data-i="${i}"]`);
+  if (row){ row.classList.add("selected"); setTimeout(()=>row.classList.remove("selected"), 1600); }
+});
+
+$("panelClose").addEventListener("click", closePanel);
+$("panelCancel").addEventListener("click", closePanel);
+pScrim.addEventListener("click", closePanel);
+
+// Focus trap inside the open panel
+panel.addEventListener("keydown", e=>{
+  if (e.key !== "Tab") return;
+  const f = [...panel.querySelectorAll('button, input, select, textarea, [href]')]
+    .filter(el => !el.disabled && el.offsetParent !== null && !(el.type==="radio" && !el.checked && radios().some(r=>r.checked)));
+  if (!f.length) return;
+  const first = f[0], last = f[f.length-1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
+
+// Open from table rows, sparkline bars and the KPI link
+$("tbody").addEventListener("click", e=>{
+  const tr = e.target.closest("tr"); if (!tr) return;
+  openPanel(+tr.dataset.i, tr.querySelector(".row-btn"));
+});
+document.addEventListener("click", e=>{
+  const b = e.target.closest("[data-open]"); if (!b) return;
+  openPanel(+b.dataset.open, b);
+});
+
+/* ===================== Toast ===================== */
+let toastT;
+function showToast(msg){
+  $("toastText").textContent = msg;
+  $("toast").classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>$("toast").classList.remove("show"), 3200);
+}
+
+/* ===================== Stock form ===================== */
+$("stockForm").addEventListener("submit", e=>{
+  e.preventDefault();
+  const dv = $("stockDate").value, raw = $("stockAmt").value, v = parseFloat(raw);
+  const eDate = !dv, eAmt = !(raw !== "" && v > 0);
+  setErr("stockDate","stockDateErr",eDate); setErr("stockAmt","stockAmtErr",eAmt);
+  $("stockAmtHint").hidden = eAmt;
+  if (eDate){ $("stockDate").focus(); return; }
+  if (eAmt){ $("stockAmt").focus(); return; }
+  const date = new Date(dv + "T00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  stock.unshift({date, amount: Math.round(v), user:"Joe Karogo"});
+  newStock = true;
+  $("stockAmt").value = "";
+  renderKPIs(); renderStock();
+  showToast(`Stock of ${fmtM(v/1e6)} m³ recorded for ${date}`);
+});
+$("stockAmt").addEventListener("input", ()=>{
+  if (!$("stockAmtErr").hidden){ const v = parseFloat($("stockAmt").value); const bad = !(v>0); setErr("stockAmt","stockAmtErr",bad); $("stockAmtHint").hidden = bad; }
+});
+
+/* ===================== Info tooltips (tap support, Esc) ===================== */
+document.querySelectorAll(".info-btn").forEach(b=>{
+  b.addEventListener("click",e=>{e.stopPropagation(); b.parentElement.classList.toggle("open");});
+});
+document.addEventListener("click",()=>document.querySelectorAll(".info.open").forEach(i=>i.classList.remove("open")));
+
+/* ===================== Mobile sidebar ===================== */
+const sidebar = $("sidebar"), scrim = $("scrim"), menuBtn = $("menuBtn");
+function setNav(open){
+  sidebar.classList.toggle("open",open); scrim.hidden = !open; menuBtn.setAttribute("aria-expanded",open);
+}
+menuBtn.addEventListener("click",()=>{setNav(true); $("closeBtn").focus();});
+$("closeBtn").addEventListener("click",()=>{setNav(false); menuBtn.focus();});
+scrim.addEventListener("click",()=>setNav(false));
+
+document.addEventListener("keydown",e=>{
+  if (e.key !== "Escape") return;
+  document.querySelectorAll(".info.open").forEach(i=>i.classList.remove("open"));
+  if (panel.classList.contains("open")) closePanel();
+  else if (sidebar.classList.contains("open")){ setNav(false); menuBtn.focus(); }
+});
+
+/* ===================== Demo states ===================== */
+const STATES = {normal:"stateNormal", loading:"stateLoading", error:"stateError", empty:"stateEmpty"};
+let loadTimer;
+function setState(s){
+  clearTimeout(loadTimer); closePanel();
+  Object.entries(STATES).forEach(([k,id])=> $(id).hidden = k!==s);
+  $("stockCard").hidden = !(s==="normal" || s==="empty");
+  document.querySelectorAll(".demo-bar button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.state===s));
+  $("basedOn").innerHTML = s==="empty"
+    ? '<span class="dot" aria-hidden="true" style="background:#94a3b8"></span><span>No forecast published yet · latest available data: <b>August 2024</b></span>'
+    : '<span class="dot" aria-hidden="true"></span><span>Based on forecast published <b>25 Oct 2026</b> · latest available data: <b>August 2024</b></span>';
+}
+document.querySelectorAll(".demo-bar button").forEach(b=>b.addEventListener("click",()=>setState(b.dataset.state)));
+$("retryBtn").addEventListener("click",()=>{ setState("loading"); loadTimer = setTimeout(()=>setState("normal"), 900); });
+
+/* ===================== Init ===================== */
+renderAll();
+</script>
+</body>
+</html>
