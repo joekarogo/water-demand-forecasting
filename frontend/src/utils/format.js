@@ -38,6 +38,36 @@ export function formatPublishedDate(isoString) {
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// "YYYY-MM-DD" -> "25 Oct 2026". Date-only, so parsed by hand like the
+// month formatters above — never `new Date("YYYY-MM-DD")`.
+export function formatDateLong(dateStr) {
+  const { year, month, day } = parseDateOnly(dateStr);
+  return `${day} ${MONTH_SHORT[month - 1]} ${year}`;
+}
+
+// "YYYY-MM-DD" -> "25 Oct" — used for chart axis ticks.
+export function formatDateShort(dateStr) {
+  const { month, day } = parseDateOnly(dateStr);
+  return `${day} ${MONTH_SHORT[month - 1]}`;
+}
+
+// A real timestamp (e.g. `created_at`) -> "25 Oct 2026, 14:05". Safe to use
+// Date directly here, same reasoning as formatPublishedDate.
+export function formatDateTime(isoString) {
+  const d = new Date(isoString);
+  const date = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${date}, ${time}`;
+}
+
+// Today as "YYYY-MM-DD", for a date input's default value/max. This
+// formats a live Date (not parsing a date-only string back), so it isn't
+// the timezone pitfall the other helpers here guard against.
+export function todayDateString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function monthsBetweenInclusive(startStr, endStr) {
   const a = parseDateOnly(startStr);
   const b = parseDateOnly(endStr);
