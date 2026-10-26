@@ -37,12 +37,16 @@ there is no automated migration runner in this project yet.
    `distribution:view`/`tariff:view`/`revenue:view`), and the
    `login_attempts` table the emergency-login lockout rule reads. `users.role`
    is left in place — it's dropped in Part 3. Runs as a single transaction.
+6. `005_sessions.sql` — Module 1, Part 2A (sessions): adds the `sessions`
+   table server-side Google/emergency logins use (only a SHA-256 hash of
+   the session id is stored, never the raw id), with an index on
+   `user_id`. Runs as a single transaction.
 
 To roll back **in development only**, run `001_foundation_down.sql`,
-`002_published_forecast_down.sql`, `003_production_planning_down.sql`
-and/or `004_accounts_down.sql`. None of these are a safe production
-rollback — see the comment at the top of each file for what it does and
-does not undo.
+`002_published_forecast_down.sql`, `003_production_planning_down.sql`,
+`004_accounts_down.sql` and/or `005_sessions_down.sql`. None of these are
+a safe production rollback — see the comment at the top of each file for
+what it does and does not undo.
 
 ## Running a file
 
@@ -52,6 +56,7 @@ psql -U <your_db_user> -d <your_db_name> -f database/schema/001_foundation.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/002_published_forecast.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/003_production_planning.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/004_accounts.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/005_sessions.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and
