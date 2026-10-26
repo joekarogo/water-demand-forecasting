@@ -1,0 +1,103 @@
+{
+  "results": [
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "horizon": 1,
+      "n": 15,
+      "dm_statistic": 0.8419197176261184,
+      "p_value": 0.4139839800344143
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "horizon": 6,
+      "n": 15,
+      "dm_statistic": 0.9378778813453691,
+      "p_value": 0.36420634795583995
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "horizon": 12,
+      "n": 15,
+      "dm_statistic": -0.1568412250839884,
+      "p_value": 0.8776093606838522
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Seasonal-naive",
+      "horizon": 1,
+      "n": 15,
+      "dm_statistic": 0.9764738132562879,
+      "p_value": 0.3454018816113531
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Seasonal-naive",
+      "horizon": 6,
+      "n": 15,
+      "dm_statistic": 0.9346880452752293,
+      "p_value": 0.36579174009250726
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Seasonal-naive",
+      "horizon": 12,
+      "n": 15,
+      "dm_statistic": -0.24235265663609523,
+      "p_value": 0.8120212180974047
+    },
+    {
+      "model_a": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "model_b": "Seasonal-naive",
+      "horizon": 1,
+      "n": 15,
+      "dm_statistic": 0.2808848167777419,
+      "p_value": 0.7829071344634606
+    },
+    {
+      "model_a": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "model_b": "Seasonal-naive",
+      "horizon": 6,
+      "n": 15,
+      "dm_statistic": -0.7133943749715668,
+      "p_value": 0.48732439339322187
+    },
+    {
+      "model_a": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+      "model_b": "Seasonal-naive",
+      "horizon": 12,
+      "n": 15,
+      "dm_statistic": "not computable",
+      "p_value": "not computable"
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Prophet (CV-tuned)",
+      "horizon": 1,
+      "n": 15,
+      "dm_statistic": -0.2711448648966722,
+      "p_value": 0.790236556291815
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Prophet (CV-tuned)",
+      "horizon": 6,
+      "n": 15,
+      "dm_statistic": -3.2195760275120313,
+      "p_value": 0.0061753591705029365
+    },
+    {
+      "model_a": "Prophet (defaults)",
+      "model_b": "Prophet (CV-tuned)",
+      "horizon": 12,
+      "n": 15,
+      "dm_statistic": 0.28847200940357504,
+      "p_value": 0.777212434768668
+    }
+  ],
+  "caveats": [
+    "With n = 15 origins, the h = 12 test uses 11 autocovariance lags; treat h = 12 results as indicative only."
+  ]
+}

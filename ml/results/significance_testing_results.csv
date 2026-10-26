@@ -1,0 +1,13 @@
+model_a,model_b,horizon,n,dm_statistic,p_value
+Prophet (defaults),"SARIMA(1, 0, 0)x(0, 1, 1, 12)",1,15,0.8419197176261184,0.4139839800344143
+Prophet (defaults),"SARIMA(1, 0, 0)x(0, 1, 1, 12)",6,15,0.9378778813453691,0.36420634795583995
+Prophet (defaults),"SARIMA(1, 0, 0)x(0, 1, 1, 12)",12,15,-0.1568412250839884,0.8776093606838522
+Prophet (defaults),Seasonal-naive,1,15,0.9764738132562879,0.3454018816113531
+Prophet (defaults),Seasonal-naive,6,15,0.9346880452752293,0.36579174009250726
+Prophet (defaults),Seasonal-naive,12,15,-0.24235265663609523,0.8120212180974047
+"SARIMA(1, 0, 0)x(0, 1, 1, 12)",Seasonal-naive,1,15,0.2808848167777419,0.7829071344634606
+"SARIMA(1, 0, 0)x(0, 1, 1, 12)",Seasonal-naive,6,15,-0.7133943749715668,0.48732439339322187
+"SARIMA(1, 0, 0)x(0, 1, 1, 12)",Seasonal-naive,12,15,not computable,not computable
+Prophet (defaults),Prophet (CV-tuned),1,15,-0.2711448648966722,0.790236556291815
+Prophet (defaults),Prophet (CV-tuned),6,15,-3.2195760275120313,0.0061753591705029365
+Prophet (defaults),Prophet (CV-tuned),12,15,0.28847200940357504,0.777212434768668
