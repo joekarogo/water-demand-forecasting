@@ -1,3 +1,9 @@
+# DEPRECATED: replaced by database/create_emergency_admin.py (the
+# emergency local-admin login) and database/invite_user.py (Google-sign-in
+# invites) in Module 1, Part 3. Kept only so databases that still have
+# these two password-based test accounts keep working; do not use this
+# for new setups.
+
 import os
 import sys
 import bcrypt
