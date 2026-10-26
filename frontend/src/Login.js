@@ -3,9 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
 import { getFirstPermittedPath } from './layout/menuConfig';
+import { AlertCircleIcon, ClockIcon, CheckCircleIcon } from './layout/icons';
+import AuthLayout from './AuthLayout';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const SIGNED_OUT_MESSAGE = "You've signed out.";
 
 function Login() {
   const location = useLocation();
@@ -13,17 +16,24 @@ function Login() {
   const { refreshSession } = useSession();
   const googleButtonRef = useRef(null);
 
-  const [error, setError] = useState(location.state?.message || '');
+  const [googleError, setGoogleError] = useState('');
+  const [navMessage, setNavMessage] = useState(location.state?.message || '');
+  const [signingIn, setSigningIn] = useState(false);
 
-  // Google Identity Services renders its own button into this div once the
-  // gsi/client script (loaded in public/index.html) is ready; we poll for
-  // it rather than assume it has finished loading by the time we mount.
+  // Google Identity Services renders its own button into googleButtonRef
+  // once the gsi/client script (loaded in public/index.html) is ready; we
+  // poll for it rather than assume it has finished loading by the time we
+  // mount. That button stays mounted the whole time — while a sign-in is
+  // pending we only hide it with CSS and show the busy indicator next to
+  // it, so there's nothing to re-render into it afterwards.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
     let cancelled = false;
 
     const handleCredential = async (response) => {
-      setError('');
+      setGoogleError('');
+      setNavMessage('');
+      setSigningIn(true);
       try {
         const res = await apiFetch('/api/auth/google', {
           method: 'POST',
@@ -32,13 +42,15 @@ function Login() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setError(data.error || "This Google account isn't authorised for this system. Contact your administrator.");
+          setGoogleError(data.error || "This Google account isn't authorised for this system. Contact your administrator.");
           return;
         }
         const me = await refreshSession();
         navigate(getFirstPermittedPath(me?.permissions || []), { replace: true });
       } catch (err) {
-        setError('Unable to reach the server. Please try again.');
+        setGoogleError("We couldn't reach the server. Check your connection and try again.");
+      } finally {
+        setSigningIn(false);
       }
     };
 
@@ -66,25 +78,40 @@ function Login() {
   }, [navigate, refreshSession]);
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1 className="login-title">Water Demand Forecasting</h1>
-
-        {error && <p className="login-error">{error}</p>}
-
-        {GOOGLE_CLIENT_ID ? (
-          <div className="google-btn-wrap" ref={googleButtonRef} />
-        ) : (
-          <p className="login-error">
-            Google sign-in isn't configured (missing REACT_APP_GOOGLE_CLIENT_ID).
-          </p>
+    <AuthLayout title="Sign in" subtitle="Use your registered Google account.">
+      <div className="msg-slot" role="alert">
+        {(googleError || !GOOGLE_CLIENT_ID) && (
+          <div className="msg red">
+            <AlertCircleIcon />
+            <span>{googleError || "Google sign-in isn't configured (missing REACT_APP_GOOGLE_CLIENT_ID)."}</span>
+          </div>
         )}
-
-        <p className="login-note">
-          We store your name, email and actions in this system for accountability.
-        </p>
       </div>
-    </div>
+      <div className="msg-slot" role="status">
+        {navMessage && (
+          <div className={`msg ${navMessage === SIGNED_OUT_MESSAGE ? 'green' : 'amber'}`}>
+            {navMessage === SIGNED_OUT_MESSAGE ? <CheckCircleIcon /> : <ClockIcon />}
+            <span>{navMessage}</span>
+          </div>
+        )}
+        {signingIn && <span className="sr-only">Signing you in…</span>}
+      </div>
+
+      {GOOGLE_CLIENT_ID && (
+        <div className="gsi-wrap">
+          <div ref={googleButtonRef} style={signingIn ? { display: 'none' } : undefined} />
+          {signingIn && (
+            <div className="gsi-busy">
+              <span className="spinner" aria-hidden="true" />
+              <span>Signing you in…</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="help">No access? Contact your system administrator.</p>
+      <p className="auth-note">Sign-ins and actions are recorded.</p>
+    </AuthLayout>
   );
 }
 
