@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#f1f5f9;
@@ -306,7 +307,30 @@
   .row-chev{color:var(--text-3);margin-left:10px;vertical-align:-3px}
 
   /* Stock card */
-  .stock-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px;padding:14px 20px 20px}
+  .stock-top{padding:14px 20px 18px}
+  .stock-top .stock-form{max-width:680px}
+  .stock-body{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:28px;padding:18px 20px 20px;border-top:1px solid var(--border)}
+  .stock-body > div{min-width:0}
+  .mini-sub{margin:-2px 0 10px;font-size:12px;color:var(--text-3)}
+  .stock-chart{position:relative;height:240px}
+  .chart-empty{margin:0;height:240px;display:grid;place-items:center;text-align:center;color:var(--text-3);font-size:13px;border:1px dashed var(--border-strong);border-radius:8px;padding:16px}
+  .readings th,.readings td{padding:9px 8px;text-align:right}
+  .readings td:first-child{white-space:normal}
+  .readings .new-tag{display:inline-block;margin:0 0 0 6px}
+  .readings .d-date{white-space:nowrap}
+  .readings .ph{display:none}
+  .readings th:first-child,.readings td:first-child{text-align:left;padding-left:0}
+  .readings th:last-child,.readings td:last-child{padding-right:0}
+  .readings thead th{background:transparent}
+  .readings tbody tr:first-child td{background:transparent;box-shadow:none}
+  .readings tbody tr:hover{background:transparent}
+  .chg-n{color:var(--text-2);font-weight:500}
+  .tip.left{left:-8px;transform:none}
+  .tip.left::after{left:14px;transform:none}
+  .tip.wide{width:280px}
+  .tip{display:none;max-width:calc(100vw - 16px);translate:var(--dx,0px) 0}
+  .tip::after{translate:calc(-1 * var(--dx,0px)) 0}
+  .info:hover .tip,.info-btn:focus-visible + .tip,.info.open .tip{display:block}
   .stock-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;gap:12px;align-items:start}
   .field{display:flex;flex-direction:column;gap:5px;min-width:0}
   .field > label,.label{font-size:12px;font-weight:600;color:var(--text-2)}
@@ -394,7 +418,20 @@
   .sk-table{padding:20px;display:flex;flex-direction:column;gap:12px}
 
   @media (max-width:1100px){
-    .stock-body{grid-template-columns:1fr;gap:22px}
+    .stock-body{grid-template-columns:minmax(0,1fr);gap:22px}
+  }
+  @media (max-width:600px){
+    .readings,.readings tbody{display:block}
+    .readings thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+    .readings tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:2px;padding:10px 0;border-bottom:1px solid #eef2f6}
+    .readings td{display:block;padding:0 !important;border:0;text-align:left;white-space:nowrap}
+    .readings td:nth-child(1){grid-column:1;grid-row:1;white-space:nowrap}
+    .readings td:nth-child(2){grid-column:2;grid-row:1;text-align:right;font-weight:600}
+    .readings td:nth-child(3){grid-column:1;grid-row:2;font-size:12px;color:var(--text-3)}
+    .readings td:nth-child(3) .chg-n{color:var(--text-3);font-weight:500}
+    .readings td:nth-child(4){grid-column:2;grid-row:2;text-align:right;font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis}
+    .readings .ph{display:inline}
+    .readings td:nth-child(2) .ph{font-weight:500;color:var(--text-2)}
   }
   @media (max-width:640px){
     .panel{width:100%}
@@ -487,27 +524,34 @@
             <div class="kpi-help" id="kNextHelp"></div>
           </article>
           <article class="card kpi">
-            <div class="kpi-label">Current stock</div>
+            <div class="kpi-label">Stored water
+              <span class="info">
+                <button type="button" class="info-btn" aria-label="What is stored water?" aria-describedby="tipStored">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
+                </button>
+                <span class="tip left wide" role="tooltip" id="tipStored">Usable water in the dams (raw water available for production), as last recorded by the production team. In a live deployment this would come from dam telemetry or İZSU’s published dam levels.</span>
+              </span>
+            </div>
             <div class="kpi-value"><span id="kStock">62.0M</span><span class="unit">m³</span></div>
             <div class="kpi-help" id="kStockHelp">recorded 25 Oct 2026</div>
           </article>
           <article class="card kpi">
-            <div class="kpi-label">Days of cover
+            <div class="kpi-label">Days of supply
               <span class="info">
-                <button type="button" class="info-btn" aria-label="What does days of cover mean?" aria-describedby="tipCover">
+                <button type="button" class="info-btn" aria-label="How is days of supply calculated?" aria-describedby="tipCover">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
                 </button>
-                <span class="tip right" role="tooltip" id="tipCover">How long current stored water would last at the planned production rate.</span>
+                <span class="tip right wide" role="tooltip" id="tipCover">Stored water ÷ daily planned production for Sep 2024. The published forecast starts after the latest available data (August 2024), so the planned rate is from Sep 2024, the first forecast month, not the current month.</span>
               </span>
             </div>
             <div class="kpi-value"><span id="kCover">≈ 47</span><span class="unit">days</span></div>
-            <div class="kpi-help">stock ÷ daily planned production (Sep 2024)</div>
+            <div class="kpi-help">at the Sep 2024 planned rate</div>
           </article>
         </section>
 
         <section class="explain" aria-label="How the plans work">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
-          <p style="margin:0"><b>Normal plan</b> covers expected demand. <b>Safe plan</b> covers demand in about 9 out of 10 months. Both include a 32.4% allowance for non-revenue water.
+          <p style="margin:0"><b>Normal plan</b> covers expected demand. <b>Safe plan</b> uses the upper end of the forecast range: in past testing, demand stayed below it in about 9 of 10 months (about 8 of 10 for months furthest ahead). Both include a 32.4% allowance for non-revenue water.
             <span class="info">
               <button type="button" class="info-btn" aria-label="How is this calculated?" aria-describedby="tipCalc">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></svg>
@@ -607,19 +651,20 @@
           </span>
           <h2>No forecast published</h2>
           <p>No forecast has been published yet. Ask your administrator to publish one.</p>
-          <span class="meta">You can still record stock below. Monthly plans need a published forecast.</span>
+          <span class="meta">You can still record stored water readings below. Monthly plans need a published forecast.</span>
         </section>
       </div>
 
-      <!-- ===================== STOCK CARD (normal + no-forecast) ===================== -->
+      <!-- ===================== STORED WATER CARD (normal + no-forecast) ===================== -->
       <section class="card" id="stockCard" aria-labelledby="stockTitle">
         <div class="card-head">
           <div>
-            <h2 class="card-title" id="stockTitle">Record stock</h2>
-            <p class="card-sub">Water currently held in reservoirs and tanks</p>
+            <h2 class="card-title" id="stockTitle">Stored water</h2>
+            <p class="card-sub">Usable water in the dams</p>
           </div>
         </div>
-        <div class="stock-body">
+        <div class="stock-top">
+          <h3 class="mini-title">Record a reading</h3>
           <form class="stock-form" id="stockForm" novalidate>
             <div class="field">
               <label for="stockDate">Date</label>
@@ -640,12 +685,26 @@
               <button class="btn btn-primary" type="submit" style="height:38px;justify-content:center">Save</button>
             </div>
           </form>
+        </div>
+        <div class="stock-body">
           <div>
-            <h3 class="mini-title">Last 3 stock records</h3>
-            <table class="mini">
-              <thead><tr><th scope="col">Date</th><th scope="col">Amount (m³)</th><th scope="col">Recorded by</th></tr></thead>
-              <tbody id="stockList"></tbody>
-            </table>
+            <h3 class="mini-title" id="trendTitle">Stored water over time</h3>
+            <p class="mini-sub">Last 90 days · millions of m³</p>
+            <div class="stock-chart" id="stockChartWrap">
+              <canvas id="stockChart" role="img" aria-label="Line chart of stored water readings over the last 90 days. The latest readings are listed under Recent readings."></canvas>
+            </div>
+            <p class="chart-empty" id="stockChartEmpty" hidden></p>
+          </div>
+          <div>
+            <h3 class="mini-title">Recent readings</h3>
+            <p class="mini-sub">Latest 5 · change is from the previous reading</p>
+            <div class="table-wrap" style="padding:0">
+              <table class="readings" role="table">
+                <caption class="sr-only">Latest 5 stored water readings</caption>
+                <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Date</th><th scope="col" role="columnheader">Amount (m³)</th><th scope="col" role="columnheader">Change</th><th scope="col" role="columnheader">Recorded by</th></tr></thead>
+                <tbody id="stockList" role="rowgroup"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -686,7 +745,7 @@
           <input type="radio" name="ptype" value="Safe">
           <span class="choice-main">
             <span class="t"><span>Safe</span><span class="amt" id="pSafe">31.6M m³</span></span>
-            <span class="d">covers demand in about 9 of 10 months</span>
+            <span class="d">demand stayed below this in about 9 of 10 months in past testing</span>
           </span>
         </label>
         <label class="choice">
@@ -765,17 +824,29 @@ const history = {
   2: [{when:"24 Oct 2026, 14:05", user:"Joe Karogo", type:"Custom", amount:29.0, reason:"Planned maintenance", note:plans[2].note},
       {when:"20 Oct 2026, 10:18", user:"Joe Karogo", type:"Normal", amount:30.8}]
 };
-const stock = [
-  {date:"25 Oct 2026", amount:62000000, user:"Joe Karogo"},
-  {date:"18 Oct 2026", amount:63400000, user:"Mehmet Yılmaz"},
-  {date:"11 Oct 2026", amount:64100000, user:"Joe Karogo"}
-];
-let H = 12, newStock = false;
+// Stored water readings (weekly, last ~90 days). TODAY is the mockup's "today".
+const TODAY = "2026-10-25";
+const readings = [
+  ["2026-08-02",70100000,"Mehmet Yılmaz"],["2026-08-09",69400000,"Joe Karogo"],
+  ["2026-08-16",68600000,"Mehmet Yılmaz"],["2026-08-23",68900000,"Joe Karogo"],
+  ["2026-08-30",68000000,"Joe Karogo"],   ["2026-09-06",67200000,"Mehmet Yılmaz"],
+  ["2026-09-13",66500000,"Joe Karogo"],   ["2026-09-20",65900000,"Mehmet Yılmaz"],
+  ["2026-09-27",66400000,"Joe Karogo"],   ["2026-10-04",65100000,"Mehmet Yılmaz"],
+  ["2026-10-11",64100000,"Joe Karogo"],   ["2026-10-18",63400000,"Mehmet Yılmaz"],
+  ["2026-10-25",62000000,"Joe Karogo"]
+].map(([iso,amount,user],k)=>({iso,amount,user,seq:k,isNew:false}));
+let seq = readings.length, H = 12;
 
 /* ===================== Helpers ===================== */
 const $ = id => document.getElementById(id);
 const fmtM = v => v.toFixed(1) + "M";
 const fmtInt = n => Math.round(n).toLocaleString("en-US");
+const DAY = 864e5;
+const isoMs = iso => new Date(iso + "T00:00").getTime();
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDate = iso => { const [y,m,d] = iso.split("-").map(Number); return `${d} ${MON[m-1]} ${y}`; };
+const fmtShort = ms => { const d = new Date(ms); return `${d.getDate()} ${MON[d.getMonth()]}`; };
+const sortedReadings = () => [...readings].sort((a,b)=> a.iso<b.iso ? -1 : a.iso>b.iso ? 1 : a.seq-b.seq);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const belowExpected = (i, amt) => amt < normal[i];
 const nextUnplanned = () => MONTHS.findIndex((_,i) => !plans[i]);
@@ -795,9 +866,9 @@ function renderKPIs(){
     $("kNext").textContent = MONTHS[nx];
     $("kNextHelp").innerHTML = `forecast ${fmtM(fc[nx])} m³ · <button type="button" class="kpi-link" data-open="${nx}">Plan it</button>`;
   }
-  const s = stock[0];
+  const s = sortedReadings().at(-1);
   $("kStock").textContent = fmtM(s.amount/1e6);
-  $("kStockHelp").textContent = "recorded " + s.date;
+  $("kStockHelp").textContent = "recorded " + fmtDate(s.iso);
   if (plans[0]){
     const perDay = plans[0].amount / DAYS[0];
     $("kCover").textContent = "≈ " + Math.round((s.amount/1e6) / perDay);
@@ -841,9 +912,76 @@ function renderSpark(){
 }
 
 function renderStock(){
-  $("stockList").innerHTML = stock.slice(0,3).map((s,k)=>
-    `<tr><td>${s.date}${k===0&&newStock?'<span class="new-tag">New</span>':''}</td><td>${fmtInt(s.amount)}</td><td>${esc(s.user)}</td></tr>`
-  ).join("");
+  const s = sortedReadings();
+  const rows = s.map((r,k)=>({...r, prev: k>0 ? s[k-1] : null})).reverse().slice(0,5);
+  $("stockList").innerHTML = rows.map(r=>{
+    let chg = '<span class="chg-n">—</span>';
+    if (r.prev){
+      const d = (r.amount - r.prev.amount) / 1e6;
+      if (Math.abs(d) < 0.05) chg = '<span class="chg-n">No change</span>';
+      else {
+        const up = d > 0;
+        chg = `<span class="chg-n"><span aria-hidden="true">${up?"▲":"▼"}</span><span class="sr-only">${up?"up":"down"}</span> ${up?"+":"−"}${Math.abs(d).toFixed(1)}M m³</span>`;
+      }
+    }
+    return `<tr role="row"><td role="cell"><span class="d-date">${fmtDate(r.iso)}</span>${r.isNew?'<span class="new-tag">New</span>':''}</td><td role="cell">${fmtInt(r.amount)}<span class="ph" aria-hidden="true"> m³</span></td><td role="cell">${chg}</td><td role="cell"><span class="ph" aria-hidden="true">by </span>${esc(r.user)}</td></tr>`;
+  }).join("");
+  renderStockChart();
+}
+
+let stockChart = null;
+function renderStockChart(){
+  const wrap = $("stockChartWrap"), empty = $("stockChartEmpty");
+  const cutoff = isoMs(TODAY) - 90*DAY;
+  const pts = sortedReadings().map(r=>({x:isoMs(r.iso), y:r.amount/1e6, r})).filter(p=>p.x >= cutoff);
+  let msg = "";
+  if (pts.length < 2) msg = "Record at least two readings to see the trend";
+  else if (!window.Chart) msg = "The chart couldn't load (offline?). The latest readings are listed under Recent readings.";
+  if (msg){
+    if (stockChart){ stockChart.destroy(); stockChart = null; }
+    wrap.hidden = true; empty.hidden = false; empty.textContent = msg; return;
+  }
+  wrap.hidden = false; empty.hidden = true;
+  const ys = pts.map(p=>p.y);
+  const yMin = 2*Math.floor((Math.min(...ys) - 1)/2), yMax = 2*Math.ceil((Math.max(...ys) + 1)/2);
+  const last = pts.length - 1;
+  if (stockChart) stockChart.destroy();
+  stockChart = new Chart($("stockChart"), {
+    type:"line",
+    data:{datasets:[{
+      label:"Stored water", data:pts,
+      borderColor:"#0b5c8f", borderWidth:2.5, cubicInterpolationMode:"monotone",
+      pointRadius:ctx => ctx.raw && ctx.raw.r.isNew ? 5.5 : 3.5,
+      pointBackgroundColor:ctx => ctx.raw && ctx.raw.r.isNew ? "#0d7f80" : "#fff",
+      pointBorderColor:ctx => ctx.raw && ctx.raw.r.isNew ? "#0d7f80" : "#0b5c8f",
+      pointBorderWidth:2, pointHoverRadius:6
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:"nearest", intersect:false, axis:"x"},
+      scales:{
+        x:{type:"linear", min:pts[0].x - 3*DAY, max:Math.max(isoMs(TODAY), pts[last].x) + 3*DAY,
+           grid:{display:false}, border:{color:"#cbd5e1"},
+           afterBuildTicks: axis => { const xs = [...new Set(pts.map(p=>p.x))]; axis.ticks = xs.filter((_,k)=> (xs.length-1-k) % 2 === 0).map(v=>({value:v})); },
+           ticks:{color:"#475569", font:{family:"Inter",size:11}, maxRotation:0, autoSkip:true, autoSkipPadding:12, callback:v=>fmtShort(v)}},
+        y:{min:yMin, max:yMax, grid:{color:"#eef2f6"}, border:{display:false},
+           ticks:{color:"#475569", font:{family:"Inter",size:11}, stepSize:2, callback:v=>v+"M"},
+           title:{display:true, text:"Stored water (million m³)", color:"#475569", font:{family:"Inter",size:11,weight:"500"}}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:"#0f2537", padding:10, cornerRadius:7, displayColors:false,
+          titleFont:{family:"Inter",weight:"600",size:12}, bodyFont:{family:"Inter",size:12},
+          callbacks:{
+            title:items => fmtDate(items[0].raw.r.iso),
+            label:item => `${fmtInt(item.raw.r.amount)} m³ (${fmtM(item.raw.y)} m³)`,
+            afterLabel:item => `Recorded by ${item.raw.r.user}`
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderAll(){ renderKPIs(); renderTable(); renderSpark(); renderStock(); }
@@ -1018,29 +1156,49 @@ function showToast(msg){
   clearTimeout(toastT); toastT = setTimeout(()=>$("toast").classList.remove("show"), 3200);
 }
 
-/* ===================== Stock form ===================== */
+/* ===================== Stored water form ===================== */
+function validateStock(){
+  const dv = $("stockDate").value, raw = $("stockAmt").value, v = parseFloat(raw);
+  const dateMsg = !dv ? "Choose a date" : (dv > TODAY ? "The date can't be in the future" : "");
+  $("stockDateErr").textContent = dateMsg || "Choose a date";
+  setErr("stockDate","stockDateErr",!!dateMsg);
+  const eAmt = !(raw !== "" && v > 0);
+  setErr("stockAmt","stockAmtErr",eAmt); $("stockAmtHint").hidden = eAmt;
+  return dateMsg ? "stockDate" : eAmt ? "stockAmt" : null;
+}
+let stockTried = false;
 $("stockForm").addEventListener("submit", e=>{
   e.preventDefault();
-  const dv = $("stockDate").value, raw = $("stockAmt").value, v = parseFloat(raw);
-  const eDate = !dv, eAmt = !(raw !== "" && v > 0);
-  setErr("stockDate","stockDateErr",eDate); setErr("stockAmt","stockAmtErr",eAmt);
-  $("stockAmtHint").hidden = eAmt;
-  if (eDate){ $("stockDate").focus(); return; }
-  if (eAmt){ $("stockAmt").focus(); return; }
-  const date = new Date(dv + "T00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  stock.unshift({date, amount: Math.round(v), user:"Joe Karogo"});
-  newStock = true;
-  $("stockAmt").value = "";
+  stockTried = true;
+  const bad = validateStock();
+  if (bad){ $(bad).focus(); return; }
+  const dv = $("stockDate").value, v = parseFloat($("stockAmt").value);
+  readings.forEach(r => r.isNew = false);
+  readings.push({iso:dv, amount:Math.round(v), user:"Joe Karogo", seq:seq++, isNew:true});
+  $("stockAmt").value = ""; stockTried = false;
   renderKPIs(); renderStock();
-  showToast(`Stock of ${fmtM(v/1e6)} m³ recorded for ${date}`);
+  showToast(`Reading of ${fmtM(v/1e6)} m³ saved for ${fmtDate(dv)}`);
 });
-$("stockAmt").addEventListener("input", ()=>{
-  if (!$("stockAmtErr").hidden){ const v = parseFloat($("stockAmt").value); const bad = !(v>0); setErr("stockAmt","stockAmtErr",bad); $("stockAmtHint").hidden = bad; }
-});
+["stockDate","stockAmt"].forEach(id => $(id).addEventListener("input", ()=>{ if (stockTried) validateStock(); }));
 
 /* ===================== Info tooltips (tap support, Esc) ===================== */
+function placeTip(info){
+  const tip = info.querySelector(".tip"); if (!tip) return;
+  tip.style.setProperty("--dx","0px");
+  requestAnimationFrame(()=>{
+    const r = tip.getBoundingClientRect(); if (!r.width) return;
+    let dx = 0;
+    if (r.left < 8) dx = 8 - r.left;
+    else if (r.right > window.innerWidth - 8) dx = window.innerWidth - 8 - r.right;
+    tip.style.setProperty("--dx", dx + "px");
+  });
+}
+document.querySelectorAll(".info").forEach(info=>{
+  info.addEventListener("mouseenter",()=>placeTip(info));
+  info.addEventListener("focusin",()=>placeTip(info));
+});
 document.querySelectorAll(".info-btn").forEach(b=>{
-  b.addEventListener("click",e=>{e.stopPropagation(); b.parentElement.classList.toggle("open");});
+  b.addEventListener("click",e=>{e.stopPropagation(); b.parentElement.classList.toggle("open"); placeTip(b.parentElement);});
 });
 document.addEventListener("click",()=>document.querySelectorAll(".info.open").forEach(i=>i.classList.remove("open")));
 
@@ -1067,6 +1225,7 @@ function setState(s){
   clearTimeout(loadTimer); closePanel();
   Object.entries(STATES).forEach(([k,id])=> $(id).hidden = k!==s);
   $("stockCard").hidden = !(s==="normal" || s==="empty");
+  if (stockChart) requestAnimationFrame(()=>stockChart.resize());
   document.querySelectorAll(".demo-bar button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.state===s));
   $("basedOn").innerHTML = s==="empty"
     ? '<span class="dot" aria-hidden="true" style="background:#94a3b8"></span><span>No forecast published yet · latest available data: <b>August 2024</b></span>'
