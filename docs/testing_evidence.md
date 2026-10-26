@@ -115,3 +115,33 @@ keep working exactly as before.
 | E9 | Same command again with the same `--email` | Refuses with a clear "already exists" error; no second row, no audit row |
 | E10 | `python database/invite_user.py --role bogus ...` | `argparse` rejects it immediately (invalid choice), before touching the database |
 | E11 | `POST /api/auth/login` with an existing password-based account's correct credentials | Still 200 + JWT, unchanged — confirms making `password` nullable didn't break the existing bcrypt comparison for rows that still have one |
+
+## Part F - Google sign-in & sessions (Module 1, Part 2A)
+
+Automated: `backend/test/auth.test.js` (`node --test`) covers every pure
+helper in `backend/auth.js` — `getIdleTimeoutMs` (30 min admin / 60 min
+everyone else), `computeSessionExpiry` (idle timeout vs. the 8-hour
+absolute cap, for both admin and non-admin), `getSessionCookieOptions`
+(`secure` only in production), the shape and uniqueness of
+`generateSessionId`/`generateCsrfToken`, `hashSessionId`'s determinism,
+`csrfTokensMatch` (equal/unequal/different-length/non-string/empty), and
+`isBlockedByFailedAttempts`'s threshold (4 allowed, 5 blocked). 34/34
+passing (9 new + the 25 from Part D) as of this writing.
+
+**Manual checks to run after applying `database/schema/005_sessions.sql`
+and setting `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD`/`GOOGLE_CLIENT_ID`:**
+
+| # | Check | Expected |
+|---|---|---|
+| F1 | `POST /api/auth/emergency-login` with the emergency admin's correct email/password | 200, a `sid` cookie is set (`HttpOnly`; `Secure` only when `NODE_ENV=production`), response includes `csrf_token` and `session_expires_at`; a `sessions` row and an `audit_log` row with `action='emergency.login'` and `details.severity='warning'` both appear |
+| F2 | Same endpoint with the right email but a wrong password | 401 "Invalid email or password" — the same generic message as an unknown email; `login_attempts` gets a `succeeded=false` row; `audit_log` gets an `emergency.login_failed` row |
+| F3 | Repeat F2 five times from the same IP in under 15 minutes, then try a 6th time (even with the *correct* password) | The 6th attempt gets 429 "Too many attempts. Try again in 15 minutes." without checking the password, and does **not** add another `login_attempts` row |
+| F4 | `GET /api/me` sent with the `sid` cookie from F1 | 200 `{ user_id, name, email, role (roles.name, e.g. "admin"), role_label ("Admin"), permissions: [...], csrf_token, session_expires_at }` |
+| F5 | `GET /api/me` sent with the old Bearer JWT (no cookie) | 200, same shape but **without** `csrf_token`/`session_expires_at` — confirms those two are cookie-session-only |
+| F6 | `POST /api/auth/logout` with the `sid` cookie and the matching `X-CSRF-Token` header | 204; the `sessions` row is gone; the cookie is cleared; a follow-up request with the same (now-stale) cookie gets 401 "Your session has expired. Please sign in again." |
+| F7 | `POST /api/production/stock` (or `/plan`) with a valid `sid` cookie but **no** `X-CSRF-Token` header, or the wrong one | 403 "Security check failed. Reload the page and try again." |
+| F8 | Same request, with the correct `X-CSRF-Token` from `GET /api/me` | Succeeds as normal — confirms CSRF protection doesn't block legitimate cookie-authenticated writes |
+| F9 | The same two POST endpoints called the old way, with `Authorization: Bearer <JWT>` and no cookie at all | Still succeed with no CSRF header needed — confirms Bearer requests stay exempt |
+| F10 | `POST /api/auth/login` (the original password route) with correct credentials | Still 200 + JWT, byte-for-byte the same response shape as before — confirms the Bearer/password path is genuinely untouched |
+| F11 | Wait past the idle timeout (30 min admin / 60 min others) without any request, then make one | 401 "Your session has expired. Please sign in again."; the expired `sessions` row is deleted by that same request |
+| F12 | Keep a session alive with requests every few minutes past the 8-hour mark from `created_at` | Still expires at the 8-hour absolute limit regardless of how recently the last request was |

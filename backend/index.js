@@ -1,17 +1,94 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const { OAuth2Client } = require('google-auth-library');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const planning = require('./planning');
+const auth = require('./auth');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// JWT auth middleware
-function authenticateToken(req, res, next) {
+// PostgreSQL connection pool
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+});
+
+app.use(cors());
+app.use(express.json());
+app.use(cookieParser());
+
+// Authentication middleware: a valid `sid` session cookie takes priority;
+// only when there's no cookie does this fall back to the original Bearer
+// JWT check (unchanged), so every pre-existing route and the existing
+// password login keep working exactly as before. The function name and
+// req.user shape ({ user_id, name, email, role }) are both kept
+// identical for the same reason.
+async function authenticateToken(req, res, next) {
+  const sid = req.cookies && req.cookies.sid;
+
+  if (sid) {
+    try {
+      const sessionIdHash = auth.hashSessionId(sid);
+      const sessionResult = await pool.query(
+        `SELECT session_id_hash, user_id, csrf_token, created_at, expires_at
+         FROM sessions WHERE session_id_hash = $1`,
+        [sessionIdHash]
+      );
+      const session = sessionResult.rows[0];
+
+      if (!session || new Date(session.expires_at) <= new Date()) {
+        if (session) {
+          // Expired sessions are deleted when found.
+          await pool.query('DELETE FROM sessions WHERE session_id_hash = $1', [sessionIdHash]);
+        }
+        return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+      }
+
+      const userResult = await pool.query(
+        `SELECT user_id, name, email, role FROM users WHERE user_id = $1 AND status = 'active'`,
+        [session.user_id]
+      );
+      const userRow = userResult.rows[0];
+
+      if (!userRow) {
+        return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+      }
+
+      req.user = { user_id: userRow.user_id, name: userRow.name, email: userRow.email, role: userRow.role };
+
+      // Sliding expiry: every valid request pushes expires_at forward,
+      // capped at the 8-hour absolute limit from created_at.
+      const newExpiresAt = auth.computeSessionExpiry({
+        now: new Date(),
+        createdAt: new Date(session.created_at),
+        roleName: userRow.role,
+      });
+      await pool.query('UPDATE sessions SET last_seen_at = now(), expires_at = $1 WHERE session_id_hash = $2', [
+        newExpiresAt,
+        sessionIdHash,
+      ]);
+
+      req.session = { id_hash: sessionIdHash, csrf_token: session.csrf_token, expires_at: newExpiresAt };
+      return next();
+    } catch (err) {
+      const reference = generateErrorReference();
+      console.error(`[${reference}] authenticateToken (session) failed:`, err);
+      return res.status(500).json({ error: 'Unable to verify your session right now.', reference });
+    }
+  }
+
+  // No cookie — fall back to the original Bearer JWT check, unchanged.
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -31,17 +108,20 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// PostgreSQL connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
-
-app.use(cors());
-app.use(express.json());
+// CSRF check for state-changing requests authenticated by cookie. Bearer
+// requests are exempt: req.session is only ever set in the cookie branch
+// of authenticateToken above, so a Bearer-authenticated request has no
+// req.session and skips straight through.
+function csrfProtection(req, res, next) {
+  if (!req.session) {
+    return next();
+  }
+  const provided = req.headers['x-csrf-token'];
+  if (!auth.csrfTokensMatch(req.session.csrf_token, provided)) {
+    return res.status(403).json({ error: 'Security check failed. Reload the page and try again.' });
+  }
+  next();
+}
 
 app.get('/', (req, res) => {
   res.json({ message: 'Water Demand Forecasting API is running' });
@@ -181,6 +261,337 @@ function requirePermission(code) {
     }
   };
 }
+
+// ---------------------------------------------------------------------------
+// Sessions (Module 1, Part 2A)
+// ---------------------------------------------------------------------------
+
+async function insertAuditLog(queryable, { userId = null, action, entity = null, entityId = null, details = {}, ip = null }) {
+  await queryable.query(
+    `INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [userId, action, entity, entityId, details, ip]
+  );
+}
+
+// Creates a session row and returns what the caller needs to set the
+// cookie and respond — never returns the raw session id to anything but
+// the immediate caller (it goes straight into the cookie, nothing else).
+async function createSession(queryable, { userId, roleName, ip }) {
+  const rawSessionId = auth.generateSessionId();
+  const sessionIdHash = auth.hashSessionId(rawSessionId);
+  const csrfToken = auth.generateCsrfToken();
+  const now = new Date();
+  const expiresAt = auth.computeSessionExpiry({ now, createdAt: now, roleName });
+
+  await queryable.query(
+    `INSERT INTO sessions (session_id_hash, user_id, csrf_token, created_at, last_seen_at, expires_at, ip_address)
+     VALUES ($1, $2, $3, $4, $4, $5, $6)`,
+    [sessionIdHash, userId, csrfToken, now, expiresAt, ip]
+  );
+
+  return { rawSessionId, csrfToken, expiresAt };
+}
+
+function setSessionCookie(res, rawSessionId, expiresAt) {
+  res.cookie(
+    'sid',
+    rawSessionId,
+    auth.getSessionCookieOptions({ production: IS_PRODUCTION, maxAgeMs: expiresAt.getTime() - Date.now() })
+  );
+}
+
+// Shared payload for GET /api/me and every login route's response body.
+async function getMePayload(queryable, userId) {
+  const userResult = await queryable.query(
+    `SELECT u.user_id, u.name, u.email, r.name AS role, r.display_name AS role_label
+     FROM users u
+     LEFT JOIN roles r ON r.role_id = u.role_id
+     WHERE u.user_id = $1`,
+    [userId]
+  );
+  const userRow = userResult.rows[0];
+  if (!userRow) {
+    return null;
+  }
+
+  const permissionsResult = await queryable.query(
+    `SELECT p.code
+     FROM users u
+     JOIN role_permissions rp ON rp.role_id = u.role_id
+     JOIN permissions p ON p.permission_id = rp.permission_id
+     WHERE u.user_id = $1`,
+    [userId]
+  );
+
+  return {
+    user_id: userRow.user_id,
+    name: userRow.name,
+    email: userRow.email,
+    role: userRow.role,
+    role_label: userRow.role_label,
+    permissions: permissionsResult.rows.map((row) => row.code),
+  };
+}
+
+app.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const mePayload = await getMePayload(pool, req.user.user_id);
+    if (!mePayload) {
+      return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+    }
+    if (req.session) {
+      mePayload.csrf_token = req.session.csrf_token;
+      mePayload.session_expires_at = req.session.expires_at;
+    }
+    res.json(mePayload);
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/me failed:`, err);
+    res.status(500).json({ error: 'Unable to load your account right now.', reference });
+  }
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  const { credential } = req.body;
+
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] POST /api/auth/google: GOOGLE_CLIENT_ID is not configured`);
+    return res.status(500).json({ error: 'Google sign-in is not configured right now.', reference });
+  }
+
+  if (!credential) {
+    return res.status(400).json({ error: 'credential is required.' });
+  }
+
+  const REFUSAL_MESSAGE = "This Google account isn't authorised for this system. Contact your administrator.";
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: process.env.GOOGLE_CLIENT_ID });
+    payload = ticket.getPayload();
+  } catch (err) {
+    await insertAuditLog(pool, {
+      action: 'login.failure',
+      entity: 'users',
+      details: { reason: 'invalid_token' },
+      ip: req.ip,
+    });
+    return res.status(401).json({ error: REFUSAL_MESSAGE });
+  }
+
+  if (!payload || !payload.email_verified) {
+    await insertAuditLog(pool, {
+      action: 'login.failure',
+      entity: 'users',
+      details: { reason: 'email_not_verified', email: payload ? payload.email : null },
+      ip: req.ip,
+    });
+    return res.status(401).json({ error: REFUSAL_MESSAGE });
+  }
+
+  const googleSub = payload.sub;
+  const email = (payload.email || '').toLowerCase();
+
+  try {
+    // Find by google_sub first, else by email — two separate lookups
+    // (not one OR query) so each is unambiguous about which identity it
+    // matched on.
+    let userRow = null;
+    const bySubResult = await pool.query(
+      `SELECT user_id, role, status, auth_provider, google_sub FROM users WHERE google_sub = $1`,
+      [googleSub]
+    );
+    if (bySubResult.rows.length > 0) {
+      userRow = bySubResult.rows[0];
+    } else {
+      const byEmailResult = await pool.query(
+        `SELECT user_id, role, status, auth_provider, google_sub FROM users WHERE lower(email) = $1`,
+        [email]
+      );
+      if (byEmailResult.rows.length > 0) {
+        userRow = byEmailResult.rows[0];
+      }
+    }
+
+    const refusalReason = !userRow
+      ? 'not_found'
+      : userRow.status === 'deactivated'
+      ? 'deactivated'
+      : userRow.auth_provider !== 'google'
+      ? 'wrong_provider'
+      : userRow.google_sub && userRow.google_sub !== googleSub
+      ? 'sub_mismatch'
+      : null;
+
+    if (refusalReason) {
+      await insertAuditLog(pool, {
+        action: 'login.failure',
+        entity: 'users',
+        entityId: userRow ? String(userRow.user_id) : null,
+        details: { reason: refusalReason, email },
+        ip: req.ip,
+      });
+      return res.status(401).json({ error: REFUSAL_MESSAGE });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE users
+         SET google_sub = $1,
+             status = CASE WHEN status = 'invited' THEN 'active' ELSE status END,
+             last_login_at = now()
+         WHERE user_id = $2`,
+        [googleSub, userRow.user_id]
+      );
+
+      const { rawSessionId, csrfToken, expiresAt } = await createSession(client, {
+        userId: userRow.user_id,
+        roleName: userRow.role,
+        ip: req.ip,
+      });
+
+      await insertAuditLog(client, {
+        userId: userRow.user_id,
+        action: 'login.success',
+        entity: 'users',
+        entityId: String(userRow.user_id),
+        details: { email },
+        ip: req.ip,
+      });
+
+      await client.query('COMMIT');
+
+      setSessionCookie(res, rawSessionId, expiresAt);
+      const mePayload = await getMePayload(pool, userRow.user_id);
+      res.json({ ...mePayload, csrf_token: csrfToken, session_expires_at: expiresAt });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] POST /api/auth/google failed:`, err);
+    res.status(500).json({ error: 'Unable to sign in right now.', reference });
+  }
+});
+
+app.post('/api/auth/emergency-login', async (req, res) => {
+  const { email: rawEmail, password } = req.body;
+  const ip = req.ip;
+
+  if (!rawEmail || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  const email = rawEmail.trim().toLowerCase();
+  const GENERIC_FAILURE_MESSAGE = 'Invalid email or password';
+
+  try {
+    const windowStart = new Date(Date.now() - auth.FAILED_LOGIN_WINDOW_MS);
+    const attemptsResult = await pool.query(
+      `SELECT COUNT(*) AS failed_count FROM login_attempts
+       WHERE ip_address = $1 AND attempted_at >= $2 AND succeeded = false`,
+      [ip, windowStart]
+    );
+    const failedCount = Number(attemptsResult.rows[0].failed_count);
+
+    if (auth.isBlockedByFailedAttempts(failedCount)) {
+      // Deliberately does not record this request in login_attempts and
+      // never looks at the password — recording it would let an attacker
+      // (or a shared-IP neighbor) keep the window perpetually topped up.
+      return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    }
+
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, password, role, status
+       FROM users WHERE lower(email) = $1 AND auth_provider = 'emergency'`,
+      [email]
+    );
+    const user = userResult.rows[0];
+    const passwordMatches = user && user.password ? bcrypt.compareSync(password, user.password) : false;
+
+    if (!user || !passwordMatches || user.status !== 'active') {
+      await pool.query(`INSERT INTO login_attempts (ip_address, succeeded) VALUES ($1, false)`, [ip]);
+      await insertAuditLog(pool, {
+        userId: user ? user.user_id : null,
+        action: 'emergency.login_failed',
+        entity: 'users',
+        entityId: user ? String(user.user_id) : null,
+        details: { email },
+        ip,
+      });
+      return res.status(401).json({ error: GENERIC_FAILURE_MESSAGE });
+    }
+
+    await pool.query(`INSERT INTO login_attempts (ip_address, succeeded) VALUES ($1, true)`, [ip]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(`UPDATE users SET last_login_at = now() WHERE user_id = $1`, [user.user_id]);
+
+      const { rawSessionId, csrfToken, expiresAt } = await createSession(client, {
+        userId: user.user_id,
+        roleName: user.role,
+        ip,
+      });
+
+      await insertAuditLog(client, {
+        userId: user.user_id,
+        action: 'emergency.login',
+        entity: 'users',
+        entityId: String(user.user_id),
+        details: { email, severity: 'warning', note: 'Change the emergency admin password soon.' },
+        ip,
+      });
+
+      await client.query('COMMIT');
+
+      setSessionCookie(res, rawSessionId, expiresAt);
+      const mePayload = await getMePayload(pool, user.user_id);
+      res.json({ ...mePayload, csrf_token: csrfToken, session_expires_at: expiresAt });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] POST /api/auth/emergency-login failed:`, err);
+    res.status(500).json({ error: 'Unable to sign in right now.', reference });
+  }
+});
+
+app.post('/api/auth/logout', authenticateToken, csrfProtection, async (req, res) => {
+  try {
+    if (req.session) {
+      await pool.query('DELETE FROM sessions WHERE session_id_hash = $1', [req.session.id_hash]);
+      res.clearCookie('sid', auth.getSessionCookieOptions({ production: IS_PRODUCTION, maxAgeMs: 0 }));
+    }
+
+    await insertAuditLog(pool, {
+      userId: req.user.user_id,
+      action: 'logout',
+      entity: 'users',
+      entityId: String(req.user.user_id),
+      ip: req.ip,
+    });
+
+    res.status(204).end();
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] POST /api/auth/logout failed:`, err);
+    res.status(500).json({ error: 'Unable to log out right now.', reference });
+  }
+});
 
 app.get('/api/consumption-history', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -383,7 +794,12 @@ app.get(
   }
 );
 
-app.post('/api/production/plan', authenticateToken, requirePermission('plan:create'), async (req, res) => {
+app.post(
+  '/api/production/plan',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('plan:create'),
+  async (req, res) => {
   const { forecast_id, month, plan_type, expected_version, custom_m3, reason, note } = req.body;
 
   if (
@@ -587,7 +1003,12 @@ app.get('/api/production/stock', authenticateToken, requirePermission('plan:view
   }
 });
 
-app.post('/api/production/stock', authenticateToken, requirePermission('stock:create'), async (req, res) => {
+app.post(
+  '/api/production/stock',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('stock:create'),
+  async (req, res) => {
   const { recorded_on, stock_m3, note } = req.body;
   const errors = {};
 
