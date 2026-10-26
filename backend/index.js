@@ -5,7 +5,6 @@ const cookieParser = require('cookie-parser');
 const { OAuth2Client } = require('google-auth-library');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const planning = require('./planning');
 const auth = require('./auth');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -28,90 +27,75 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// Authentication middleware: a valid `sid` session cookie takes priority;
-// only when there's no cookie does this fall back to the original Bearer
-// JWT check (unchanged), so every pre-existing route and the existing
-// password login keep working exactly as before. The function name and
-// req.user shape ({ user_id, name, email, role }) are both kept
-// identical for the same reason.
+// Authentication middleware: cookie sessions only (Part 3A removed the
+// password login and, with it, the Bearer/JWT fallback this used to have).
+// The function name and req.user shape ({ user_id, name, email, role })
+// are kept the same as before for every other route's sake. role is
+// roles.name via users.role_id — users.role itself was dropped in
+// 006_remove_password_login.sql.
 async function authenticateToken(req, res, next) {
   const sid = req.cookies && req.cookies.sid;
 
-  if (sid) {
-    try {
-      const sessionIdHash = auth.hashSessionId(sid);
-      const sessionResult = await pool.query(
-        `SELECT session_id_hash, user_id, csrf_token, created_at, expires_at
-         FROM sessions WHERE session_id_hash = $1`,
-        [sessionIdHash]
-      );
-      const session = sessionResult.rows[0];
-
-      if (!session || new Date(session.expires_at) <= new Date()) {
-        if (session) {
-          // Expired sessions are deleted when found.
-          await pool.query('DELETE FROM sessions WHERE session_id_hash = $1', [sessionIdHash]);
-        }
-        return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
-      }
-
-      const userResult = await pool.query(
-        `SELECT user_id, name, email, role FROM users WHERE user_id = $1 AND status = 'active'`,
-        [session.user_id]
-      );
-      const userRow = userResult.rows[0];
-
-      if (!userRow) {
-        return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
-      }
-
-      req.user = { user_id: userRow.user_id, name: userRow.name, email: userRow.email, role: userRow.role };
-
-      // Sliding expiry: every valid request pushes expires_at forward,
-      // capped at the 8-hour absolute limit from created_at.
-      const newExpiresAt = auth.computeSessionExpiry({
-        now: new Date(),
-        createdAt: new Date(session.created_at),
-        roleName: userRow.role,
-      });
-      await pool.query('UPDATE sessions SET last_seen_at = now(), expires_at = $1 WHERE session_id_hash = $2', [
-        newExpiresAt,
-        sessionIdHash,
-      ]);
-
-      req.session = { id_hash: sessionIdHash, csrf_token: session.csrf_token, expires_at: newExpiresAt };
-      return next();
-    } catch (err) {
-      const reference = generateErrorReference();
-      console.error(`[${reference}] authenticateToken (session) failed:`, err);
-      return res.status(500).json({ error: 'Unable to verify your session right now.', reference });
-    }
+  if (!sid) {
+    return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
   }
 
-  // No cookie — fall back to the original Bearer JWT check, unchanged.
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  try {
+    const sessionIdHash = auth.hashSessionId(sid);
+    const sessionResult = await pool.query(
+      `SELECT session_id_hash, user_id, csrf_token, created_at, expires_at
+       FROM sessions WHERE session_id_hash = $1`,
+      [sessionIdHash]
+    );
+    const session = sessionResult.rows[0];
 
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) {
-      // 401, not 403: an invalid/expired token means "you aren't signed
-      // in", not "you don't have permission" — 403 is reserved for
-      // requireAdmin/requirePermission denying an authenticated user.
+    if (!session || new Date(session.expires_at) <= new Date()) {
+      if (session) {
+        // Expired sessions are deleted when found.
+        await pool.query('DELETE FROM sessions WHERE session_id_hash = $1', [sessionIdHash]);
+      }
       return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
     }
-    req.user = decoded;
-    next();
-  });
+
+    const userResult = await pool.query(
+      `SELECT u.user_id, u.name, u.email, r.name AS role
+       FROM users u
+       LEFT JOIN roles r ON r.role_id = u.role_id
+       WHERE u.user_id = $1 AND u.status = 'active'`,
+      [session.user_id]
+    );
+    const userRow = userResult.rows[0];
+
+    if (!userRow) {
+      return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+    }
+
+    req.user = { user_id: userRow.user_id, name: userRow.name, email: userRow.email, role: userRow.role };
+
+    // Sliding expiry: every valid request pushes expires_at forward,
+    // capped at the 8-hour absolute limit from created_at.
+    const newExpiresAt = auth.computeSessionExpiry({
+      now: new Date(),
+      createdAt: new Date(session.created_at),
+      roleName: userRow.role,
+    });
+    await pool.query('UPDATE sessions SET last_seen_at = now(), expires_at = $1 WHERE session_id_hash = $2', [
+      newExpiresAt,
+      sessionIdHash,
+    ]);
+
+    req.session = { id_hash: sessionIdHash, csrf_token: session.csrf_token, expires_at: newExpiresAt };
+    return next();
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] authenticateToken (session) failed:`, err);
+    return res.status(500).json({ error: 'Unable to verify your session right now.', reference });
+  }
 }
 
-// CSRF check for state-changing requests authenticated by cookie. Bearer
-// requests are exempt: req.session is only ever set in the cookie branch
-// of authenticateToken above, so a Bearer-authenticated request has no
-// req.session and skips straight through.
+// CSRF check for state-changing requests. req.session is always set by
+// authenticateToken by the time this runs (cookie sessions are now the
+// only way through it), but the guard is kept defensively.
 function csrfProtection(req, res, next) {
   if (!req.session) {
     return next();
@@ -122,6 +106,24 @@ function csrfProtection(req, res, next) {
   }
   next();
 }
+
+// ---------------------------------------------------------------------------
+// Routes and their protection:
+//
+//   GET  /                               public (health check)
+//   GET  /api/forecast/published         authenticateToken, requirePermission('forecast:view')
+//   GET  /api/me                         authenticateToken
+//   POST /api/auth/google                public
+//   POST /api/auth/emergency-login       public (rate-limited by IP)
+//   POST /api/auth/logout                authenticateToken, csrfProtection
+//   GET  /api/consumption-history        authenticateToken, requirePermission('data:view')
+//   GET  /api/production/plan            authenticateToken, requirePermission('plan:view')
+//   GET  /api/production/plan/:month/history
+//                                         authenticateToken, requirePermission('plan:view')
+//   POST /api/production/plan            authenticateToken, csrfProtection, requirePermission('plan:create')
+//   GET  /api/production/stock           authenticateToken, requirePermission('plan:view')
+//   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
+// ---------------------------------------------------------------------------
 
 app.get('/', (req, res) => {
   res.json({ message: 'Water Demand Forecasting API is running' });
@@ -139,7 +141,7 @@ function generateErrorReference() {
   return `ERR-${code}`;
 }
 
-app.get('/api/forecast/published', authenticateToken, async (req, res) => {
+app.get('/api/forecast/published', authenticateToken, requirePermission('forecast:view'), async (req, res) => {
   try {
     const forecastResult = await pool.query(
       `SELECT forecast_id, generated_at, model_name, mae, rmse, mape,
@@ -213,28 +215,38 @@ app.get('/api/forecast/published', authenticateToken, async (req, res) => {
   }
 });
 
-// Admin-only role check — used after authenticateToken, which populates req.user
-function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
-
 // Permission check — used after authenticateToken. Looks up the caller's
 // role and that role's permissions fresh from the database on every
 // request (users -> roles -> role_permissions -> permissions), rather
-// than trusting the role baked into the JWT, so a deactivated account or
-// a permission removed after the token was issued takes effect
-// immediately. Deny by default: no role, an unknown permission code, or a
-// database error all mean no access — a database error is the one case
-// that isn't a plain 403, since it's not actually known whether the user
-// has the permission or not; it's reported as a 500 with an ERR reference
-// instead of ever allowing the request through.
+// than trusting anything cached, so a deactivated account or a permission
+// removed since the session was created takes effect immediately. Deny by
+// default: no user, an unknown permission code, or a database error all
+// mean no access — a database error is the one case that isn't a plain
+// 403, since it's not actually known whether the user has the permission
+// or not; it's reported as a 500 with an ERR reference instead of ever
+// allowing the request through.
 function requirePermission(code) {
   return async (req, res, next) => {
-    if (!req.user || !req.user.user_id) {
+    const userId = req.user && req.user.user_id ? req.user.user_id : null;
+
+    const deny = async () => {
+      // A failure to write this audit row must never change the 403
+      // response below — it's best-effort visibility, not a gate.
+      try {
+        await insertAuditLog(pool, {
+          userId,
+          action: 'permission.denied',
+          details: { permission: code, method: req.method, path: req.path },
+          ip: req.ip,
+        });
+      } catch (auditErr) {
+        console.error('Failed to write permission.denied audit row:', auditErr);
+      }
       return res.status(403).json({ error: "You don't have permission to do this." });
+    };
+
+    if (!userId) {
+      return deny();
     }
 
     try {
@@ -246,11 +258,11 @@ function requirePermission(code) {
          JOIN permissions p ON p.permission_id = rp.permission_id
          WHERE u.user_id = $1 AND u.status = 'active' AND p.code = $2
          LIMIT 1`,
-        [req.user.user_id, code]
+        [userId, code]
       );
 
       if (result.rows.length === 0) {
-        return res.status(403).json({ error: "You don't have permission to do this." });
+        return deny();
       }
 
       next();
@@ -400,14 +412,18 @@ app.post('/api/auth/google', async (req, res) => {
     // matched on.
     let userRow = null;
     const bySubResult = await pool.query(
-      `SELECT user_id, role, status, auth_provider, google_sub FROM users WHERE google_sub = $1`,
+      `SELECT u.user_id, r.name AS role, u.status, u.auth_provider, u.google_sub
+       FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
+       WHERE u.google_sub = $1`,
       [googleSub]
     );
     if (bySubResult.rows.length > 0) {
       userRow = bySubResult.rows[0];
     } else {
       const byEmailResult = await pool.query(
-        `SELECT user_id, role, status, auth_provider, google_sub FROM users WHERE lower(email) = $1`,
+        `SELECT u.user_id, r.name AS role, u.status, u.auth_provider, u.google_sub
+         FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
+         WHERE lower(u.email) = $1`,
         [email]
       );
       if (byEmailResult.rows.length > 0) {
@@ -509,8 +525,9 @@ app.post('/api/auth/emergency-login', async (req, res) => {
     }
 
     const userResult = await pool.query(
-      `SELECT user_id, name, email, password, role, status
-       FROM users WHERE lower(email) = $1 AND auth_provider = 'emergency'`,
+      `SELECT u.user_id, u.name, u.email, u.password, r.name AS role, u.status
+       FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
+       WHERE lower(u.email) = $1 AND u.auth_provider = 'emergency'`,
       [email]
     );
     const user = userResult.rows[0];
@@ -593,7 +610,7 @@ app.post('/api/auth/logout', authenticateToken, csrfProtection, async (req, res)
   }
 });
 
-app.get('/api/consumption-history', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/consumption-history', authenticateToken, requirePermission('data:view'), async (req, res) => {
   try {
     const result = await pool.query(
       // consumption_cleaned_m3 is BIGINT, which node-postgres returns as a
@@ -1084,51 +1101,6 @@ app.post(
     res.status(500).json({ error: 'Unable to save the stock entry right now.', reference });
   } finally {
     client.release();
-  }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const result = await pool.query(
-      'SELECT user_id, name, email, password, role FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const user = result.rows[0];
-    const isMatch = bcrypt.compareSync(password, user.password);
-
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = jwt.sign(
-      { user_id: user.user_id, name: user.name, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({
-      token,
-      user: {
-        user_id: user.user_id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

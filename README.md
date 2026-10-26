@@ -125,9 +125,19 @@ cd .. && pip install -r requirements.txt
 ```
 
 ### 2. Configure environment variables
-Copy `.env.example` to `.env` in the project root, then fill in your own values:
+Copy `.env.example` to `.env` in the project root, then fill in your own
+values — including `GOOGLE_CLIENT_ID` (a Google OAuth client id) and
+`EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD` (the one password-based
+fallback account, for when Google sign-in itself is unreachable):
 ```bash
 cp .env.example .env
+```
+Also copy `frontend/.env.example` to `frontend/.env` and set
+`REACT_APP_GOOGLE_CLIENT_ID` there to the **same** Google OAuth client id
+— the frontend needs its own copy since CRA only reads `REACT_APP_*`
+variables from `frontend/.env`, not the project-root one:
+```bash
+cp frontend/.env.example frontend/.env
 ```
 
 ### 3. Set up the database and load the data
@@ -139,7 +149,7 @@ consumption records, the water/wastewater tariff list, and the 2019
 water-loss (water balance) report. Point `.env` at wherever you put them —
 `IZSU_RAW_PATH`, `IZSU_TARIFF_PATH`, `IZSU_LOSS_PATH` — plus
 `IZSU_DETAIL_PATH` and `IZSU_MONTHLY_PATH` for the two files
-`preprocess_izsu.py` generates from the raw one (step 3 below). All five
+`preprocess_izsu.py` generates from the raw one (step 8 below). All five
 default to paths under `Documents` if left unset in `.env`.
 
 Run these in order:
@@ -147,24 +157,23 @@ Run these in order:
 1. `psql`/pgAdmin: `database/schema/000_existing_schema.sql` — creates the baseline tables (`users`, `izsu_consumption`, `forecasts`, `forecast_results`) if they don't already exist.
 2. `psql`/pgAdmin: `database/schema/001_foundation.sql` — adds RBAC, consumption detail, tariffs, water balance, settings, production planning and the audit log.
 3. `psql`/pgAdmin: `database/schema/002_published_forecast.sql` — adds the columns `forecasts` needs to store a published forecast.
-4. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
-5. `python database/load_izsu.py` — 128 monthly totals.
-6. `python database/load_detail.py` — 86,749 detail rows.
-7. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
-8. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
-9. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
-10. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
-11. `python database/seed_users.py` — creates the two test accounts (reads `SEED_MANAGER_PASSWORD`/`SEED_ADMIN_PASSWORD` from `.env`).
-
-This creates two test accounts:
-| Email | Role |
-|---|---|
-| manager@water.com | manager |
-| admin@water.com | admin |
+4. `psql`/pgAdmin: `database/schema/003_production_planning.sql` — Production Planning (Module 3): plan type/version/active-plan columns and indexes.
+5. `psql`/pgAdmin: `database/schema/004_accounts.sql` — accounts: nullable password, Google sign-in columns, the `data:view` permission, and `login_attempts` (the emergency-login lockout rule).
+6. `psql`/pgAdmin: `database/schema/005_sessions.sql` — adds the `sessions` table Google/emergency sign-in use.
+7. `psql`/pgAdmin: `database/schema/006_remove_password_login.sql` — deactivates any remaining password-based accounts and drops `users.role` now that nothing reads it.
+8. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
+9. `python database/load_izsu.py` — 128 monthly totals.
+10. `python database/load_detail.py` — 86,749 detail rows.
+11. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
+12. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
+13. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
+14. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
+15. `python database/create_emergency_admin.py` — creates (or rotates the password of) the one password-based fallback admin, from `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD` in `.env`.
+16. `python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager` — invites everyone else; they sign in with Google the first time, using the email you invited.
 
 `database/propose_tariff_map.py` is not part of this sequence — it's only
 needed if you want to regenerate `tariff_type_map_proposal.csv` (the input
-to step 9) from scratch, e.g. after the detail data changes.
+to step 13) from scratch, e.g. after the detail data changes.
 
 ### 4. Train the forecasting model
 Train and save the model, then publish the forecast the website reads —
@@ -194,6 +203,9 @@ production build pointed at a backend on a different host, set
 `REACT_APP_API_URL` (e.g. `REACT_APP_API_URL=https://api.example.com`)
 before running `npm run build` — it's read once at build time via
 `frontend/src/api.js`.
+
+Sign in with Chrome or Edge — Firefox's tracking protection blocks
+Google's sign-in popup.
 
 ## Deployment Requirements (for Sprint III)
 Checked against the current code:

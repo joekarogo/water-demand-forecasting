@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../session';
+import { getFirstPermittedPath } from './menuConfig';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import '../App.css';
@@ -9,8 +10,11 @@ import '../App.css';
 // sidebar on narrow ones (closable with ✕, a tap outside, or Escape).
 // Also the route guard for every page that uses it: signed-out users
 // (session === null, once the initial GET /api/me has resolved) are sent
-// to /login instead of ever seeing the shell or its children.
-function AppLayout({ title, subtitle, extraLines, children }) {
+// to /login instead of ever seeing the shell or its children. A page that
+// passes `requiredPermission` and whose signed-in user lacks it sees an
+// "access denied" view inside the normal shell instead of its children —
+// it never gets redirected away.
+function AppLayout({ title, subtitle, extraLines, requiredPermission, children }) {
   const { session, loading } = useSession();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
@@ -47,6 +51,8 @@ function AppLayout({ title, subtitle, extraLines, children }) {
     return null;
   }
 
+  const hasAccess = !requiredPermission || (session.permissions || []).includes(requiredPermission);
+
   return (
     <div className="shell">
       <Sidebar open={navOpen} onNavigate={closeNav} onClose={closeNav} closeBtnRef={closeBtnRef} />
@@ -60,7 +66,23 @@ function AppLayout({ title, subtitle, extraLines, children }) {
           menuBtnRef={menuBtnRef}
           navOpen={navOpen}
         />
-        <main className="content">{children}</main>
+        <main className="content">
+          {hasAccess ? (
+            children
+          ) : (
+            <section className="card error-card" role="alert">
+              <h2>You don't have access to this page.</h2>
+              <button
+                className="btn btn-primary"
+                type="button"
+                style={{ marginTop: 8 }}
+                onClick={() => navigate(getFirstPermittedPath(session.permissions))}
+              >
+                Go to a page you can access
+              </button>
+            </section>
+          )}
+        </main>
       </div>
     </div>
   );
