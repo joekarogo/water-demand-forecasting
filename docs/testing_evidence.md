@@ -58,3 +58,37 @@ passwords — see Part C.
 | C4 | 6-month forecast showed historic (already-known) dates | Added a final retrain on all data before forecasting |
 | C5 | Test account passwords hardcoded in seed_users.py | Moved to .env; .env.example added; users re-seeded |
 | C6 | Open: frontend CRA test suite fails (react-router-dom/Jest resolution error) | Planned fix |
+
+## Part D - Production Planning (Module 3)
+
+Automated: `backend/test/planning.test.js` (`node --test`, run via `npm test`
+in `backend/`) covers every pure calculation and validation rule in
+`backend/planning.js` — normal/safe amounts (including the Sep 2024
+25.4M → ~37.6M example at loss_rate 0.324), `daysInMonth` across leap and
+short months, `calculateDaysOfCover`'s rounding-down and null cases, and
+every `validatePlanRequest` branch (valid normal/safe/custom, a custom
+plan missing its reason, missing or blank note, a note over 500
+characters, a non-whole or non-positive `custom_m3`, `custom_m3` over and
+exactly at the 3x-safe cap, and an unknown `plan_type`). 21/21 passing as
+of this writing.
+
+| Endpoint | What it checks |
+|---|---|
+| `GET /api/production/plan` | `plan:view`; 404 if no forecast is published; returns the 12 forecast months with freshly computed `normal_m3`/`safe_m3`, each month's active plan (or `null`), the latest stock entry, and `days_of_cover` for the first forecast month |
+| `GET /api/production/plan/:month/history` | `plan:view`; 400 if `:month` isn't one of the latest published forecast's months; full version history for that month, newest first, with who created each version and when |
+| `POST /api/production/plan` | `plan:create`; recomputes `normal`/`safe` server-side from `forecast_results` and the current `loss_rate` — never trusts a client-sent amount except `custom_m3`; 409 if `forecast_id` isn't the latest published one; 409 if `expected_version` doesn't match the month's current active version (optimistic concurrency); 400 if the month isn't in the forecast or the body fails `validatePlanRequest`; saves the new version and deactivates the old one, plus a `plan.save` audit row, in one transaction |
+| `GET /api/production/stock` | `plan:view`; stock entries within 90 days of the most recent reading (max 200 rows), newest first, each with `recorded_by` and a `change_m3` computed with a `LAG` window function over *all* entries (not just the windowed ones) so the oldest row in the window still compares against the real reading before it; `null` for the very first reading ever |
+| `POST /api/production/stock` | `stock:create`; 400 if `recorded_on` isn't a valid date, is after the **database's** `CURRENT_DATE`, or `stock_m3` isn't a positive whole number; inserts the entry plus a `stock.record` audit row in one transaction |
+
+**Manual checks to run after applying `database/schema/003_production_planning.sql`:**
+
+| # | Check | Expected |
+|---|---|---|
+| D1 | Admin calls `GET /api/production/plan` | 403 — `003_production_planning.sql` removed `plan:view` from the admin role |
+| D2 | Production manager calls `GET /api/production/plan` | 200 |
+| D3 | Production manager calls `POST /api/production/stock` | 200/201 — manager has `stock:create` |
+| D4 | Commercial officer calls `GET /api/production/plan` or `POST /api/production/plan` | 403 for both — role has neither `plan:view` nor `plan:create` |
+| D5 | `POST /api/production/plan` with `plan_type: "custom"` and no `reason` | 400 with a field-level error naming `reason` |
+| D6 | Two browser tabs both load the same month, one saves a plan, the other then saves with its (now stale) `expected_version` | Second save gets 409 "This plan was changed by someone else." |
+| D7 | `POST /api/production/stock` with `recorded_on` set to tomorrow | 400 naming `recorded_on`, rejected against the database's date, not the browser's |
+| D8 | After D3/D5(fixed)/any successful plan save | A new row appears in `audit_log` with `action = 'plan.save'` or `'stock.record'`, the correct `user_id`, and `details` containing the month/plan_type/chosen_m3/version (or recorded_on/stock_m3) |

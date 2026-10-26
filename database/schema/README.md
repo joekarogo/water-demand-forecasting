@@ -21,10 +21,20 @@ there is no automated migration runner in this project yet.
    `train_end`, `interval_width`) from the old on-demand ones, plus an
    index on `(kind, generated_at)`. Existing rows default to `kind =
    'on_demand'`, preserving them as history. Runs as a single transaction.
+4. `003_production_planning.sql` — Production Planning (Module 3): adds
+   `plan_type`/`chosen_m3`/`reason`/`version`/`is_active` to
+   `production_plans` (refuses to run if that table already has rows,
+   since these are added `NOT NULL` with no backfill value), a CHECK that
+   a custom plan always has a reason and note and a normal/safe plan never
+   has a reason, partial/compound unique indexes enforcing one active plan
+   per (forecast, month) and one row per (forecast, month, version),
+   tightens `stock_entries.stock_m3` to `> 0`, and removes Admin's
+   `plan:view` permission. Runs as a single transaction.
 
-To roll back **in development only**, run `001_foundation_down.sql` and/or
-`002_published_forecast_down.sql`. Neither is a safe production rollback —
-see the comment at the top of each file for what it does and does not undo.
+To roll back **in development only**, run `001_foundation_down.sql`,
+`002_published_forecast_down.sql` and/or `003_production_planning_down.sql`.
+None of these are a safe production rollback — see the comment at the top
+of each file for what it does and does not undo.
 
 ## Running a file
 
@@ -32,6 +42,7 @@ see the comment at the top of each file for what it does and does not undo.
 psql -U <your_db_user> -d <your_db_name> -f database/schema/000_existing_schema.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/001_foundation.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/002_published_forecast.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/003_production_planning.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and
