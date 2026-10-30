@@ -45,6 +45,17 @@ export function ProductionNavIcon() {
   );
 }
 
+export function UsersNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+      <path d="M16 8.2a3 3 0 0 1 0 5.8" />
+      <path d="M18.5 19c0-2.2-1.3-4-3.2-4.7" />
+    </svg>
+  );
+}
+
 export function EmptyForecastIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

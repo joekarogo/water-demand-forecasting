@@ -1,4 +1,4 @@
-import { ForecastNavIcon, HistoryNavIcon, ProductionNavIcon } from './icons';
+import { ForecastNavIcon, HistoryNavIcon, ProductionNavIcon, UsersNavIcon } from './icons';
 
 // One line per page: { label, path, icon, permission }. The sidebar shows
 // only items whose permission the signed-in user has — see
@@ -9,6 +9,7 @@ export const MENU_ITEMS = [
   { label: 'Forecast', path: '/dashboard', icon: ForecastNavIcon, permission: 'forecast:view' },
   { label: 'Production Planning', path: '/production-planning', icon: ProductionNavIcon, permission: 'plan:view' },
   { label: 'Historical Analysis', path: '/data-overview', icon: HistoryNavIcon, permission: 'data:view' },
+  { label: 'Users', path: '/users', icon: UsersNavIcon, permission: 'user:manage' },
 ];
 
 // Where to send someone right after signing in: the first menu item

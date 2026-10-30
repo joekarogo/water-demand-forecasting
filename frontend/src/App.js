@@ -5,6 +5,7 @@ import EmergencyLogin from './EmergencyLogin';
 import Dashboard from './Dashboard';
 import DataOverview from './DataOverview';
 import ProductionPlanning from './ProductionPlanning';
+import Users from './Users';
 import './App.css';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/data-overview" element={<DataOverview />} />
           <Route path="/production-planning" element={<ProductionPlanning />} />
+          <Route path="/users" element={<Users />} />
         </Routes>
       </SessionProvider>
     </BrowserRouter>

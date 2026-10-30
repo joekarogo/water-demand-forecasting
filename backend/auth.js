@@ -87,12 +87,24 @@ function isBlockedByFailedAttempts(recentFailedCount) {
   return recentFailedCount >= MAX_FAILED_LOGIN_ATTEMPTS;
 }
 
+// Module 1, Part 4: "step-up" re-authentication for risky account-admin
+// actions (changing a role, deactivating/reactivating an account). A
+// session only authorizes these when it's fresh — created within the
+// last 10 minutes — so that someone who left a tab open hours ago can't
+// have those actions taken through their still-valid-but-stale session.
+const STEP_UP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+function isWithinStepUpWindow({ now, sessionCreatedAt }) {
+  return now.getTime() - sessionCreatedAt.getTime() <= STEP_UP_WINDOW_MS;
+}
+
 module.exports = {
   ADMIN_IDLE_TIMEOUT_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
   ABSOLUTE_SESSION_LIMIT_MS,
   MAX_FAILED_LOGIN_ATTEMPTS,
   FAILED_LOGIN_WINDOW_MS,
+  STEP_UP_WINDOW_MS,
   getIdleTimeoutMs,
   computeSessionExpiry,
   getSessionCookieOptions,
@@ -101,4 +113,5 @@ module.exports = {
   generateCsrfToken,
   csrfTokensMatch,
   isBlockedByFailedAttempts,
+  isWithinStepUpWindow,
 };
