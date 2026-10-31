@@ -256,10 +256,6 @@ function RevenueEstimate() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  if (sessionLoading || !session) {
-    return null;
-  }
-
   const subtitle = 'How much money will water sales bring in?';
 
   return (

@@ -1,0 +1,11 @@
+{
+  "name": "water-demand-forecasting",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "heroku-postbuild": "npm ci --prefix backend --omit=dev && npm ci --prefix frontend && npm run build --prefix frontend",
+    "start": "node backend/index.js"
+  }
+}

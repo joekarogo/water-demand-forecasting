@@ -225,10 +225,6 @@ function DemandByDistrict() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  if (sessionLoading || !session) {
-    return null;
-  }
-
   const subtitle = 'Which districts need the most water in a given month?';
 
   return (
