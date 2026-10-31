@@ -319,3 +319,48 @@ signed-in session to verify visually — not run in this session (no servers
 were started, no `.env` touched). K13 is a text-content check against a live
 page render; everything else above was actually executed as part of this
 change.
+
+## Part L - Revenue estimate (Module 5)
+
+Billed-revenue estimate split by (district, subscriber-type) cell, priced
+through the latest published tariff (`GET /api/revenue`,
+`backend/revenue.js`), plus the new wastewater price column
+(`008_tariff_wastewater.sql`, `database/load_tariffs.py`) and the "Revenue
+estimate" page, for Commercial Analysts (`revenue:view`) only. All
+volume-split, tariff-lookup and tiered-billing math runs on the server; the
+frontend only renders what the API returns. Migration 008 and the loader
+re-run were **not** executed this session — the user runs those themselves
+after a backup, per the task's instructions. Automated:
+`backend/test/revenue.test.js` (pure functions),
+`backend/test/permissions.matrix.test.js` (`GET /api/revenue` added to the
+route table, migration 008 added to the test database's migration list),
+and `frontend/src/RevenueEstimate.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| L1 | `priceThroughBands(10.4, bands, 'waterPrice'/'wastewaterPrice')` for KONUT's exact July-2024 bands (water 16.74/32.35/41.37/77.46; wastewater 8.36/16.17/20.67/38.72) | Hand-calculated totals: water ₺277.61, wastewater ₺138.73 (each band only charges for the m³ inside it) | Automated: `revenue.test.js` "hand-calculated KONUT case at 10.4 m3/subscriber/month" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L2 | `priceThroughBands(3, bands, 'waterPrice')` (usage entirely inside the first band) | Charged at the first band's rate only, not spilled into the second band's higher rate | Automated: `revenue.test.js` "only charges for the m3 inside each band, not the whole total at one rate" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L3 | `buildTariffCatalog(tariffRows)` with one tariff_type having two different prices for the same band | That tariff_type is flagged `ambiguous: true`; an unambiguous tariff_type is `ambiguous: false` | Automated: `revenue.test.js` "flags a tariff_type with differing prices in the same band as ambiguous" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L4 | `buildCellVolumes(...)` over a constructed (district, subscriber_type) fixture | Cell shares sum to exactly the city forecast volume; a cell's share matches its hand-computed fraction of total consumption | Automated: `revenue.test.js` "shares split the city forecast across every (district, subscriber_type) cell" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L5 | `buildRevenueBreakdown(...)` with one unmapped, one ambiguous, and one zero-subscriber (volume > 0) cell alongside a normally-priced cell | The three problem cells are reported `not_priced_reason` (`unmapped`/`ambiguous`/`no_subscribers`) with ₺0 charged; the normal cell prices normally | Automated: `revenue.test.js` "unmapped, ambiguous and zero-subscriber cells are not priced" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L6 | Same fixture, comparing a priced cell's low/mid/high totals | `total.low <= total.mid <= total.high` holds | Automated: `revenue.test.js` "low <= mid <= high for a priced cell" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L7 | Same fixture's month-level totals | `not_priced_volume_m3`/`not_priced_pct` exactly account for the volume of every flagged cell | Automated: `revenue.test.js` "not-priced volume and percentage account for every unpriced cell" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L8 | `buildGroupBreakdown(...)` over the same priced cells | Summing every customer_group's `total_try` equals the month's `totals.total.mid` exactly | Automated: `revenue.test.js` "group totals sum to exactly the month total" | Pass | `npm test` in `backend/`: 200/200 pass |
+| L9 | `GET /api/revenue` as Commercial Analyst, Admin, Production Planner, and signed out | 200 / 403 / 403 / 401 respectively | Automated: matrix test route table entry for `GET /api/revenue` | Pass | `npm test` in `backend/`: 200/200 pass |
+| L10 | Load `/revenue` as a Commercial Analyst with sample API data | KPI cards show expected revenue (with low–high), water charge, wastewater charge, and the not-priced percentage, for the first forecast month by default | Automated: `RevenueEstimate.test.js` "renders the first forecast month with its KPIs" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueEstimate.test.js` green |
+| L11 | Change the month selector | KPI cards update to the newly selected month's figures | Automated: `RevenueEstimate.test.js` "changing the month updates the KPI cards" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueEstimate.test.js` green |
+| L12 | Open the "Not priced" KPI card's info tip | Shows the not-priced percentage and, on request, the reasons (e.g. "no tariff mapping for this subscriber type") with their volume and cell count | Automated: `RevenueEstimate.test.js` "the not-priced card shows its percentage and reasons" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueEstimate.test.js` green |
+| L13 | Run migration `008_tariff_wastewater.sql` on a real database, then re-run `database/load_tariffs.py` | `tariffs.wastewater_price_per_m3` is populated from the source file's `ATIKSU_FIYATI` column (0 stays 0, e.g. "ATIKSU BEDELSİZ" types); the loader's ambiguity report also flags groups with differing wastewater prices | pending manual test (migration/loader intentionally not run this session — the user runs them after a backup) | — | — |
+| L14 | Open "Revenue estimate" as Admin or Production Planner | The normal access-denied view (declarative `requiredPermission`), not a custom page | pending manual test | — | — |
+| L15 | On the page, export the district × customer-group detail as CSV | Downloaded file's rows match the API's `detail` list for the selected month | pending manual test | — | — |
+| L16 | View the page at 375px wide | No horizontal page scroll; tables scroll within their own card if needed; the chart's selected-month bar is distinguishable by more than colour alone (the legend/tooltip name it) | pending manual test | — | — |
+| L17 | Open "Help" as a Commercial Analyst | A "Revenue estimate" section states the figures are a lower bound, at July 2024 prices, excluding taxes | pending manual test (section renders per automated Help coverage elsewhere, but this session's run didn't re-verify the new section's exact copy against a live Help page) | — | — |
+| L18 | Open the "Tariff in use" table | Housing and workplace bands shown with water and wastewater ₺/m³, matching the API's `tariffs_in_use`, dated to the tariff's actual `valid_from` | pending manual test (depends on real tariff data, which depends on L13) | — | — |
+| L19 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 200/200 pass, 0 skipped (`TEST_DATABASE_URL` configured, migrations through 008 applied); frontend 22/22 pass across 7 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** L13, L14, L15, L16, L17, L18 need a running backend + frontend
+with a real signed-in session, and L13/L18 additionally need migration 008
+and a loader re-run against real tariff data — none of this was run in this
+session (no servers were started, no migration or loader was run, no `.env`
+touched). Everything else above was actually executed as part of this
+change.

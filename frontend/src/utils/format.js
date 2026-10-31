@@ -97,6 +97,28 @@ export function fmtMillions(value, decimals = 1) {
   return (value / 1_000_000).toFixed(decimals);
 }
 
+// Full-precision Turkish lira with thousands separators, e.g. "₺1,234,567".
+export function fmtTRY(value) {
+  return `₺${Math.round(value).toLocaleString('en-US')}`;
+}
+
+// For KPI cards, where a full figure would be too wide — "₺12.3M", or
+// "₺1,065.5M" once the millions figure itself reaches 4+ digits.
+export function fmtTRYMillions(value, decimals = 1) {
+  const millions = (value / 1_000_000).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `₺${millions}M`;
+}
+
+// A per-m³ price, e.g. "₺24.18" — kept to 2 decimals since these are
+// small enough that whole-lira rounding would hide the housing/business
+// price gap the Average price column exists to show.
+export function fmtTRYPerM3(value) {
+  return `₺${value.toFixed(2)}`;
+}
+
 export function getInitials(name) {
   if (!name) return '';
   const parts = name.trim().split(/\s+/);

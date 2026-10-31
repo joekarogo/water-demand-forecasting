@@ -93,6 +93,7 @@ const MIGRATIONS = [
   '005_sessions.sql',
   '006_remove_password_login.sql',
   '007_role_names_job_title.sql',
+  '008_tariff_wastewater.sql',
 ];
 
 // The role -> permission table as of migrations 001, 003 and 004 (003
@@ -296,6 +297,7 @@ test('permission matrix', async (t) => {
       },
       { name: 'GET /api/production/stock', method: 'GET', path: '/api/production/stock', permission: 'plan:view' },
       { name: 'GET /api/distribution', method: 'GET', path: '/api/distribution', permission: 'distribution:view' },
+      { name: 'GET /api/revenue', method: 'GET', path: '/api/revenue', permission: 'revenue:view' },
       {
         name: 'POST /api/production/stock',
         method: 'POST',

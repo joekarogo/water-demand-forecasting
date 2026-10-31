@@ -56,6 +56,15 @@ export function DistrictNavIcon() {
   );
 }
 
+export function RevenueNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5v9M9.5 9.3c0-1 1-1.8 2.5-1.8s2.5.7 2.5 1.7c0 2.3-5 1.1-5 3.4 0 1 1 1.7 2.5 1.7s2.5-.8 2.5-1.8" />
+    </svg>
+  );
+}
+
 export function UsersNavIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

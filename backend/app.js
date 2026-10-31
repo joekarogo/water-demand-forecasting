@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const planning = require('./planning');
 const distribution = require('./distribution');
+const revenue = require('./revenue');
 const users = require('./users');
 const auth = require('./auth');
 const packageJson = require('./package.json');
@@ -164,6 +165,7 @@ function requireRecentAuth(req, res, next) {
 //   GET  /api/production/stock           authenticateToken, requirePermission('plan:view')
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
 //   GET  /api/distribution               authenticateToken, requirePermission('distribution:view')
+//   GET  /api/revenue                    authenticateToken, requirePermission('revenue:view')
 //   GET  /api/roles                      authenticateToken, requirePermission('user:manage')
 //   GET  /api/users                      authenticateToken, requirePermission('user:manage')
 //   POST /api/users                      authenticateToken, csrfProtection, requirePermission('user:manage')
@@ -1834,6 +1836,153 @@ app.patch(
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Revenue Estimate (Module 5) — billed revenue split by (district,
+// subscriber_type) cell, priced through the latest published tariff, for
+// Commercial Analysts ("revenue:view").
+// ---------------------------------------------------------------------------
+
+app.get('/api/revenue', authenticateToken, requirePermission('revenue:view'), async (req, res) => {
+  try {
+    const forecast = await getLatestPublishedForecast(pool);
+    if (!forecast) {
+      return res.status(404).json({ error: 'No forecast has been published yet.' });
+    }
+
+    const forecastMonths = await getForecastMonths(pool, forecast.forecast_id);
+
+    // Summed over any duplicate (district, subscriber_type) rows for the
+    // same month — defensive, same caution as Module 4's district total.
+    const consumptionResult = await pool.query(
+      `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+              EXTRACT(MONTH FROM year_month)::int AS month,
+              district, subscriber_type,
+              SUM(consumption_m3)::double precision AS consumption_m3
+       FROM consumption_detail
+       GROUP BY year, month, district, subscriber_type`
+    );
+    const consumptionRows = consumptionResult.rows;
+    const cells = revenue.listCells(consumptionRows);
+
+    const latestMonthResult = await pool.query(
+      `SELECT TO_CHAR(MAX(year_month), 'YYYY-MM-DD') AS month FROM consumption_detail`
+    );
+    const subscribersMonth = latestMonthResult.rows[0].month;
+
+    const subscribersByCell = new Map();
+    if (subscribersMonth) {
+      const subscribersResult = await pool.query(
+        `SELECT district, subscriber_type, SUM(subscribers)::int AS subscribers
+         FROM consumption_detail
+         WHERE year_month = $1::date
+         GROUP BY district, subscriber_type`,
+        [subscribersMonth]
+      );
+      subscribersResult.rows.forEach((row) => {
+        subscribersByCell.set(revenue.cellKey(row.district, row.subscriber_type), row.subscribers);
+      });
+    }
+
+    // Looked up across every month in consumption_detail, not just
+    // subscribersMonth — a subscriber_type/district cell can be absent
+    // from the latest month (no subscribers that month) while still
+    // appearing in earlier months, and it belongs to the same
+    // customer_group regardless of which month you check. Scoping this
+    // to subscribersMonth was dropping those cells to "Unknown".
+    const customerGroupByKey = new Map();
+    const customerGroupResult = await pool.query(
+      // (array_agg(customer_group))[1]: a subscriber_type is expected to
+      // belong to exactly one customer_group, but this picks one value
+      // rather than assuming it rather than crashing if that ever isn't so.
+      `SELECT district, subscriber_type, (array_agg(customer_group))[1] AS customer_group
+       FROM consumption_detail
+       GROUP BY district, subscriber_type`
+    );
+    customerGroupResult.rows.forEach((row) => {
+      customerGroupByKey.set(revenue.cellKey(row.district, row.subscriber_type), row.customer_group);
+    });
+
+    const tariffTypeMapResult = await pool.query(`SELECT consumption_type, tariff_type FROM tariff_type_map`);
+    const consumptionTypeToTariffType = new Map(
+      tariffTypeMapResult.rows.map((row) => [row.consumption_type, row.tariff_type])
+    );
+
+    // Always the latest tariff version (1 Jul 2024), regardless of which
+    // forecast month is being priced.
+    const latestTariffDateResult = await pool.query(
+      `SELECT TO_CHAR(MAX(valid_from), 'YYYY-MM-DD') AS valid_from FROM tariffs`
+    );
+    const tariffVersionDate = latestTariffDateResult.rows[0].valid_from;
+
+    let tariffCatalog = new Map();
+    if (tariffVersionDate) {
+      const tariffRowsResult = await pool.query(
+        `SELECT subscriber_type, band_min_m3, band_max_m3, price_per_m3, wastewater_price_per_m3
+         FROM tariffs
+         WHERE valid_from = $1::date
+         ORDER BY subscriber_type, band_min_m3`,
+        [tariffVersionDate]
+      );
+      tariffCatalog = revenue.buildTariffCatalog(tariffRowsResult.rows);
+    }
+
+    // Read-only "Tariff in use" table: housing and workplace bands only,
+    // pulled from the catalog just built rather than hardcoded here.
+    const tariffsInUse = {};
+    ['KONUT ABONELERİ', 'İŞYERİ ABONELERİ'].forEach((type) => {
+      const entry = tariffCatalog.get(type);
+      if (entry && !entry.ambiguous) {
+        tariffsInUse[type] = entry.bands;
+      }
+    });
+
+    const months = forecastMonths.map((row) => {
+      const calendarMonth = Number(row.date.slice(5, 7));
+
+      const {
+        shareYears,
+        cells: pricedCells,
+        totals,
+      } = revenue.buildRevenueBreakdown({
+        consumptionRows,
+        cells,
+        calendarMonth,
+        forecastM3: row.predicted_value,
+        lowerM3: row.yhat_lower,
+        upperM3: row.yhat_upper,
+        subscribersByCell,
+        consumptionTypeToTariffType,
+        tariffCatalog,
+      });
+
+      const byGroup = revenue.buildGroupBreakdown(pricedCells, customerGroupByKey);
+      const districtGroupDetail = revenue.buildDistrictGroupBreakdown(pricedCells, customerGroupByKey);
+
+      return {
+        month: row.date,
+        share_years: shareYears,
+        totals,
+        by_group: byGroup,
+        detail: districtGroupDetail,
+      };
+    });
+
+    res.json({
+      forecast_id: forecast.forecast_id,
+      published_at: forecast.generated_at,
+      data_up_to: forecast.data_up_to,
+      subscribers_month: subscribersMonth,
+      tariff_version_date: tariffVersionDate,
+      tariffs_in_use: tariffsInUse,
+      months,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] /api/revenue failed:`, err);
+    res.status(500).json({ error: 'Unable to load the revenue estimate right now.', reference });
+  }
+});
 
 // Catch-all for any /api/* path not matched by a route above — a JSON
 // 404 instead of Express's default HTML one, since every /api client
