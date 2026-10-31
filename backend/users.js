@@ -6,6 +6,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLE_NAMES = ['admin', 'production_manager', 'commercial_officer'];
 const MIN_REASON_LENGTH = 5;
 const MAX_REASON_LENGTH = 300;
+const MAX_JOB_TITLE_LENGTH = 100;
 
 function isValidEmail(value) {
   return typeof value === 'string' && EMAIL_RE.test(value.trim());
@@ -17,10 +18,24 @@ function normalizeEmail(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+// Optional on both invite and the dedicated job-title route: trimmed,
+// capped at 100 characters when provided, null when not (an empty or
+// missing value is not an error — it just means "no job title").
+function validateJobTitle(value) {
+  if (value === undefined || value === null || value === '') {
+    return { valid: true, error: null, trimmed: null };
+  }
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (trimmed.length > MAX_JOB_TITLE_LENGTH) {
+    return { valid: false, error: `The job title can be at most ${MAX_JOB_TITLE_LENGTH} characters.`, trimmed };
+  }
+  return { valid: true, error: null, trimmed: trimmed || null };
+}
+
 // Field-level errors for POST /api/users (invite). Returns the
-// normalized name/email alongside `valid`/`errors` so the caller never
-// has to re-derive them.
-function validateInviteRequest({ name, email, role }) {
+// normalized name/email/job_title alongside `valid`/`errors` so the
+// caller never has to re-derive them.
+function validateInviteRequest({ name, email, role, job_title }) {
   const errors = {};
 
   const trimmedName = typeof name === 'string' ? name.trim() : '';
@@ -39,7 +54,18 @@ function validateInviteRequest({ name, email, role }) {
     errors.role = 'Choose a valid role.';
   }
 
-  return { valid: Object.keys(errors).length === 0, errors, name: trimmedName, email: normalizedEmail };
+  const jobTitleResult = validateJobTitle(job_title);
+  if (!jobTitleResult.valid) {
+    errors.job_title = jobTitleResult.error;
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    name: trimmedName,
+    email: normalizedEmail,
+    job_title: jobTitleResult.trimmed,
+  };
 }
 
 function validateRoleChangeRequest({ role }) {
@@ -94,8 +120,10 @@ module.exports = {
   ROLE_NAMES,
   MIN_REASON_LENGTH,
   MAX_REASON_LENGTH,
+  MAX_JOB_TITLE_LENGTH,
   isValidEmail,
   normalizeEmail,
+  validateJobTitle,
   validateInviteRequest,
   validateRoleChangeRequest,
   validateDeactivationReason,

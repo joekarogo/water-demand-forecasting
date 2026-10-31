@@ -148,11 +148,13 @@ function requireRecentAuth(req, res, next) {
 //   POST /api/production/plan            authenticateToken, csrfProtection, requirePermission('plan:create')
 //   GET  /api/production/stock           authenticateToken, requirePermission('plan:view')
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
+//   GET  /api/roles                      authenticateToken, requirePermission('user:manage')
 //   GET  /api/users                      authenticateToken, requirePermission('user:manage')
 //   POST /api/users                      authenticateToken, csrfProtection, requirePermission('user:manage')
 //   PATCH /api/users/:id/role            authenticateToken, csrfProtection, requirePermission('user:manage'), requireRecentAuth
 //   POST /api/users/:id/deactivate       authenticateToken, csrfProtection, requirePermission('user:manage'), requireRecentAuth
 //   POST /api/users/:id/reactivate       authenticateToken, csrfProtection, requirePermission('user:manage'), requireRecentAuth
+//   PATCH /api/users/:id/job-title       authenticateToken, csrfProtection, requirePermission('user:manage')
 // ---------------------------------------------------------------------------
 
 app.get('/', (req, res) => {
@@ -346,7 +348,7 @@ function setSessionCookie(res, rawSessionId, expiresAt) {
 // Shared payload for GET /api/me and every login route's response body.
 async function getMePayload(queryable, userId) {
   const userResult = await queryable.query(
-    `SELECT u.user_id, u.name, u.email, r.name AS role, r.display_name AS role_label
+    `SELECT u.user_id, u.name, u.email, u.job_title, r.name AS role, r.display_name AS role_label
      FROM users u
      LEFT JOIN roles r ON r.role_id = u.role_id
      WHERE u.user_id = $1`,
@@ -370,6 +372,7 @@ async function getMePayload(queryable, userId) {
     user_id: userRow.user_id,
     name: userRow.name,
     email: userRow.email,
+    job_title: userRow.job_title,
     role: userRow.role,
     role_label: userRow.role_label,
     permissions: permissionsResult.rows.map((row) => row.code),
@@ -1157,6 +1160,7 @@ function serializeUserRow(row) {
     user_id: row.user_id,
     name: row.name,
     email: row.email,
+    job_title: row.job_title,
     role: row.role,
     role_label: row.role_label,
     status: row.status,
@@ -1167,10 +1171,24 @@ function serializeUserRow(row) {
   };
 }
 
+// The full role catalog (name/code + display_name) — lets the frontend
+// populate role selects/filters without ever hard-coding a role's label,
+// including a role no current user happens to have yet.
+app.get('/api/roles', authenticateToken, requirePermission('user:manage'), async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT name, display_name FROM roles ORDER BY display_name`);
+    res.json(result.rows);
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/roles failed:`, err);
+    res.status(500).json({ error: 'Unable to load roles right now.', reference });
+  }
+});
+
 app.get('/api/users', authenticateToken, requirePermission('user:manage'), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.user_id, u.name, u.email, r.name AS role, r.display_name AS role_label,
+      `SELECT u.user_id, u.name, u.email, u.job_title, r.name AS role, r.display_name AS role_label,
               u.status, u.auth_provider, u.last_login_at, u.created_at, u.deactivation_reason
        FROM users u
        LEFT JOIN roles r ON r.role_id = u.role_id
@@ -1185,7 +1203,7 @@ app.get('/api/users', authenticateToken, requirePermission('user:manage'), async
 });
 
 app.post('/api/users', authenticateToken, csrfProtection, requirePermission('user:manage'), async (req, res) => {
-  const { valid, errors, name, email } = users.validateInviteRequest(req.body || {});
+  const { valid, errors, name, email, job_title: jobTitle } = users.validateInviteRequest(req.body || {});
   if (!valid) {
     return res.status(400).json({ error: 'Validation failed.', fields: errors });
   }
@@ -1212,10 +1230,10 @@ app.post('/api/users', authenticateToken, csrfProtection, requirePermission('use
     const { role_id: roleId, display_name: roleLabel } = roleResult.rows[0];
 
     const insertResult = await client.query(
-      `INSERT INTO users (name, email, password, role_id, status, auth_provider)
-       VALUES ($1, $2, NULL, $3, 'invited', 'google')
+      `INSERT INTO users (name, email, password, role_id, status, auth_provider, job_title)
+       VALUES ($1, $2, NULL, $3, 'invited', 'google', $4)
        RETURNING user_id, created_at`,
-      [name, email, roleId]
+      [name, email, roleId, jobTitle]
     );
     const newUser = insertResult.rows[0];
 
@@ -1235,6 +1253,7 @@ app.post('/api/users', authenticateToken, csrfProtection, requirePermission('use
         user_id: newUser.user_id,
         name,
         email,
+        job_title: jobTitle,
         role: roleName,
         role_label: roleLabel,
         status: 'invited',
@@ -1287,7 +1306,7 @@ app.patch(
       await client.query('BEGIN');
 
       const targetResult = await client.query(
-        `SELECT u.user_id, u.name, u.email, u.status, u.auth_provider, u.last_login_at, u.created_at,
+        `SELECT u.user_id, u.name, u.email, u.job_title, u.status, u.auth_provider, u.last_login_at, u.created_at,
                 u.deactivation_reason, r.name AS current_role
          FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
          WHERE u.user_id = $1
@@ -1342,6 +1361,7 @@ app.patch(
           user_id: targetId,
           name: target.name,
           email: target.email,
+          job_title: target.job_title,
           role: newRoleName,
           role_label: newRoleLabel,
           status: target.status,
@@ -1393,7 +1413,7 @@ app.post(
       await client.query('BEGIN');
 
       const targetResult = await client.query(
-        `SELECT u.user_id, u.name, u.email, u.auth_provider, u.last_login_at, u.created_at,
+        `SELECT u.user_id, u.name, u.email, u.job_title, u.auth_provider, u.last_login_at, u.created_at,
                 u.status, r.name AS current_role, r.display_name AS role_label
          FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
          WHERE u.user_id = $1
@@ -1440,6 +1460,7 @@ app.post(
           user_id: targetId,
           name: target.name,
           email: target.email,
+          job_title: target.job_title,
           role: target.current_role,
           role_label: target.role_label,
           status: 'deactivated',
@@ -1488,7 +1509,7 @@ app.post(
       await client.query('BEGIN');
 
       const targetResult = await client.query(
-        `SELECT u.user_id, u.name, u.email, u.auth_provider, u.last_login_at, u.created_at,
+        `SELECT u.user_id, u.name, u.email, u.job_title, u.auth_provider, u.last_login_at, u.created_at,
                 u.deactivation_reason, u.status, u.google_sub, r.name AS current_role, r.display_name AS role_label
          FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
          WHERE u.user_id = $1
@@ -1527,6 +1548,7 @@ app.post(
           user_id: targetId,
           name: target.name,
           email: target.email,
+          job_title: target.job_title,
           role: target.current_role,
           role_label: target.role_label,
           status: newStatus,
@@ -1545,6 +1567,88 @@ app.post(
       const reference = generateErrorReference();
       console.error(`[${reference}] POST /api/users/:id/reactivate failed:`, err);
       res.status(500).json({ error: 'Unable to reactivate this user right now.', reference });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// No requireRecentAuth here, unlike role/deactivate/reactivate — a job
+// title is descriptive text, not a security-relevant change, so it isn't
+// gated behind a fresh sign-in.
+app.patch(
+  '/api/users/:id/job-title',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('user:manage'),
+  async (req, res) => {
+    const targetId = Number(req.params.id);
+    if (!Number.isInteger(targetId)) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const { valid, error: jobTitleError, trimmed: jobTitle } = users.validateJobTitle(
+      req.body && req.body.job_title
+    );
+    if (!valid) {
+      return res.status(400).json({ error: 'Validation failed.', fields: { job_title: jobTitleError } });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const targetResult = await client.query(
+        `SELECT u.user_id, u.name, u.email, u.status, u.auth_provider, u.last_login_at, u.created_at,
+                u.deactivation_reason, r.name AS current_role, r.display_name AS role_label
+         FROM users u LEFT JOIN roles r ON r.role_id = u.role_id
+         WHERE u.user_id = $1
+         FOR UPDATE OF u`,
+        [targetId]
+      );
+      const target = targetResult.rows[0];
+      if (!target) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found.' });
+      }
+
+      await client.query(`UPDATE users SET job_title = $1 WHERE user_id = $2`, [jobTitle, targetId]);
+
+      await insertAuditLog(client, {
+        userId: req.user.user_id,
+        action: 'user.job_title_changed',
+        entity: 'users',
+        entityId: String(targetId),
+        details: { job_title: jobTitle },
+        ip: req.ip,
+      });
+
+      await client.query('COMMIT');
+
+      res.json(
+        serializeUserRow({
+          user_id: targetId,
+          name: target.name,
+          email: target.email,
+          job_title: jobTitle,
+          role: target.current_role,
+          role_label: target.role_label,
+          status: target.status,
+          auth_provider: target.auth_provider,
+          last_login_at: target.last_login_at,
+          created_at: target.created_at,
+          deactivation_reason: target.deactivation_reason,
+        })
+      );
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Rollback failed:', rollbackErr);
+      }
+      const reference = generateErrorReference();
+      console.error(`[${reference}] PATCH /api/users/:id/job-title failed:`, err);
+      res.status(500).json({ error: 'Unable to update this job title right now.', reference });
     } finally {
       client.release();
     }

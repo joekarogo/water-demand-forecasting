@@ -54,7 +54,7 @@ With `TEST_DATABASE_URL` set, the same `npm test` run additionally:
    public;`), so every run starts from a clean slate regardless of what
    a previous run left behind.
 2. Applies `database/schema/000_existing_schema.sql` through
-   `006_remove_password_login.sql`, in order, to the now-empty database.
+   `007_role_names_job_title.sql`, in order, to the now-empty database.
 3. Creates one active user per role (`admin`, `production_manager`,
    `commercial_officer`), one deactivated user, and a handful of
    dedicated throwaway users for the role-change/deactivate/reactivate
@@ -93,17 +93,20 @@ POST/PATCH route — the allowed role's request again with the
 | `POST /api/production/plan` | `plan:create` | 403 | 200 | 403 |
 | `GET /api/production/stock` | `plan:view` | 403 | 200 | 403 |
 | `POST /api/production/stock` | `stock:create` | 403 | 200 | 403 |
+| `GET /api/roles` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/users` | `user:manage` | 200 | 403 | 403 |
 | `POST /api/users` | `user:manage` | 201 | 403 | 403 |
 | `PATCH /api/users/:id/role` | `user:manage` | 200 | 403 | 403 |
 | `POST /api/users/:id/deactivate` | `user:manage` | 200 | 403 | 403 |
 | `POST /api/users/:id/reactivate` | `user:manage` | 200 | 403 | 403 |
+| `PATCH /api/users/:id/job-title` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/me` | *(authenticated only)* | 200 | 200 | 200 |
 | `POST /api/auth/logout` | *(authenticated only)* | 204 | 204 | 204 |
 
 The role-change, deactivate and reactivate routes are also gated by
 "step-up" re-authentication (`auth.isWithinStepUpWindow` — the session
-must have been created in the last 10 minutes). The matrix's fixture
-sessions are always freshly created, so every status above reflects the
-**permission** check only, not the reauth one; `backend/test/auth.test.js`
-covers the reauth rule itself.
+must have been created in the last 10 minutes); `job-title` is not — a
+job title isn't security-sensitive, so it only needs `user:manage` and
+CSRF. The matrix's fixture sessions are always freshly created, so every
+status above reflects the **permission** check only, not the reauth one;
+`backend/test/auth.test.js` covers the reauth rule itself.

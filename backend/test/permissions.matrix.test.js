@@ -92,6 +92,7 @@ const MIGRATIONS = [
   '004_accounts.sql',
   '005_sessions.sql',
   '006_remove_password_login.sql',
+  '007_role_names_job_title.sql',
 ];
 
 // The role -> permission table as of migrations 001, 003 and 004 (003
@@ -255,6 +256,7 @@ test('permission matrix', async (t) => {
       status: 'deactivated',
       deactivationReason: 'Pre-seeded for the reactivate test.',
     });
+    fixtures.jobTitleTargetId = await createUser(setupClient, { roleName: 'commercial_officer', status: 'active' });
 
     const appModule = require('../app');
     appPool = appModule.pool;
@@ -290,6 +292,7 @@ test('permission matrix', async (t) => {
         csrf: true,
         body: () => ({ recorded_on: todayDateString(), stock_m3: 1000 }),
       },
+      { name: 'GET /api/roles', method: 'GET', path: '/api/roles', permission: 'user:manage' },
       { name: 'GET /api/users', method: 'GET', path: '/api/users', permission: 'user:manage' },
       {
         name: 'POST /api/users',
@@ -326,6 +329,14 @@ test('permission matrix', async (t) => {
         permission: 'user:manage',
         csrf: true,
         body: () => ({}),
+      },
+      {
+        name: 'PATCH /api/users/:id/job-title',
+        method: 'PATCH',
+        path: `/api/users/${fixtures.jobTitleTargetId}/job-title`,
+        permission: 'user:manage',
+        csrf: true,
+        body: () => ({ job_title: 'Matrix Job Title' }),
       },
       { name: 'GET /api/me', method: 'GET', path: '/api/me', permission: null },
     ];

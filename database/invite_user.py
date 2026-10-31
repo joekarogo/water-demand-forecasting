@@ -5,7 +5,7 @@ first time (added in a later part of this module). Refuses if the email
 already exists. Writes an audit_log row (action 'user.invited').
 
 Run manually, e.g.:
-    python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager
+    python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager --job-title "Field Supervisor"
 """
 
 import argparse
@@ -20,6 +20,7 @@ dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 
 ROLE_NAMES = ['admin', 'production_manager', 'commercial_officer']
+MAX_JOB_TITLE_LENGTH = 100
 
 
 def parse_args():
@@ -27,6 +28,7 @@ def parse_args():
     parser.add_argument('--name', required=True, help="The user's full name.")
     parser.add_argument('--email', required=True, help="The user's email address.")
     parser.add_argument('--role', required=True, choices=sorted(ROLE_NAMES), help='Role to assign.')
+    parser.add_argument('--job-title', default=None, help="Optional job title, shown instead of the role label.")
     return parser.parse_args()
 
 
@@ -35,11 +37,16 @@ def main():
     name = args.name.strip()
     email = args.email.strip().lower()
     role_name = args.role
+    job_title = args.job_title.strip() if args.job_title else None
+    if job_title == '':
+        job_title = None
 
     if not name:
         sys.exit("ERROR: --name must not be empty.")
     if not email:
         sys.exit("ERROR: --email must not be empty.")
+    if job_title and len(job_title) > MAX_JOB_TITLE_LENGTH:
+        sys.exit(f"ERROR: --job-title can be at most {MAX_JOB_TITLE_LENGTH} characters.")
 
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST"),
@@ -69,11 +76,11 @@ def main():
     try:
         cursor.execute(
             """
-            INSERT INTO users (name, email, password, role_id, status, auth_provider)
-            VALUES (%s, %s, NULL, %s, 'invited', 'google')
+            INSERT INTO users (name, email, password, role_id, status, auth_provider, job_title)
+            VALUES (%s, %s, NULL, %s, 'invited', 'google', %s)
             RETURNING user_id
             """,
-            (name, email, role_id)
+            (name, email, role_id, job_title)
         )
         user_id = cursor.fetchone()[0]
 
@@ -82,7 +89,7 @@ def main():
             INSERT INTO audit_log (user_id, action, entity, entity_id, details)
             VALUES (NULL, 'user.invited', 'users', %s, %s)
             """,
-            (str(user_id), Json({'email': email, 'role': role_name}))
+            (str(user_id), Json({'email': email, 'role': role_name, 'job_title': job_title}))
         )
 
         conn.commit()
@@ -93,7 +100,8 @@ def main():
         cursor.close()
         conn.close()
 
-    print(f"Invited {email} as {role_name} (user_id={user_id}).")
+    suffix = f" ({job_title})" if job_title else ""
+    print(f"Invited {email} as {role_name}{suffix} (user_id={user_id}).")
 
 
 if __name__ == '__main__':

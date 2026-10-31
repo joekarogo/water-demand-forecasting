@@ -8,7 +8,10 @@ function TopBar({ title, subtitle, extraLines, onMenuClick, menuBtnRef, navOpen 
   const navigate = useNavigate();
   const { session, clearSession } = useSession();
   const name = session?.name || '';
-  const roleLabel = session?.role_label || '';
+  // The job title (if the admin has set one) takes priority over the
+  // role label — both come from GET /api/me, never hard-coded here.
+  const subtitleLabel = session?.job_title || session?.role_label || '';
+  const subtitleTitle = session?.job_title ? 'Job title' : 'Signed-in role';
 
   const handleLogout = async () => {
     try {
@@ -43,9 +46,9 @@ function TopBar({ title, subtitle, extraLines, onMenuClick, menuBtnRef, navOpen 
           {getInitials(name)}
         </span>
         <span className="user-name">{name}</span>
-        {roleLabel && (
-          <span className="role" title="Signed-in role">
-            {roleLabel}
+        {subtitleLabel && (
+          <span className="role" title={subtitleTitle}>
+            {subtitleLabel}
           </span>
         )}
         <button className="btn" type="button" aria-label="Log out" onClick={handleLogout}>

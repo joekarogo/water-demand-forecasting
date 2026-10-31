@@ -7,13 +7,6 @@ import { RetryIcon, ErrorTriangleIcon } from './layout/icons';
 import { formatDateTime } from './utils/format';
 import './App.css';
 
-const ROLES = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'production_manager', label: 'Production Manager' },
-  { value: 'commercial_officer', label: 'Commercial Officer' },
-];
-const ROLE_LABELS = Object.fromEntries(ROLES.map((r) => [r.value, r.label]));
-
 const STATUS_FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'invited', label: 'Invited' },
@@ -111,6 +104,7 @@ function Users() {
   const [status, setStatus] = useState('loading'); // loading | ready | error | forbidden
   const [errorReference, setErrorReference] = useState(null);
   const [users, setUsers] = useState([]);
+  const [roleOptions, setRoleOptions] = useState([]);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -179,6 +173,26 @@ function Users() {
     fetchUsers();
   }, [sessionLoading, session, hasUserManage, fetchUsers]);
 
+  // Role options (code + display label) always come from the API, never
+  // derived from whichever users happen to be loaded — this is the only
+  // way to see a role that no current user has yet.
+  const fetchRoles = useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/roles');
+      if (handleAuthError(response)) return;
+      if (!response.ok) return;
+      const body = await response.json().catch(() => []);
+      setRoleOptions((body || []).map((r) => ({ value: r.name, label: r.display_name })));
+    } catch (err) {
+      // leave roleOptions as-is; the selects will just show no options
+    }
+  }, [handleAuthError]);
+
+  useEffect(() => {
+    if (sessionLoading || !session || !hasUserManage) return;
+    fetchRoles();
+  }, [sessionLoading, session, hasUserManage, fetchRoles]);
+
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     return users.filter((u) => {
@@ -207,6 +221,7 @@ function Users() {
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('production_manager');
+  const [inviteJobTitle, setInviteJobTitle] = useState('');
   const [inviteFieldErrors, setInviteFieldErrors] = useState({});
   const [inviteError, setInviteError] = useState('');
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
@@ -218,6 +233,7 @@ function Users() {
     setInviteName('');
     setInviteEmail('');
     setInviteRole('production_manager');
+    setInviteJobTitle('');
     setInviteFieldErrors({});
     setInviteError('');
     setInvitePanelOpen(true);
@@ -239,6 +255,7 @@ function Users() {
     e.preventDefault();
     const trimmedName = inviteName.trim();
     const trimmedEmail = inviteEmail.trim();
+    const trimmedJobTitle = inviteJobTitle.trim();
     const fieldErrors = {};
     if (!trimmedName) fieldErrors.name = 'Name is required.';
     if (!trimmedEmail) {
@@ -247,6 +264,7 @@ function Users() {
       fieldErrors.email = 'Enter a valid email address.';
     }
     if (!inviteRole) fieldErrors.role = 'Choose a role.';
+    if (trimmedJobTitle.length > 100) fieldErrors.job_title = 'The job title can be at most 100 characters.';
     if (Object.keys(fieldErrors).length > 0) {
       setInviteFieldErrors(fieldErrors);
       return;
@@ -259,7 +277,7 @@ function Users() {
       const response = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, role: inviteRole }),
+        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, role: inviteRole, job_title: trimmedJobTitle }),
       });
       if (handleAuthError(response)) return;
       const body = await response.json().catch(() => ({}));
@@ -294,6 +312,11 @@ function Users() {
   const isSelf = Boolean(selectedUser && currentUserId === selectedUser.user_id);
   const isEmergency = selectedUser?.auth_provider === 'emergency';
 
+  const [jobTitleInput, setJobTitleInput] = useState('');
+  const [jobTitleSaving, setJobTitleSaving] = useState(false);
+  const [jobTitleFieldError, setJobTitleFieldError] = useState('');
+  const [jobTitleAlert, setJobTitleAlert] = useState('');
+
   const [roleSelect, setRoleSelect] = useState('');
   const [roleSaving, setRoleSaving] = useState(false);
   const [roleFieldError, setRoleFieldError] = useState('');
@@ -315,6 +338,9 @@ function Users() {
   const openDetailPanel = (user, openerEl) => {
     detailOpenerRef.current = openerEl || document.activeElement;
     setSelectedUserId(user.user_id);
+    setJobTitleInput(user.job_title || '');
+    setJobTitleFieldError('');
+    setJobTitleAlert('');
     setRoleSelect(user.role);
     setRoleFieldError('');
     setRoleAlert(null);
@@ -337,6 +363,45 @@ function Users() {
       detailPanelRef.current?.querySelector('.icon-btn')?.focus();
     }
   }, [selectedUserId]);
+
+  const handleJobTitleSave = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    const trimmed = jobTitleInput.trim();
+    if (trimmed.length > 100) {
+      setJobTitleFieldError('The job title can be at most 100 characters.');
+      return;
+    }
+
+    setJobTitleSaving(true);
+    setJobTitleFieldError('');
+    setJobTitleAlert('');
+    try {
+      const response = await apiFetch(`/api/users/${selectedUser.user_id}/job-title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_title: trimmed }),
+      });
+      if (handleAuthError(response)) return;
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 400) {
+        setJobTitleFieldError((body.fields && body.fields.job_title) || 'Enter a valid job title.');
+        return;
+      }
+      if (!response.ok) {
+        setJobTitleAlert(body.error || 'Unable to update this job title right now.');
+        return;
+      }
+
+      applyUpdatedUser(body);
+      showToast(`Job title updated for ${body.name}`);
+    } catch (err) {
+      setJobTitleAlert('Unable to reach the server. Please try again.');
+    } finally {
+      setJobTitleSaving(false);
+    }
+  };
 
   const handleRoleSave = async (e) => {
     e.preventDefault();
@@ -536,7 +601,7 @@ function Users() {
               <label htmlFor="roleFilter">Role</label>
               <select className="input" id="roleFilter" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
                 <option value="all">All roles</option>
-                {ROLES.map((r) => (
+                {roleOptions.map((r) => (
                   <option key={r.value} value={r.value}>
                     {r.label}
                   </option>
@@ -597,15 +662,16 @@ function Users() {
                 <tbody>
                   {filteredUsers.map((u) => (
                     <tr key={u.user_id} onClick={() => openDetailPanel(u, null)}>
-                      <td>
+                      <td style={{ whiteSpace: 'normal' }}>
                         <button type="button" className="row-btn" aria-label={`Manage ${u.name}`} aria-haspopup="dialog">
                           {u.name}
                         </button>
                         {u.user_id === currentUserId && <span className="tag-next">You</span>}
                         {u.auth_provider === 'emergency' && <span className="warn-pill">Emergency</span>}
+                        {u.job_title && <div className="field-hint">{u.job_title}</div>}
                       </td>
                       <td className="l">{u.email}</td>
-                      <td className="l">{u.role_label || ROLE_LABELS[u.role] || u.role}</td>
+                      <td className="l">{u.role_label || u.role}</td>
                       <td className="l">
                         <StatusBadge status={u.status} />
                       </td>
@@ -674,13 +740,32 @@ function Users() {
                     clearFieldError(setInviteFieldErrors, 'role');
                   }}
                 >
-                  {ROLES.map((r) => (
+                  {roleOptions.map((r) => (
                     <option key={r.value} value={r.value}>
                       {r.label}
                     </option>
                   ))}
                 </select>
                 {inviteFieldErrors.role && <span className="field-err">{inviteFieldErrors.role}</span>}
+              </div>
+              <div className="field">
+                <label htmlFor="inviteJobTitle">Job title</label>
+                <input
+                  className="input"
+                  id="inviteJobTitle"
+                  placeholder="Optional"
+                  value={inviteJobTitle}
+                  aria-invalid={inviteFieldErrors.job_title ? 'true' : 'false'}
+                  onChange={(e) => {
+                    setInviteJobTitle(e.target.value);
+                    clearFieldError(setInviteFieldErrors, 'job_title');
+                  }}
+                />
+                {inviteFieldErrors.job_title ? (
+                  <span className="field-err">{inviteFieldErrors.job_title}</span>
+                ) : (
+                  <span className="field-hint">Shown instead of the role label, if set.</span>
+                )}
               </div>
               {inviteError && (
                 <div className="alert danger" role="alert">
@@ -724,6 +809,36 @@ function Users() {
                 <p className="field-hint">Deactivation reason: {selectedUser.deactivation_reason}</p>
               )}
 
+              <form onSubmit={handleJobTitleSave} className="field">
+                <label htmlFor="jobTitleInput">Job title</label>
+                <input
+                  className="input"
+                  id="jobTitleInput"
+                  placeholder="Optional — shown instead of the role label"
+                  value={jobTitleInput}
+                  aria-invalid={jobTitleFieldError ? 'true' : 'false'}
+                  onChange={(e) => {
+                    setJobTitleInput(e.target.value);
+                    setJobTitleFieldError('');
+                  }}
+                />
+                {jobTitleFieldError && <span className="field-err">{jobTitleFieldError}</span>}
+                {jobTitleAlert && (
+                  <div className="alert danger" role="alert">
+                    <span aria-hidden="true">⚠</span>
+                    <span>{jobTitleAlert}</span>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ marginTop: 8, width: 'max-content' }}
+                  disabled={jobTitleSaving || jobTitleInput.trim() === (selectedUser.job_title || '')}
+                >
+                  {jobTitleSaving ? 'Saving…' : 'Save job title'}
+                </button>
+              </form>
+
               <form onSubmit={handleRoleSave} className="field">
                 <label htmlFor="roleSelect">Change role</label>
                 <select
@@ -737,7 +852,7 @@ function Users() {
                     setRoleFieldError('');
                   }}
                 >
-                  {ROLES.map((r) => (
+                  {roleOptions.map((r) => (
                     <option key={r.value} value={r.value}>
                       {r.label}
                     </option>

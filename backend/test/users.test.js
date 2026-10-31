@@ -4,8 +4,10 @@ const {
   ROLE_NAMES,
   MIN_REASON_LENGTH,
   MAX_REASON_LENGTH,
+  MAX_JOB_TITLE_LENGTH,
   isValidEmail,
   normalizeEmail,
+  validateJobTitle,
   validateInviteRequest,
   validateRoleChangeRequest,
   validateDeactivationReason,
@@ -30,12 +32,35 @@ test('normalizeEmail: trims and lowercases, matching invite_user.py', () => {
   assert.strictEqual(normalizeEmail(null), '');
 });
 
-test('validateInviteRequest: all fields valid', () => {
+test('validateInviteRequest: all fields valid, job_title omitted', () => {
   const result = validateInviteRequest({ name: '  Jane Doe  ', email: ' Jane@Example.com ', role: 'production_manager' });
   assert.strictEqual(result.valid, true);
   assert.deepStrictEqual(result.errors, {});
   assert.strictEqual(result.name, 'Jane Doe');
   assert.strictEqual(result.email, 'jane@example.com');
+  assert.strictEqual(result.job_title, null);
+});
+
+test('validateInviteRequest: job_title provided and trimmed', () => {
+  const result = validateInviteRequest({
+    name: 'Jane Doe',
+    email: 'jane@example.com',
+    role: 'production_manager',
+    job_title: '  Field Supervisor  ',
+  });
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.job_title, 'Field Supervisor');
+});
+
+test('validateInviteRequest: job_title too long is reported like any other field', () => {
+  const result = validateInviteRequest({
+    name: 'Jane Doe',
+    email: 'jane@example.com',
+    role: 'production_manager',
+    job_title: 'x'.repeat(101),
+  });
+  assert.strictEqual(result.valid, false);
+  assert.match(result.errors.job_title, /at most 100 characters/);
 });
 
 test('validateInviteRequest: blank name', () => {
@@ -109,6 +134,26 @@ test('validateReactivationReason: optional, but capped when provided', () => {
   const tooLong = validateReactivationReason('x'.repeat(301));
   assert.strictEqual(tooLong.valid, false);
   assert.match(tooLong.error, /at most 300 characters/);
+});
+
+test('validateJobTitle: optional, but trimmed and capped when provided', () => {
+  assert.strictEqual(MAX_JOB_TITLE_LENGTH, 100);
+  assert.deepStrictEqual(validateJobTitle(undefined), { valid: true, error: null, trimmed: null });
+  assert.deepStrictEqual(validateJobTitle(null), { valid: true, error: null, trimmed: null });
+  assert.deepStrictEqual(validateJobTitle(''), { valid: true, error: null, trimmed: null });
+  // Whitespace-only trims down to nothing, same as not providing one.
+  assert.deepStrictEqual(validateJobTitle('   '), { valid: true, error: null, trimmed: null });
+
+  const provided = validateJobTitle('  Field Supervisor  ');
+  assert.strictEqual(provided.valid, true);
+  assert.strictEqual(provided.trimmed, 'Field Supervisor');
+
+  const exactlyMax = validateJobTitle('x'.repeat(100));
+  assert.strictEqual(exactlyMax.valid, true);
+
+  const tooLong = validateJobTitle('x'.repeat(101));
+  assert.strictEqual(tooLong.valid, false);
+  assert.match(tooLong.error, /at most 100 characters/);
 });
 
 test('wouldRemoveLastActiveAdmin: only true for an active admin losing the admin role with no other active admin', () => {

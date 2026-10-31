@@ -46,11 +46,18 @@ there is no automated migration runner in this project yet.
    `audit_log` row per account) and deletes their sessions, then drops
    `users.role` — nothing reads it anymore now that `POST
    /api/auth/login` itself is deleted. Runs as a single transaction.
+8. `007_role_names_job_title.sql` — Module 1, Part 4b: renames two roles'
+   `display_name` (`production_manager` -> "Production Planner",
+   `commercial_officer` -> "Commercial Analyst"; role *names*/codes and
+   Admin's display name are unchanged), and adds a nullable
+   `users.job_title VARCHAR(100)` the UI prefers over the role label when
+   one is set. Runs as a single transaction.
 
 To roll back **in development only**, run `001_foundation_down.sql`,
 `002_published_forecast_down.sql`, `003_production_planning_down.sql`,
-`004_accounts_down.sql`, `005_sessions_down.sql` and/or
-`006_remove_password_login_down.sql`. None of these are a safe production
+`004_accounts_down.sql`, `005_sessions_down.sql`,
+`006_remove_password_login_down.sql` and/or
+`007_role_names_job_title_down.sql`. None of these are a safe production
 rollback — see the comment at the top of each file for what it does and
 does not undo.
 
@@ -64,6 +71,7 @@ psql -U <your_db_user> -d <your_db_name> -f database/schema/003_production_plann
 psql -U <your_db_user> -d <your_db_name> -f database/schema/004_accounts.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/005_sessions.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/006_remove_password_login.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/007_role_names_job_title.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and
