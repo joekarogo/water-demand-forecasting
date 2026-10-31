@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const { OAuth2Client } = require('google-auth-library');
 const { Pool } = require('pg');
@@ -17,14 +18,30 @@ const app = express();
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Heroku's router sits in front of every request, so without this,
+// req.ip would be the router's address for every request alike — which
+// would break the emergency-login IP lockout and make every audit-log IP
+// identical. `1` trusts exactly one hop (Heroku's own router).
+if (IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+}
+
 // PostgreSQL connection pool. DATABASE_URL (a single connection string)
 // takes priority over the discrete DB_* vars when set — this is how
 // backend/test/permissions.matrix.test.js points this exact app at a
 // throwaway test database instead of the real one, without touching any
-// of the query logic below.
+// of the query logic below. In production, DATABASE_URL is Heroku
+// Postgres, which requires SSL but whose managed cert isn't in Node's
+// default trust store — rejectUnauthorized: false is Heroku's own
+// documented way to connect to it. The disposable local test database
+// (also reached via DATABASE_URL, from the test file) never runs with
+// NODE_ENV=production, so this never applies to it.
 const pool = new Pool(
   process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ...(IS_PRODUCTION ? { ssl: { rejectUnauthorized: false } } : {}),
+      }
     : {
         host: process.env.DB_HOST,
         database: process.env.DB_NAME,
@@ -34,7 +51,16 @@ const pool = new Pool(
       }
 );
 
-app.use(cors({ exposedHeaders: ['X-Session-Expires-In', 'X-Session-Max-Reached'] }));
+app.use(
+  cors({
+    exposedHeaders: ['X-Session-Expires-In', 'X-Session-Max-Reached'],
+    // In production this app serves the frontend itself (one origin), so
+    // cross-origin requests have no legitimate use and are refused
+    // outright; dev keeps the existing permissive default (reflects the
+    // request's own Origin, same as passing no `origin` option at all).
+    origin: IS_PRODUCTION ? false : true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -149,7 +175,7 @@ function requireRecentAuth(req, res, next) {
 // ---------------------------------------------------------------------------
 // Routes and their protection:
 //
-//   GET  /                               public (health check)
+//   GET  /api/health                     public (health check)
 //   GET  /api/forecast/published         authenticateToken, requirePermission('forecast:view')
 //   GET  /api/me                         authenticateToken
 //   GET  /api/me/sign-ins                authenticateToken
@@ -175,8 +201,8 @@ function requireRecentAuth(req, res, next) {
 //   PATCH /api/users/:id/job-title       authenticateToken, csrfProtection, requirePermission('user:manage')
 // ---------------------------------------------------------------------------
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Water Demand Forecasting API is running' });
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', version: packageJson.version });
 });
 
 // Short reference for an error response, e.g. "ERR-4F7K2A" — logged
@@ -1990,5 +2016,22 @@ app.get('/api/revenue', authenticateToken, requirePermission('revenue:view'), as
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Not found.' });
 });
+
+// Serves the React build and its client-side routes from this same app,
+// so the whole site is one Heroku app on one origin. Gated on the build
+// actually existing on disk rather than on NODE_ENV: in local dev nobody
+// runs `npm run build` for the backend to serve (CRA's own dev server on
+// :3000 handles that instead), so frontend/build simply isn't there and
+// this stays inactive — exactly today's dev behaviour, no flag needed.
+// It's registered last, after every /api route and the JSON 404 above,
+// so an unknown /api/* path still gets a JSON 404 instead of falling
+// through to index.html.
+const FRONTEND_BUILD_DIR = path.join(__dirname, '..', 'frontend', 'build');
+if (fs.existsSync(path.join(FRONTEND_BUILD_DIR, 'index.html'))) {
+  app.use(express.static(FRONTEND_BUILD_DIR));
+  app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(FRONTEND_BUILD_DIR, 'index.html'));
+  });
+}
 
 module.exports = { app, pool };

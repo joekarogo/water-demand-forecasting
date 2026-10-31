@@ -531,10 +531,6 @@ function ProductionPlanning() {
     return { domain: [domainMinM * 1_000_000, domainMaxM * 1_000_000], ticks };
   }, [stockTrendPoints]);
 
-  if (sessionLoading || !session) {
-    return null;
-  }
-
   const subtitle = 'Plan monthly water production from the published forecast';
   const extraLines =
     status === 'ready' && planData ? (

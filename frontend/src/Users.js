@@ -521,10 +521,6 @@ function Users() {
     }
   };
 
-  if (sessionLoading || !session) {
-    return null;
-  }
-
   return (
     <AppLayout title="Users" subtitle="Manage who can sign in and what they can do" requiredPermission="user:manage">
       {status === 'loading' && (

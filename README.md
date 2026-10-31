@@ -142,7 +142,7 @@ silent redirect; an unmatched `/api/*` path returns a JSON 404.
 - 5 outlier months were interpolated rather than using the true billed values.
 - The website shows the latest published forecast (`ml/publish_forecast.py`) and does not retrain or regenerate a forecast on request.
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
-- The system runs locally only — no hosting/deployment has been set up.
+- Heroku deployment is prepared (see [docs/deployment.md](docs/deployment.md)) but the app has not yet been deployed to a live Heroku instance.
 - 5.34% of consumption is unpriced (no matching tariff).
 - Tariff duplicates in 32 price dates make some historical months' revenue unavailable.
 - Customer group inferred from type name for 6,186 rows (Aug 2023 onward).
@@ -242,18 +242,37 @@ requests there), so no extra configuration is needed locally. For a
 production build pointed at a backend on a different host, set
 `REACT_APP_API_URL` (e.g. `REACT_APP_API_URL=https://api.example.com`)
 before running `npm run build` — it's read once at build time via
-`frontend/src/api.js`.
+`frontend/src/api.js`. On Heroku, the backend serves the build itself
+from the same origin, so `REACT_APP_API_URL` is left empty there — see
+[docs/deployment.md](docs/deployment.md).
+
+To try the production setup locally (same Express app serving both the
+API and the built frontend from one port) without deploying anywhere:
+```bash
+cd frontend && npm run build
+cd ../backend && NODE_ENV=production node index.js
+```
+Then visit `http://localhost:5000` directly — there's no separate
+frontend dev server in this mode.
 
 Sign in with Chrome or Edge — Firefox's tracking protection blocks
 Google's sign-in popup.
 
-## Deployment Requirements (for Sprint III)
-Checked against the current code:
+## Deployment
 
-- **Node runtime** to run `backend/index.js` (Express). Port is already configurable via `PORT` in `.env`.
-- **Python with Prophet and cmdstan** to periodically run `ml/train_model.py` and `ml/publish_forecast.py` (the website reads the published forecast from the database — it no longer trains or forecasts per request). cmdstanpy's model fitting is memory-sensitive — an OpenBLAS memory allocation failure was observed even on this local machine during testing — so the host needs adequate RAM, not just disk/CPU.
-- **A managed PostgreSQL instance** for `izsu_consumption` and `users` (the current `DB_HOST`/`DB_PORT` point at `localhost`).
-- **All `.env` variables** set on the host (see `.env.example`): `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `JWT_SECRET`, `SEED_MANAGER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `RUNS_DIR`, `MODEL_PATH`.
-- **Model storage:** `MODEL_PATH` is now configurable via `.env` (read by `ml/train_model.py` and `ml/publish_forecast.py`), so this is no longer a hardcoded blocker — but it still defaults to a Windows path, `G:\My Drive\water-demand-forecasting\models\prophet_model.pkl`, so a non-Windows host must set `MODEL_PATH` explicitly to somewhere it can actually write. `database/load_izsu.py` similarly reads its source CSV from a hardcoded local path.
-- **Frontend build hosting** for the React app (e.g. a static host after `npm run build`), separate from the Node backend.
-- **`REACT_APP_API_URL`** set at build time (before `npm run build`) to the deployed backend's origin — the frontend no longer hardcodes `http://localhost:5000` (see `frontend/src/api.js`); in local dev it instead relies on the `proxy` field in `frontend/package.json`, which isn't used in a production build.
+The app deploys to Heroku as **one app on one HTTPS domain** — the same
+Express process (`backend/index.js`) serves both `/api/*` and the built
+React app, so there's no separate static host or second dyno. See
+[docs/deployment.md](docs/deployment.md) for the full walkthrough: the
+Heroku config vars to set, the Google Cloud Console step, copying the
+local database to Heroku, running future migrations against it,
+deploying, and rolling back.
+
+Checked against the current code, what this actually needs:
+
+- **Node runtime** to run `backend/index.js` (Express). Port is set automatically by Heroku via `PORT`.
+- **Python with Prophet and cmdstan**, run offline (not on the Heroku dyno) to periodically run `ml/train_model.py` and `ml/publish_forecast.py` — the website only ever reads the already-published forecast from the database. cmdstanpy's model fitting is memory-sensitive — an OpenBLAS memory allocation failure was observed even on this local machine during testing — so wherever this runs needs adequate RAM, not just disk/CPU.
+- **A managed PostgreSQL instance** — Heroku Postgres, reached via `DATABASE_URL` (set automatically by Heroku; takes priority over the discrete `DB_HOST`/`DB_NAME`/etc. vars used locally).
+- **Config vars** set on the host: `NODE_ENV=production`, `GOOGLE_CLIENT_ID`, `REACT_APP_GOOGLE_CLIENT_ID` (see docs/deployment.md for what each does; `DATABASE_URL` and `PORT` are Heroku's own).
+- **Model storage:** `MODEL_PATH` is configurable via `.env` (read by `ml/train_model.py` and `ml/publish_forecast.py`) but still defaults to a Windows path, `G:\My Drive\water-demand-forecasting\models\prophet_model.pkl` — wherever the offline training job runs, set `MODEL_PATH` explicitly if it isn't that machine. `database/load_izsu.py` similarly reads its source CSV from a hardcoded local path.
+- **`REACT_APP_API_URL`** stays **empty** in production — the frontend and backend now share one origin, so `frontend/src/api.js`'s default (`''`, relative paths) is exactly right; it only needs a value if the frontend is ever hosted separately from this backend again.
