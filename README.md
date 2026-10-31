@@ -98,7 +98,17 @@ validate it.
 ## Pages and API
 
 Besides the Forecast, Historical Analysis, Production Planning and Users
-pages, the app has a user menu (top bar) linking to:
+pages, there's:
+
+- **Demand by district** (Production Planners only, `distribution:view`) -
+  which districts need the most water in a given forecast month, split from
+  the published city forecast by each district's recent historical share of
+  consumption, from `GET /api/distribution`. All the share/allocation math
+  (shares summing to 100%, allocations summing to the active plan, the
+  share-change and seasonal-swing figures) runs on the server
+  (`backend/distribution.js`), not in the browser.
+
+The app also has a user menu (top bar) linking to:
 
 - **My account** - your name, email, role, job title, session end time, and
   your last 10 sign-ins (`GET /api/me/sign-ins` - always your own rows only).

@@ -31,6 +31,12 @@ export function formatMonthLong(dateStr) {
   return `${MONTH_LONG[month - 1]} ${year}`;
 }
 
+// A calendar month's name on its own (1 = January), with no year — for
+// values like a seasonal-swing month that aren't tied to one particular year.
+export function monthName(monthNumber) {
+  return MONTH_LONG[monthNumber - 1];
+}
+
 // e.g. a `generated_at` timestamp -> "25 Oct 2026". This IS a real instant
 // (not a date-only string), so using Date here is safe.
 export function formatPublishedDate(isoString) {
@@ -102,4 +108,18 @@ export function getInitials(name) {
 // sentence and the KPI card always agree on the same figure.
 export function fmtPercentChange(pct) {
   return Math.abs(pct).toFixed(1);
+}
+
+// Display-only title case for district names, using Turkish locale rules
+// so the dotted/dotless I and cedilla characters (e.g. "Karabağlar",
+// "Çeşme", "Çiğli") render correctly — plain .toUpperCase()/.toLowerCase()
+// get Turkish I/i wrong. Never use this on values sent back to the API or
+// used as lookup keys; it's purely how a district name is shown on screen.
+export function formatDistrictName(name) {
+  if (!name) return name;
+  return name
+    .toLocaleLowerCase('tr-TR')
+    .split(' ')
+    .map((word) => (word ? word.charAt(0).toLocaleUpperCase('tr-TR') + word.slice(1) : word))
+    .join(' ');
 }

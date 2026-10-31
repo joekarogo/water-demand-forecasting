@@ -286,3 +286,36 @@ running backend + frontend with a real signed-in session (Google sign-in) to
 verify visually — not run in this session per the task's instructions (no
 servers were started, no `.env` touched). Everything else above was actually
 executed as part of this change.
+
+## Part K - Demand by district (Module 4)
+
+District-level split of the published forecast (`GET /api/distribution`,
+`backend/distribution.js`) and the new "Demand by district" page, for
+Production Planners (`distribution:view`) only. All share/allocation/swing
+math runs on the server; the frontend only renders what the API returns.
+Automated: `backend/test/distribution.test.js` (pure functions),
+`backend/test/permissions.matrix.test.js` (`GET /api/distribution` added to
+the route table), and `frontend/src/DemandByDistrict.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| K1 | `pickShareYears(rows, month)` for a calendar month with data in several years | Returns exactly the 3 most recent years that actually have data for that month, most recent first (fewer than 3 if the data doesn't go back that far) | Automated: `distribution.test.js` "picks the 3 most recent years that actually have data for that calendar month" | Pass | `npm test` in `backend/`: 184/184 pass |
+| K2 | `buildDistrictBreakdown(...)` over a constructed fixture with several districts | `share_pct` across districts sums to exactly 100% (rounding drift absorbed by the largest district) | Automated: `distribution.test.js` "shares sum to exactly 100% and allocations sum to exactly the plan total" | Pass | `npm test` in `backend/`: 184/184 pass |
+| K3 | Same fixture, with an active plan's `chosen_m3` set | `allocation_m3` across districts sums to exactly the plan total; `null` for every district when there is no active plan for that month | Automated: `distribution.test.js` "...sum to exactly the plan total" and "allocation is null for every district when there is no active plan" | Pass | `npm test` in `backend/`: 184/184 pass |
+| K4 | A district whose share grew then shrank year-over-year | `share_change_pts` is positive for the grown year-pair and negative for the shrunk one, using the two most recent years with data | Automated: `distribution.test.js` "share change is positive when a district grew and negative when it shrank" | Pass | `npm test` in `backend/`: 184/184 pass |
+| K5 | `computeSeasonalSwing(rows, districts)` over a fixture with one district having a clear seasonal high/low | Returns that district, its high/low ratio, and the correct high/low calendar months (computed from the data, not hard-coded); returns `null` with no districts | Automated: `distribution.test.js` "picks the district with the largest high/low ratio, and the right months" and "returns null when there are no districts" | Pass | `npm test` in `backend/`: 184/184 pass |
+| K6 | `GET /api/distribution` as Production Planner, Admin, Commercial Analyst, and signed out | 200 / 403 / 403 / 401 respectively | Automated: matrix test route table entry for `GET /api/distribution` | Pass | `npm test` in `backend/`: 184/184 pass |
+| K7 | Load `/demand-by-district` as a Production Planner with sample API data | KPI cards show the largest district, districts-covered count, and the biggest seasonal swing district; table and bars reflect the first forecast month by default | Automated: `DemandByDistrict.test.js` "renders the first forecast month with its KPIs" | Pass | `npm test -- --watchAll=false` in `frontend/`: `DemandByDistrict.test.js` green |
+| K8 | Change the month selector to a month with no active plan | KPI cards and table update for the new month; "No production plan saved for this month. Go to Production Planning." note appears; plan KPI shows "No plan saved" | Automated: `DemandByDistrict.test.js` "changing the month updates the KPI cards and shows the no-plan note" | Pass | `npm test -- --watchAll=false` in `frontend/`: `DemandByDistrict.test.js` green |
+| K9 | Click the "Forecast" column header in the table | Row order reverses (desc → asc) | Automated: `DemandByDistrict.test.js` "sorting the table by a column reverses the row order" | Pass | `npm test -- --watchAll=false` in `frontend/`: `DemandByDistrict.test.js` green |
+| K10 | Open "Demand by district" as Admin or Commercial Analyst | The normal access-denied view (declarative `requiredPermission`, same as other permission-gated pages), not a custom page | pending manual test | — | — |
+| K11 | On the page, export the table as CSV | Downloaded file's rows match the visible table, including the totals row | pending manual test | — | — |
+| K12 | View the page at 375px wide | No horizontal page scroll; the table scrolls within its own card if needed; bar/badge information is also conveyed in text, not colour alone | pending manual test | — | — |
+| K13 | Open "Help" as a Production Planner | A "Demand by district" section explains the ~5% district-mismatch rate, that districts aren't real supply zones, and that one loss rate is applied to every district | pending manual test (section renders per automated Help tests from Part J, but this session's test run didn't re-verify the new section's exact copy against a live Help page) | — | — |
+| K14 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 184/184 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 19/19 pass across 6 suites; `npm run build` compiled successfully | Pass | Ran all three this session |
+
+**Note:** K10, K11, K12 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no servers
+were started, no `.env` touched). K13 is a text-content check against a live
+page render; everything else above was actually executed as part of this
+change.

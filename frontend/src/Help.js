@@ -46,6 +46,21 @@ function Help() {
         </section>
       )}
 
+      {permissions.includes('distribution:view') && (
+        <section className="card" aria-labelledby="helpDistrictTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpDistrictTitle" style={{ marginBottom: 10 }}>
+            Demand by district
+          </h2>
+          <p style={{ margin: 0 }}>
+            District figures split the published city forecast by each district's recent historical
+            share, so about 5% of a month's water typically lands in the wrong district. Districts are
+            administrative areas, not actual water supply zones, so figures show expected billed demand
+            rather than pipe routing. One loss rate is applied to every district alike, even though real
+            losses vary by district.
+          </p>
+        </section>
+      )}
+
       {permissions.includes('data:view') && (
         <section className="card" aria-labelledby="helpHistoricalTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpHistoricalTitle" style={{ marginBottom: 10 }}>
