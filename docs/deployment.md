@@ -109,6 +109,19 @@ This triggers `heroku-postbuild` (installs backend production
 dependencies, installs frontend dependencies, builds the frontend), then
 starts the dyno via the `Procfile`'s `web: node backend/index.js`.
 
+**Buildpack note:** this repo also has a root `requirements.txt` (for the
+offline `ml/` scripts — see "The model never trains on the server"
+below). Heroku's buildpack auto-detection can see that file and pick the
+Python buildpack instead of Node for the actual web app. Set the Node
+buildpack explicitly so this doesn't happen:
+
+```bash
+heroku buildpacks:set heroku/nodejs -a <app-name>
+```
+
+(Check `heroku buildpacks -a <app-name>` after the first deploy if the
+build log looks like it ran `pip install` instead of `npm`.)
+
 ## Rollback
 
 ```bash
@@ -129,6 +142,7 @@ this file or a linked log:
 
 | Date | URL | Git commit | Heroku release | Model/forecast version | Verified by | Result |
 |---|---|---|---|---|---|---|
+| 1 Nov 2026 | https://water-demand-forecast-e93cc52b790c.herokuapp.com | `4f2e277` | v7 | forecast #23 | (pending) | (pending) |
 | | | | | | | |
 
 ## After the GitHub Students credit runs out (~October 2028)

@@ -54,7 +54,7 @@ With `TEST_DATABASE_URL` set, the same `npm test` run additionally:
    public;`), so every run starts from a clean slate regardless of what
    a previous run left behind.
 2. Applies `database/schema/000_existing_schema.sql` through
-   `008_tariff_wastewater.sql`, in order, to the now-empty database.
+   `009_timestamptz.sql`, in order, to the now-empty database.
 3. Creates one active user per role (`admin`, `production_manager`,
    `commercial_officer`), one deactivated user, and a handful of
    dedicated throwaway users for the role-change/deactivate/reactivate
