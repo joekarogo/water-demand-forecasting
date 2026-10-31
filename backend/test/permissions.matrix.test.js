@@ -94,6 +94,7 @@ const MIGRATIONS = [
   '006_remove_password_login.sql',
   '007_role_names_job_title.sql',
   '008_tariff_wastewater.sql',
+  '009_timestamptz.sql',
 ];
 
 // The role -> permission table as of migrations 001, 003 and 004 (003
@@ -431,6 +432,27 @@ test('permission matrix', async (t) => {
       assert.ok(expiresIn !== null, 'X-Session-Expires-In header should be set');
       assert.ok(Number.isInteger(Number(expiresIn)) && Number(expiresIn) > 0);
       assert.strictEqual(res.headers.get('x-session-max-reached'), 'false');
+    });
+
+    await t.test('GET /api/about: the published forecast\'s timestamp is a genuinely timezone-aware ISO string', async () => {
+      // Regression test for the bug fixed by 009_timestamptz.sql:
+      // forecasts.generated_at used to be TIMESTAMP WITHOUT TIME ZONE, so
+      // a naive-looking value here would silently be read with the wrong
+      // offset on a server in a different time zone than the one that
+      // wrote it. An ISO string ending in 'Z' (or carrying an explicit
+      // +hh:mm/-hh:mm offset) is proof the value survived the round trip
+      // as a real point in time, not a wall-clock string.
+      const res = await request(baseUrl, { method: 'GET', path: '/api/about', cookie: fixtures.admin.cookie });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.ok(body.latest_forecast, 'expected a published forecast to be present');
+      const publishedAt = body.latest_forecast.published_at;
+      assert.strictEqual(typeof publishedAt, 'string');
+      assert.ok(
+        /Z$|[+-]\d{2}:\d{2}$/.test(publishedAt),
+        `expected an ISO timestamp with a 'Z' or numeric UTC offset, got: ${publishedAt}`
+      );
+      assert.ok(!Number.isNaN(Date.parse(publishedAt)), `expected a parseable timestamp, got: ${publishedAt}`);
     });
 
     await t.test('unmatched /api route returns a JSON 404', async () => {

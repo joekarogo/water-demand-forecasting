@@ -58,14 +58,21 @@ there is no automated migration runner in this project yet.
    afterwards to populate it from the source tariff file's `ATIKSU_FIYATI`
    column (the same SU rows the loader already reads — no separate ATIK
    SU rows are needed). Runs as a single transaction.
+10. `009_timestamptz.sql` — bug fix: converts `forecasts.generated_at` and
+    `users.created_at` from `TIMESTAMP WITHOUT TIME ZONE` to `TIMESTAMPTZ`
+    (every other timestamp column already was). Existing values are
+    Nairobi wall-clock times on both the local and the Heroku database,
+    so the conversion uses `AT TIME ZONE 'Africa/Nairobi'`. Safe to
+    re-run — each column is only converted if it's still timestamp
+    without time zone. Runs as a single transaction.
 
 To roll back **in development only**, run `001_foundation_down.sql`,
 `002_published_forecast_down.sql`, `003_production_planning_down.sql`,
 `004_accounts_down.sql`, `005_sessions_down.sql`,
-`006_remove_password_login_down.sql`, `007_role_names_job_title_down.sql`
-and/or `008_tariff_wastewater_down.sql`. None of these are a safe
-production rollback — see the comment at the top of each file for what
-it does and does not undo.
+`006_remove_password_login_down.sql`, `007_role_names_job_title_down.sql`,
+`008_tariff_wastewater_down.sql` and/or `009_timestamptz_down.sql`. None
+of these are a safe production rollback — see the comment at the top of
+each file for what it does and does not undo.
 
 ## Running a file
 
@@ -79,6 +86,7 @@ psql -U <your_db_user> -d <your_db_name> -f database/schema/005_sessions.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/006_remove_password_login.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/007_role_names_job_title.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/008_tariff_wastewater.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/009_timestamptz.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and
