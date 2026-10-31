@@ -6,6 +6,11 @@ import Dashboard from './Dashboard';
 import DataOverview from './DataOverview';
 import ProductionPlanning from './ProductionPlanning';
 import Users from './Users';
+import MyAccount from './MyAccount';
+import Help from './Help';
+import Privacy from './Privacy';
+import About from './About';
+import NotFound from './NotFound';
 import './App.css';
 
 function App() {
@@ -20,6 +25,11 @@ function App() {
           <Route path="/data-overview" element={<DataOverview />} />
           <Route path="/production-planning" element={<ProductionPlanning />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/account" element={<MyAccount />} />
+          <Route path="/help" element={<Help />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/about" element={<About />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </SessionProvider>
     </BrowserRouter>

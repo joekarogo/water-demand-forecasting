@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../session';
 import { getFirstPermittedPath } from './menuConfig';
+import { useDocumentTitle } from '../useDocumentTitle';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import SessionExpiryWarning from '../SessionExpiryWarning';
 import '../App.css';
 
 // Shared shell: fixed sidebar + topbar on wide screens, a ☰-triggered overlay
@@ -22,6 +24,8 @@ function AppLayout({ title, subtitle, extraLines, requiredPermission, children }
   const closeBtnRef = useRef(null);
 
   const closeNav = () => setNavOpen(false);
+
+  useDocumentTitle(title);
 
   useEffect(() => {
     if (!loading && !session) {
@@ -55,6 +59,10 @@ function AppLayout({ title, subtitle, extraLines, requiredPermission, children }
 
   return (
     <div className="shell">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <SessionExpiryWarning />
       <Sidebar open={navOpen} onNavigate={closeNav} onClose={closeNav} closeBtnRef={closeBtnRef} />
       {navOpen && <div className="scrim" onClick={closeNav} />}
       <div className="main">
@@ -66,7 +74,7 @@ function AppLayout({ title, subtitle, extraLines, requiredPermission, children }
           menuBtnRef={menuBtnRef}
           navOpen={navOpen}
         />
-        <main className="content">
+        <main className="content" id="main-content" tabIndex="-1">
           {hasAccess ? (
             children
           ) : (

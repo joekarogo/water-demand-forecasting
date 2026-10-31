@@ -1,4 +1,5 @@
 import { API_BASE } from './api';
+import { setSessionExpiryFromHeaders } from './sessionExpiry';
 
 // Set by session.js whenever the session changes (including to null on
 // sign-out) — kept as a plain module-level value rather than something
@@ -25,9 +26,11 @@ export async function apiFetch(path, options = {}) {
     headers.set('X-CSRF-Token', currentCsrfToken);
   }
 
-  return fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
     credentials: 'same-origin',
   });
+  setSessionExpiryFromHeaders(response.headers);
+  return response;
 }

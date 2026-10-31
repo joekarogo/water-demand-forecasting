@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiFetch, setCsrfToken } from './apiClient';
+import { clearSessionExpiry } from './sessionExpiry';
 
 const SessionContext = createContext(undefined);
 
@@ -37,6 +38,19 @@ export function SessionProvider({ children }) {
   const clearSession = useCallback(() => {
     setSession(null);
     setCsrfToken(null);
+    clearSessionExpiry();
+  }, []);
+
+  // Used by the session-expiry "Stay signed in" button: updates only the
+  // CSRF token and session_expires_at from a fresh GET /api/me response,
+  // without setLoading(true) — unlike refreshSession, this never
+  // unmounts the current page (AppLayout renders null while loading),
+  // which would lose whatever the user was doing.
+  const extendSession = useCallback((partial) => {
+    setCsrfToken(partial.csrf_token || null);
+    setSession((prev) =>
+      prev ? { ...prev, csrf_token: partial.csrf_token, session_expires_at: partial.session_expires_at } : prev
+    );
   }, []);
 
   useEffect(() => {
@@ -44,7 +58,7 @@ export function SessionProvider({ children }) {
   }, [refreshSession]);
 
   return (
-    <SessionContext.Provider value={{ session, loading, refreshSession, clearSession }}>
+    <SessionContext.Provider value={{ session, loading, refreshSession, clearSession, extendSession }}>
       {children}
     </SessionContext.Provider>
   );
