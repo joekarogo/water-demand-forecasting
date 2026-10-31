@@ -6,6 +6,7 @@ const { OAuth2Client } = require('google-auth-library');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const planning = require('./planning');
+const distribution = require('./distribution');
 const users = require('./users');
 const auth = require('./auth');
 const packageJson = require('./package.json');
@@ -162,6 +163,7 @@ function requireRecentAuth(req, res, next) {
 //   POST /api/production/plan            authenticateToken, csrfProtection, requirePermission('plan:create')
 //   GET  /api/production/stock           authenticateToken, requirePermission('plan:view')
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
+//   GET  /api/distribution               authenticateToken, requirePermission('distribution:view')
 //   GET  /api/roles                      authenticateToken, requirePermission('user:manage')
 //   GET  /api/users                      authenticateToken, requirePermission('user:manage')
 //   POST /api/users                      authenticateToken, csrfProtection, requirePermission('user:manage')
@@ -1219,6 +1221,99 @@ app.post(
     res.status(500).json({ error: 'Unable to save the stock entry right now.', reference });
   } finally {
     client.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Demand by District (Module 4) — district-level split of the published
+// forecast, for Production Planners ("distribution:view").
+// ---------------------------------------------------------------------------
+
+app.get('/api/distribution', authenticateToken, requirePermission('distribution:view'), async (req, res) => {
+  try {
+    const forecast = await getLatestPublishedForecast(pool);
+    if (!forecast) {
+      return res.status(404).json({ error: 'No forecast has been published yet.' });
+    }
+
+    const lossRate = await getLossRate(pool);
+    const forecastMonths = await getForecastMonths(pool, forecast.forecast_id);
+    const activePlansByMonth = await getActivePlansByMonth(pool, forecast.forecast_id);
+
+    // Summed over customer_group/subscriber_type here, once, rather than
+    // in every pure-function call that needs a district's monthly total.
+    const consumptionResult = await pool.query(
+      `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+              EXTRACT(MONTH FROM year_month)::int AS month,
+              district,
+              SUM(consumption_m3)::double precision AS consumption_m3
+       FROM consumption_detail
+       GROUP BY year, month, district`
+    );
+    const consumptionRows = consumptionResult.rows;
+    const districts = distribution.listDistricts(consumptionRows);
+
+    const latestMonthResult = await pool.query(
+      `SELECT TO_CHAR(MAX(year_month), 'YYYY-MM-DD') AS month FROM consumption_detail`
+    );
+    const subscribersMonth = latestMonthResult.rows[0].month;
+    const subscribersByDistrict = new Map();
+    if (subscribersMonth) {
+      const subscribersResult = await pool.query(
+        `SELECT district, SUM(subscribers)::int AS subscribers
+         FROM consumption_detail
+         WHERE year_month = $1::date
+         GROUP BY district`,
+        [subscribersMonth]
+      );
+      subscribersResult.rows.forEach((row) => subscribersByDistrict.set(row.district, row.subscribers));
+    }
+
+    const swing = distribution.computeSeasonalSwing(consumptionRows, districts);
+
+    const months = forecastMonths.map((row) => {
+      const calendarMonth = Number(row.date.slice(5, 7));
+      const activePlan = activePlansByMonth.get(row.date);
+      const planChosenM3 = activePlan ? activePlan.chosen_m3 : null;
+
+      const { shareYears, changeYears, rows: districtRows } = distribution.buildDistrictBreakdown({
+        consumptionRows,
+        districts,
+        calendarMonth,
+        forecastM3: row.predicted_value,
+        lowerM3: row.yhat_lower,
+        upperM3: row.yhat_upper,
+        planChosenM3,
+      });
+
+      return {
+        month: row.date,
+        share_years: shareYears,
+        change_years: changeYears,
+        plan_type: activePlan ? activePlan.plan_type : null,
+        plan_chosen_m3: planChosenM3,
+        districts: districtRows.map((d) => ({
+          ...d,
+          subscribers: subscribersByDistrict.get(d.district) ?? null,
+        })),
+      };
+    });
+
+    res.json({
+      forecast_id: forecast.forecast_id,
+      published_at: forecast.generated_at,
+      data_up_to: forecast.data_up_to,
+      loss_rate: lossRate ? lossRate.value : null,
+      loss_rate_source: lossRate ? lossRate.source : null,
+      districts,
+      subscribers_month: subscribersMonth,
+      swing,
+      months,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] /api/distribution failed:`, err);
+    res.status(500).json({ error: 'Unable to load district demand right now.', reference });
   }
 });
 

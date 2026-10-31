@@ -92,6 +92,7 @@ POST/PATCH route — the allowed role's request again with the
 | `GET /api/production/plan/:month/history` | `plan:view` | 403 | 200 | 403 |
 | `POST /api/production/plan` | `plan:create` | 403 | 200 | 403 |
 | `GET /api/production/stock` | `plan:view` | 403 | 200 | 403 |
+| `GET /api/distribution` | `distribution:view` | 403 | 200 | 403 |
 | `POST /api/production/stock` | `stock:create` | 403 | 200 | 403 |
 | `GET /api/roles` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/users` | `user:manage` | 200 | 403 | 403 |

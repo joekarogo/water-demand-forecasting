@@ -295,6 +295,7 @@ test('permission matrix', async (t) => {
         body: () => ({ forecast_id: fixtures.forecastId, month: fixtures.month, plan_type: 'normal', expected_version: 0 }),
       },
       { name: 'GET /api/production/stock', method: 'GET', path: '/api/production/stock', permission: 'plan:view' },
+      { name: 'GET /api/distribution', method: 'GET', path: '/api/distribution', permission: 'distribution:view' },
       {
         name: 'POST /api/production/stock',
         method: 'POST',
