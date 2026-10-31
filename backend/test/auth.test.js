@@ -5,6 +5,7 @@ const {
   DEFAULT_IDLE_TIMEOUT_MS,
   ABSOLUTE_SESSION_LIMIT_MS,
   MAX_FAILED_LOGIN_ATTEMPTS,
+  STEP_UP_WINDOW_MS,
   getIdleTimeoutMs,
   computeSessionExpiry,
   getSessionCookieOptions,
@@ -13,6 +14,7 @@ const {
   generateCsrfToken,
   csrfTokensMatch,
   isBlockedByFailedAttempts,
+  isWithinStepUpWindow,
 } = require('../auth');
 
 test('getIdleTimeoutMs: 30 minutes for admin, 60 for every other role', () => {
@@ -95,4 +97,30 @@ test('isBlockedByFailedAttempts: blocks at and above the threshold, not below it
   assert.strictEqual(isBlockedByFailedAttempts(4), false);
   assert.strictEqual(isBlockedByFailedAttempts(5), true);
   assert.strictEqual(isBlockedByFailedAttempts(6), true);
+});
+
+test('isWithinStepUpWindow: true up to and including 10 minutes old, false just past it', () => {
+  assert.strictEqual(STEP_UP_WINDOW_MS, 10 * 60 * 1000);
+  const sessionCreatedAt = new Date('2026-01-01T09:00:00Z');
+
+  assert.strictEqual(
+    isWithinStepUpWindow({ now: sessionCreatedAt, sessionCreatedAt }),
+    true
+  ); // 0 minutes old
+  assert.strictEqual(
+    isWithinStepUpWindow({ now: new Date(sessionCreatedAt.getTime() + 9 * 60 * 1000), sessionCreatedAt }),
+    true
+  ); // 9 minutes old
+  assert.strictEqual(
+    isWithinStepUpWindow({ now: new Date(sessionCreatedAt.getTime() + STEP_UP_WINDOW_MS), sessionCreatedAt }),
+    true
+  ); // exactly 10 minutes old — inclusive
+  assert.strictEqual(
+    isWithinStepUpWindow({ now: new Date(sessionCreatedAt.getTime() + STEP_UP_WINDOW_MS + 1), sessionCreatedAt }),
+    false
+  ); // 10 minutes and 1ms old
+  assert.strictEqual(
+    isWithinStepUpWindow({ now: new Date(sessionCreatedAt.getTime() + 60 * 60 * 1000), sessionCreatedAt }),
+    false
+  ); // 1 hour old
 });

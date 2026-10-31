@@ -172,3 +172,77 @@ Part F. `frontend/src/App.test.js` was replaced (the default CRA
 | G10 | In the browser, sign in as a user who lacks `data:view` (or `plan:view`) and open `/data-overview` (or `/production-planning`) directly | The page's normal sidebar/topbar still show; the content area shows "You don't have access to this page." with a button that goes to a page the user does have permission for |
 | G11 | Sign in, then use the top bar's Logout button | Redirected to `/login`; the page shows "You've signed out." |
 | G12 | `cat backend/package.json` | No `jsonwebtoken` in `dependencies` |
+
+## Part H - The Users page (Module 1, Part 4)
+
+Automated: `backend/test/users.test.js` (the new pure helpers in
+`backend/users.js`) and the step-up-window tests added to
+`backend/test/auth.test.js` — `npm test` in `backend/` should show a
+higher pass count than Part G, 0 failures, with the permission matrix
+reported as **skipped** unless `TEST_DATABASE_URL` is set (see
+`docs/testing_permissions.md` for running that one). `npm run build` and
+`npm test -- --watchAll=false` in `frontend/` must both pass.
+
+**Manual checks (signed in as an Admin, with a second Admin account
+available so the "last active Admin" checks don't lock you out):**
+
+| # | Check | Expected |
+|---|---|---|
+| H1 | Open `/users` as a `production_manager` or `commercial_officer` | Sidebar has no "Users" item (no `user:manage`); typing the URL directly shows "You don't have access to this page." inside the normal layout |
+| H2 | Open `/users` as Admin | Table of every user: name, email, role, a status badge (Active/Invited/Deactivated), last sign-in (or "—" if never signed in); your own row shows "You" |
+| H3 | An emergency account (if one exists) appears in the list | Shown with an "Emergency" tag; its row's "Change role" control is disabled |
+| H4 | Search by part of a name, then by part of an email | Table narrows to matches on either field; clear the box and everything returns |
+| H5 | Filter by role, then by status, then both together | Table narrows accordingly; an honest empty state ("No users match your search or filters.") with a "Clear filters" button when a filter excludes everyone |
+| H6 | Click "Invite user", submit with name/email blank | Client-side field errors, no request sent |
+| H7 | Invite with a malformed email (e.g. `bob@bob`) | Client-side "Enter a valid email address." |
+| H8 | Invite with a valid name/email/role | 201; new row appears in the table immediately (`status = invited`, `auth_provider = google`) without a full page reload; `audit_log` gets a `user.invited` row |
+| H9 | Invite the same email again (any casing) | 409 "A user with this email already exists."; the name/email/role you typed are still in the form (not cleared) so you can fix and retry |
+| H10 | `python database/invite_user.py --role bogus ...` still works unchanged, and a role sent as `"role": "bogus"` via `POST /api/users` | `argparse` rejects the script call as before; the API calls returns 400 with `fields.role` |
+| H11 | Click your own row | "Change role" and "Deactivate" are disabled; a note explains why |
+| H12 | Click another Admin's row, change their role away from Admin, when they're the only other active Admin and you count as the first | Change succeeds only if at least one active Admin remains afterward; otherwise 409 "There must be at least one active Admin." |
+| H13 | Change a non-Admin user's role | 200; the row updates in place; `audit_log` gets a `user.role_changed` row with `from`/`to` |
+| H14 | Click "Deactivate this user" on someone else, submit with an empty reason, then a 4-character reason | Client-side (or server 400, if you bypass the client check) "Enter a reason (at least 5 characters)." |
+| H15 | Confirm a deactivation with a valid reason | 200; status badge flips to "Deactivated"; `SELECT * FROM sessions WHERE user_id = ...` for that user is empty (signed out immediately); `audit_log` gets a `user.deactivated` row |
+| H16 | Try to deactivate the last active Admin (deactivate every other Admin first) | 409 "There must be at least one active Admin." |
+| H17 | Open a deactivated user's row and reactivate them | 200; status becomes "Active" (if they'd signed in with Google before) or "Invited" (if not); `audit_log` gets a `user.reactivated` row |
+| H18 | Wait more than 10 minutes after signing in (or manually age a session's `created_at` in `sessions`), then try to change a role / deactivate / reactivate | 403 `{ "error": "For security, sign in again to make this change.", "code": "reauth_required" }`; the panel shows that message with a "Sign in again" button |
+| H19 | Click "Sign in again" from H18 | Signs out (the session is gone server-side) and lands on `/login` showing "Sign in again to continue." |
+| H20 | Resize the browser to 375px wide on `/users`, with the invite panel and a detail panel each open in turn | No horizontal scrollbar on the page itself; the table scrolls internally if needed; both panels stay within the viewport |
+| H21 | Tab through the invite panel and a detail panel | Focus is trapped inside the open panel (Tab wraps from last to first field and back), Escape closes it and returns focus to the control that opened it |
+
+**Permission matrix** (separate test database, see
+`docs/testing_permissions.md` for setup):
+
+| # | Check | Expected |
+|---|---|---|
+| H22 | `npm test` in `backend/` with no `TEST_DATABASE_URL` set | Permission matrix reported as **skipped**, clear message pointing at `docs/testing_permissions.md`; every other test still runs and passes |
+| H23 | Set `TEST_DATABASE_URL` to the **same** `DB_HOST`/`DB_PORT`/`DB_NAME` as the real `.env`, run `npm test` | Refuses to run, with a clear failure message — never touches the real database |
+| H24 | Set `TEST_DATABASE_URL` to a separate, freshly-created database, run `npm test` | Applies migrations 000-007, seeds fixtures, and checks every route in the table in `docs/testing_permissions.md` — 0 failures |
+
+## Part I - Role display names and job titles (Module 1, Part 4b)
+
+Automated: `backend/test/users.test.js` gets new tests for
+`validateJobTitle` and `validateInviteRequest`'s `job_title` field;
+`backend/test/permissions.matrix.test.js` now also applies
+`007_role_names_job_title.sql` and checks `PATCH /api/users/:id/job-title`
+(see `docs/testing_permissions.md`). `npm test` in `backend/` should show
+a higher pass count than Part H, 0 failures. `npm run build` and
+`npm test -- --watchAll=false` in `frontend/` must both pass.
+
+**Manual checks (after applying `database/schema/007_role_names_job_title.sql`):**
+
+| # | Check | Expected |
+|---|---|---|
+| I1 | `SELECT name, display_name FROM roles ORDER BY name` | `admin` → "Admin" (unchanged), `commercial_officer` → "Commercial Analyst", `production_manager` → "Production Planner" — role *names* (codes) are untouched |
+| I2 | `\d users` | A new nullable `job_title VARCHAR(100)` column |
+| I3 | `GET /api/me` and `GET /api/users` for any user | Both responses include `job_title` (`null` until set) |
+| I4 | Open `/users` as Admin, open the sign-in top bar for a user with no job title set | Top bar shows the role label ("Production Planner" / "Commercial Analyst" / "Admin"), matching whatever `roles.display_name` currently is — not a hard-coded English string anywhere in the frontend |
+| I5 | Invite a user with a job title (e.g. "Field Supervisor") | 201; the new row shows "Field Supervisor" under the name in the table instead of needing the role column; `audit_log`'s `user.invited` row includes it |
+| I6 | Invite a user leaving job title blank | 201; `job_title` is `null`; the table falls back to showing nothing extra under the name |
+| I7 | Invite with a job title over 100 characters | Client-side "The job title can be at most 100 characters."; bypassing the client check, the server returns the same 400 on `fields.job_title` |
+| I8 | Open any user's detail panel, set/change their job title, save | 200; `audit_log` gets a `user.job_title_changed` row with the new value; the table and top bar (if it's your own account) update without a reload |
+| I9 | Set a job title, then sign in as that user and look at the top bar | Shows the name plus the job title, not the role label |
+| I10 | Clear a user's job title (empty the field and save) | 200; `job_title` becomes `null`; the UI falls back to the role label again |
+| I11 | Change a job title while **not** within the 10-minute step-up window (age the session like H18) | Still succeeds (200) — job title changes are not gated by `requireRecentAuth`, unlike role changes |
+| I12 | `python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager --job-title "Field Supervisor"` | Creates the user with that job title; omitting `--job-title` leaves it `NULL`; a title over 100 characters exits with a clear error before touching the database |
+| I13 | `grep -rn "Production Manager\|Commercial Officer" frontend/src` | No matches — every role label the frontend shows comes from the API (`role_label`) or, failing that, a generic prettified version of the role code, never a hard-coded English label |
