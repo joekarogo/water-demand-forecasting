@@ -7,6 +7,9 @@ import './App.css';
 function AuthLayout({ title, subtitle, children }) {
   return (
     <div className="auth-page">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <div className="auth-card">
         <div className="logo-row">
           <span className="brand-icon" aria-hidden="true">
@@ -14,9 +17,11 @@ function AuthLayout({ title, subtitle, children }) {
           </span>
           <span>Water Demand Forecasting</span>
         </div>
-        <h1>{title}</h1>
-        {subtitle && <p className="auth-sub">{subtitle}</p>}
-        {children}
+        <main id="main-content" tabIndex="-1">
+          <h1>{title}</h1>
+          {subtitle && <p className="auth-sub">{subtitle}</p>}
+          {children}
+        </main>
       </div>
       <footer className="auth-foot">Version 1.0 · Data: İZSU Open Data (İzmir)</footer>
     </div>

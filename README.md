@@ -95,6 +95,24 @@ validate it.
 | Chapter 5 | 5 | Next |
 | Hosting (Sprint III) | 4 | Next |
 
+## Pages and API
+
+Besides the Forecast, Historical Analysis, Production Planning and Users
+pages, the app has a user menu (top bar) linking to:
+
+- **My account** - your name, email, role, job title, session end time, and
+  your last 10 sign-ins (`GET /api/me/sign-ins` - always your own rows only).
+- **Help** - task-focused guidance, shown per-page based on your permissions.
+- **Privacy notice** - also reachable signed out, linked from the sign-in page.
+- **About** - app version, data source/range and the latest published
+  forecast, from `GET /api/about`; also linked from the sidebar's version line.
+
+A session nearing expiry shows a warning two minutes beforehand (every
+authenticated response carries `X-Session-Expires-In` and
+`X-Session-Max-Reached` headers for this), with the option to stay signed in
+without losing unsaved input. An unknown URL shows a 404 page instead of a
+silent redirect; an unmatched `/api/*` path returns a JSON 404.
+
 ## Known Limitations
 - Billed water consumption is used as a proxy for demand, not a direct physical measurement.
 - The dataset is from İzmir, Turkey — not from a Kenyan utility.
@@ -103,7 +121,6 @@ validate it.
 - 5 outlier months were interpolated rather than using the true billed values.
 - The website shows the latest published forecast (`ml/publish_forecast.py`) and does not retrain or regenerate a forecast on request.
 - No external regressors (temperature, population, etc.) are used yet — only the consumption time series itself.
-- The frontend's automated test suite (`App.test.js`) currently fails (Jest/react-router-dom module resolution error).
 - The system runs locally only — no hosting/deployment has been set up.
 - 5.34% of consumption is unpriced (no matching tariff).
 - Tariff duplicates in 32 price dates make some historical months' revenue unavailable.

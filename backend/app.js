@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const planning = require('./planning');
 const users = require('./users');
 const auth = require('./auth');
+const packageJson = require('./package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
@@ -31,7 +32,7 @@ const pool = new Pool(
       }
 );
 
-app.use(cors());
+app.use(cors({ exposedHeaders: ['X-Session-Expires-In', 'X-Session-Max-Reached'] }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -99,6 +100,17 @@ async function authenticateToken(req, res, next) {
       created_at: sessionCreatedAt,
       expires_at: newExpiresAt,
     };
+
+    // Lets the frontend warn before the session ends without trusting the
+    // browser's own clock — seconds remaining, not a timestamp. maxReached
+    // flags the case where the 8-hour absolute cap (not the idle timeout)
+    // is what's about to end the session, so the warning can say so.
+    const secondsRemaining = Math.max(0, Math.round((newExpiresAt.getTime() - Date.now()) / 1000));
+    const absoluteExpiryMs = sessionCreatedAt.getTime() + auth.ABSOLUTE_SESSION_LIMIT_MS;
+    const maxReached = Math.abs(newExpiresAt.getTime() - absoluteExpiryMs) <= 1000;
+    res.set('X-Session-Expires-In', String(secondsRemaining));
+    res.set('X-Session-Max-Reached', maxReached ? 'true' : 'false');
+
     return next();
   } catch (err) {
     const reference = generateErrorReference();
@@ -138,6 +150,8 @@ function requireRecentAuth(req, res, next) {
 //   GET  /                               public (health check)
 //   GET  /api/forecast/published         authenticateToken, requirePermission('forecast:view')
 //   GET  /api/me                         authenticateToken
+//   GET  /api/me/sign-ins                authenticateToken
+//   GET  /api/about                      authenticateToken
 //   POST /api/auth/google                public
 //   POST /api/auth/emergency-login       public (rate-limited by IP)
 //   POST /api/auth/logout                authenticateToken, csrfProtection
@@ -394,6 +408,77 @@ app.get('/api/me', authenticateToken, async (req, res) => {
     const reference = generateErrorReference();
     console.error(`[${reference}] GET /api/me failed:`, err);
     res.status(500).json({ error: 'Unable to load your account right now.', reference });
+  }
+});
+
+// The caller's own last 10 sign-ins (Google or emergency) — never another
+// user's rows, since it's always scoped to req.user.user_id, never a
+// user_id from the request.
+app.get('/api/me/sign-ins', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT occurred_at, action, ip_address
+       FROM audit_log
+       WHERE user_id = $1 AND action IN ('login.success', 'emergency.login')
+       ORDER BY occurred_at DESC
+       LIMIT 10`,
+      [req.user.user_id]
+    );
+    res.json({
+      sign_ins: result.rows.map((row) => ({
+        time: row.occurred_at,
+        method: row.action === 'emergency.login' ? 'Emergency' : 'Google',
+        ip_address: row.ip_address,
+      })),
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/me/sign-ins failed:`, err);
+    res.status(500).json({ error: 'Unable to load your sign-in history right now.', reference });
+  }
+});
+
+// App version (backend/package.json) plus whatever's actually on record
+// for the latest published forecast and the consumption data's date
+// range — never invented, so either piece is simply omitted (null) if
+// nothing has been published/loaded yet.
+app.get('/api/about', authenticateToken, async (req, res) => {
+  try {
+    const forecastResult = await pool.query(
+      `SELECT forecast_id, generated_at, model_name, horizon,
+              TO_CHAR(train_start, 'YYYY-MM-DD') AS train_start,
+              TO_CHAR(train_end, 'YYYY-MM-DD') AS train_end
+       FROM forecasts
+       WHERE kind = 'published'
+       ORDER BY generated_at DESC
+       LIMIT 1`
+    );
+    const forecastRow = forecastResult.rows[0] || null;
+
+    const rangeResult = await pool.query(
+      `SELECT TO_CHAR(MIN(date), 'YYYY-MM-DD') AS first_month, TO_CHAR(MAX(date), 'YYYY-MM-DD') AS last_month
+       FROM izsu_consumption`
+    );
+    const rangeRow = rangeResult.rows[0];
+
+    res.json({
+      version: packageJson.version,
+      data: rangeRow && rangeRow.first_month ? { first_month: rangeRow.first_month, last_month: rangeRow.last_month } : null,
+      latest_forecast: forecastRow
+        ? {
+            forecast_id: forecastRow.forecast_id,
+            published_at: forecastRow.generated_at,
+            model_name: forecastRow.model_name,
+            horizon: forecastRow.horizon,
+            train_start: forecastRow.train_start,
+            train_end: forecastRow.train_end,
+          }
+        : null,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/about failed:`, err);
+    res.status(500).json({ error: 'Unable to load this information right now.', reference });
   }
 });
 
@@ -1654,5 +1739,12 @@ app.patch(
     }
   }
 );
+
+// Catch-all for any /api/* path not matched by a route above — a JSON
+// 404 instead of Express's default HTML one, since every /api client
+// here expects JSON.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found.' });
+});
 
 module.exports = { app, pool };

@@ -101,6 +101,8 @@ POST/PATCH route — the allowed role's request again with the
 | `POST /api/users/:id/reactivate` | `user:manage` | 200 | 403 | 403 |
 | `PATCH /api/users/:id/job-title` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/me` | *(authenticated only)* | 200 | 200 | 200 |
+| `GET /api/me/sign-ins` | *(authenticated only)* | 200 | 200 | 200 |
+| `GET /api/about` | *(authenticated only)* | 200 | 200 | 200 |
 | `POST /api/auth/logout` | *(authenticated only)* | 204 | 204 | 204 |
 
 The role-change, deactivate and reactivate routes are also gated by
@@ -110,3 +112,12 @@ job title isn't security-sensitive, so it only needs `user:manage` and
 CSRF. The matrix's fixture sessions are always freshly created, so every
 status above reflects the **permission** check only, not the reauth one;
 `backend/test/auth.test.js` covers the reauth rule itself.
+
+A few checks beyond the table above also run inside this same test:
+`GET /api/me/sign-ins` only ever returns the calling user's own rows
+(checked with two fixture users who each have a distinct seeded
+sign-in audit row); every response carries an `X-Session-Expires-In`
+header (whole seconds remaining) and an `X-Session-Max-Reached` header
+(`"false"` for the matrix's always-freshly-created fixture sessions);
+and an unmatched `/api/*` path returns a JSON 404 rather than Express's
+default HTML one.

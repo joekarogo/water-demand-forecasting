@@ -5,6 +5,7 @@ import { useSession } from './session';
 import { getFirstPermittedPath } from './layout/menuConfig';
 import { AlertCircleIcon, ErrorTriangleIcon } from './layout/icons';
 import AuthLayout from './AuthLayout';
+import { useDocumentTitle } from './useDocumentTitle';
 import './App.css';
 
 // Not linked from any nav — reached only by typing /emergency-login. Lets an
@@ -17,6 +18,8 @@ function EmergencyLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useDocumentTitle('Emergency sign-in');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

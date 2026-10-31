@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useSession } from '../session';
 import { MENU_ITEMS } from './menuConfig';
 import { BrandIcon } from './icons';
@@ -43,7 +43,9 @@ function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
         })}
       </ul>
       <div className="sidebar-foot">
-        <div className="ver">Version 1.0</div>
+        <div className="ver">
+          <Link to="/about">Version 1.0</Link>
+        </div>
         <div className="src">Data: İZSU Open Data (İzmir)</div>
       </div>
     </nav>

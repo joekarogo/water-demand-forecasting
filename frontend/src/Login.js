@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
 import { getFirstPermittedPath } from './layout/menuConfig';
 import { AlertCircleIcon, ClockIcon, CheckCircleIcon } from './layout/icons';
 import AuthLayout from './AuthLayout';
+import { useDocumentTitle } from './useDocumentTitle';
 import './App.css';
 
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -19,6 +20,8 @@ function Login() {
   const [googleError, setGoogleError] = useState('');
   const [navMessage, setNavMessage] = useState(location.state?.message || '');
   const [signingIn, setSigningIn] = useState(false);
+
+  useDocumentTitle('Sign in');
 
   // Google Identity Services renders its own button into googleButtonRef
   // once the gsi/client script (loaded in public/index.html) is ready; we
@@ -110,7 +113,9 @@ function Login() {
       )}
 
       <p className="help">No access? Contact your system administrator.</p>
-      <p className="auth-note">Sign-ins and actions are recorded.</p>
+      <p className="auth-note">
+        Sign-ins and actions are recorded. <Link to="/privacy">Privacy notice</Link>
+      </p>
     </AuthLayout>
   );
 }

@@ -258,6 +258,17 @@ test('permission matrix', async (t) => {
     });
     fixtures.jobTitleTargetId = await createUser(setupClient, { roleName: 'commercial_officer', status: 'active' });
 
+    // Two distinct sign-in audit rows, on two different users, so the
+    // "own rows only" check below can tell them apart.
+    await setupClient.query(
+      `INSERT INTO audit_log (user_id, action, ip_address) VALUES ($1, 'login.success', $2)`,
+      [fixtures.admin.userId, '203.0.113.10']
+    );
+    await setupClient.query(
+      `INSERT INTO audit_log (user_id, action, ip_address) VALUES ($1, 'emergency.login', $2)`,
+      [fixtures.production_manager.userId, '203.0.113.20']
+    );
+
     const appModule = require('../app');
     appPool = appModule.pool;
     server = appModule.app.listen(0);
@@ -339,6 +350,8 @@ test('permission matrix', async (t) => {
         body: () => ({ job_title: 'Matrix Job Title' }),
       },
       { name: 'GET /api/me', method: 'GET', path: '/api/me', permission: null },
+      { name: 'GET /api/me/sign-ins', method: 'GET', path: '/api/me/sign-ins', permission: null },
+      { name: 'GET /api/about', method: 'GET', path: '/api/about', permission: null },
     ];
 
     for (const route of ROUTES) {
@@ -390,6 +403,39 @@ test('permission matrix', async (t) => {
         }
       });
     }
+
+    await t.test('GET /api/me/sign-ins returns only the caller\'s own rows', async () => {
+      const res = await request(baseUrl, { method: 'GET', path: '/api/me/sign-ins', cookie: fixtures.admin.cookie });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.ok(Array.isArray(body.sign_ins));
+      assert.ok(body.sign_ins.every((row) => row.ip_address !== '203.0.113.20'));
+      assert.ok(body.sign_ins.some((row) => row.ip_address === '203.0.113.10' && row.method === 'Google'));
+
+      const res2 = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/me/sign-ins',
+        cookie: fixtures.production_manager.cookie,
+      });
+      const body2 = await res2.json();
+      assert.ok(body2.sign_ins.every((row) => row.ip_address !== '203.0.113.10'));
+      assert.ok(body2.sign_ins.some((row) => row.ip_address === '203.0.113.20' && row.method === 'Emergency'));
+    });
+
+    await t.test('X-Session-Expires-In / X-Session-Max-Reached response headers', async () => {
+      const res = await request(baseUrl, { method: 'GET', path: '/api/me', cookie: fixtures.admin.cookie });
+      const expiresIn = res.headers.get('x-session-expires-in');
+      assert.ok(expiresIn !== null, 'X-Session-Expires-In header should be set');
+      assert.ok(Number.isInteger(Number(expiresIn)) && Number(expiresIn) > 0);
+      assert.strictEqual(res.headers.get('x-session-max-reached'), 'false');
+    });
+
+    await t.test('unmatched /api route returns a JSON 404', async () => {
+      const res = await request(baseUrl, { method: 'GET', path: '/api/this-route-does-not-exist' });
+      assert.strictEqual(res.status, 404);
+      const body = await res.json();
+      assert.ok(body.error);
+    });
 
     await t.test('POST /api/auth/logout', async (t2) => {
       await t2.test('no cookie -> 401', async () => {

@@ -246,3 +246,43 @@ a higher pass count than Part H, 0 failures. `npm run build` and
 | I11 | Change a job title while **not** within the 10-minute step-up window (age the session like H18) | Still succeeds (200) — job title changes are not gated by `requireRecentAuth`, unlike role changes |
 | I12 | `python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager --job-title "Field Supervisor"` | Creates the user with that job title; omitting `--job-title` leaves it `NULL`; a title over 100 characters exits with a clear error before touching the database |
 | I13 | `grep -rn "Production Manager\|Commercial Officer" frontend/src` | No matches — every role label the frontend shows comes from the API (`role_label`) or, failing that, a generic prettified version of the role code, never a hard-coded English label |
+
+## Part J - Common website elements (Module 1, Part 4c)
+
+Page titles/favicon, skip links, a 404 page, a user menu, `GET /api/me/sign-ins`,
+`GET /api/about`, the session-expiry warning, and the My account/Help/Privacy/About
+pages. Automated: `backend/test/permissions.matrix.test.js` adds `GET /api/roles`*,
+`GET /api/me/sign-ins` and `GET /api/about` to its route table, plus dedicated checks
+for own-rows-only, the `X-Session-Expires-In`/`X-Session-Max-Reached` headers, and
+the `/api` JSON 404. `frontend/src/{NotFound,AppLayout,TopBar,SessionExpiryWarning}.test.js`
+cover the 404 route, the skip link, `document.title`, the user menu (open/Escape),
+and the expiry dialog (fake timers). `npm test` in `backend/` and
+`npm test -- --watchAll=false` + `npm run build` in `frontend/` must all pass.
+
+*`GET /api/roles` was added in a separate, earlier change on this branch; listed
+here only because it's covered by the same test run.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| J1 | Load `/dashboard`, `/login`, `/emergency-login`, and an unknown URL | `document.title` is `"<Page> · Water Demand Forecasting"` for each (e.g. "Demand Forecast", "Sign in", "Emergency sign-in", "Page not found") | Automated: `AppLayout.test.js` and `NotFound.test.js` assert the exact title string | Pass | `npm test -- --watchAll=false` in `frontend/`: `AppLayout.test.js`, `NotFound.test.js` green |
+| J2 | Open the site; inspect the browser tab icon and `view-source:` the `<head>` | A water-drop favicon (`favicon.svg`); no `favicon.ico`/`logo192.png`/`logo512.png` references; `manifest.json` names the app and points only at `favicon.svg` | pending manual test | — | — |
+| J3 | On `/login`, `/emergency-login`, and any signed-in page, press Tab once from a fresh page load | First stop is a visually-hidden "Skip to main content" link; activating it moves focus to the page's `<main>` | Automated: `AppLayout.test.js` asserts the skip link is present, targets `#main-content`, and that element is a `<main>` | Pass | `npm test -- --watchAll=false` in `frontend/`: `AppLayout.test.js` green |
+| J4 | Visit an unknown URL while signed in, then again while signed out | Signed in: 404 card inside the normal shell with "Go to a page you can access"; signed out: a plain card with "Go to sign in"; neither case redirects away silently | Automated (signed-out case): `NotFound.test.js` | Pass | `npm test -- --watchAll=false` in `frontend/`: `NotFound.test.js` green; signed-in case pending manual test |
+| J5 | `curl http://localhost:5000/api/this-route-does-not-exist` | JSON `{ "error": "Not found." }` with status 404, not Express's default HTML 404 | Automated: matrix test "unmatched /api route returns a JSON 404" | Pass | `npm test` in `backend/`: subtest 20 (`unmatched /api route returns a JSON 404`) ok |
+| J6 | Click the avatar/name button in the top bar; press Escape; click outside | Opens a menu with name/email/role/job title then My account, Help, Privacy, About, Sign out; Escape closes it and returns focus to the button; a click outside also closes it | Automated (click-open and Escape): `TopBar.test.js` | Pass | `npm test -- --watchAll=false` in `frontend/`: `TopBar.test.js` green; click-outside pending manual test |
+| J7 | `GET /api/me/sign-ins` for two different signed-in users who each have sign-in history | Each only ever sees their own rows (time, method, IP), newest first, max 10; 401 signed out | Automated: matrix test "GET /api/me/sign-ins returns only the caller's own rows" | Pass | `npm test` in `backend/`: subtest 18 ok |
+| J8 | `GET /api/about` signed in, with and without a published forecast | 200 with `version` (from `backend/package.json`), `data` (first/last consumption month) and `latest_forecast` (id, published date, model, horizon, training range) when published, `null` fields when not; 401 signed out | Automated (200/401 via the route table; 200 shape over real seeded data): matrix `GET /api/about` subtest | Pass | `npm test` in `backend/`: subtest 17 ok (route table), subtest 11 (`permission matrix`) ok overall |
+| J9 | Any authenticated request's response headers | `X-Session-Expires-In` (whole seconds, > 0) and `X-Session-Max-Reached` (`"false"` for a fresh session) always present | Automated: matrix test "X-Session-Expires-In / X-Session-Max-Reached response headers" | Pass | `npm test` in `backend/`: subtest 19 ok |
+| J10 | Let a session sit idle until under 2 minutes remain | An `alertdialog` appears with a live mm:ss countdown, "Stay signed in" (extends the session without losing page state) and "Sign out" | Automated (dialog content/countdown/Stay signed in, via simulated header state, not real elapsed time): `SessionExpiryWarning.test.js` | Pass | `npm test -- --watchAll=false` in `frontend/`: `SessionExpiryWarning.test.js` green; real elapsed-time run pending manual test |
+| J11 | Let a session approach the 8-hour absolute cap | Dialog instead says sessions end after 8 hours with the sign-in-again time, and only an OK button | Automated (via simulated `X-Session-Max-Reached: true`): `SessionExpiryWarning.test.js` | Pass | `npm test -- --watchAll=false` in `frontend/`: `SessionExpiryWarning.test.js` green |
+| J12 | Open "My account" from the user menu | Name, email, role, job title (if set), session end time, and a sign-in history table (or an empty state) | pending manual test | — | — |
+| J13 | Open "Help" as each role | Only the sections that role's permissions allow (Forecast/Production Planning/Users) are shown, plus sign-in/expiry info and the administrator-contact line | pending manual test | — | — |
+| J14 | Open "Privacy" signed in (user menu) and signed out (link on `/login`) | Same content either way: what's stored, why, cookies, third parties, forecast data, audit log, retention — no fabricated facts, no legal claims | pending manual test | — | — |
+| J15 | Open "About" (user menu, or the sidebar's "Version 1.0" link) | Loading state, then version/data source/range/latest forecast from `GET /api/about`; an error state if the request fails | pending manual test | — | — |
+| J16 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass, including the pre-existing `frontend/src/App.test.js` (previously blocked by a Jest/react-router-dom module-resolution error — see README's Known Limitations) | Ran all three: backend 170/170 pass (0 fail, 0 skipped — `TEST_DATABASE_URL` was configured); frontend 13/13 pass across 5 suites; `npm run build` compiled successfully | Pass | Fixed via `frontend/package.json`'s new `jest.moduleNameMapper` (maps `react-router/dom` to its real file, which Jest 27's resolver can't reach through react-router's `exports` map) plus a `TextEncoder`/`TextDecoder` polyfill in `setupTests.js` |
+
+**Note:** J2, J4 (signed-in case), J6 (click-outside), J12, J13, J14, J15 need a
+running backend + frontend with a real signed-in session (Google sign-in) to
+verify visually — not run in this session per the task's instructions (no
+servers were started, no `.env` touched). Everything else above was actually
+executed as part of this change.
