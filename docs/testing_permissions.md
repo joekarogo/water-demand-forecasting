@@ -54,7 +54,7 @@ With `TEST_DATABASE_URL` set, the same `npm test` run additionally:
    public;`), so every run starts from a clean slate regardless of what
    a previous run left behind.
 2. Applies `database/schema/000_existing_schema.sql` through
-   `007_role_names_job_title.sql`, in order, to the now-empty database.
+   `008_tariff_wastewater.sql`, in order, to the now-empty database.
 3. Creates one active user per role (`admin`, `production_manager`,
    `commercial_officer`), one deactivated user, and a handful of
    dedicated throwaway users for the role-change/deactivate/reactivate
@@ -93,6 +93,7 @@ POST/PATCH route — the allowed role's request again with the
 | `POST /api/production/plan` | `plan:create` | 403 | 200 | 403 |
 | `GET /api/production/stock` | `plan:view` | 403 | 200 | 403 |
 | `GET /api/distribution` | `distribution:view` | 403 | 200 | 403 |
+| `GET /api/revenue` | `revenue:view` | 403 | 403 | 200 |
 | `POST /api/production/stock` | `stock:create` | 403 | 200 | 403 |
 | `GET /api/roles` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/users` | `user:manage` | 200 | 403 | 403 |

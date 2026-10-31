@@ -61,6 +61,19 @@ function Help() {
         </section>
       )}
 
+      {permissions.includes('revenue:view') && (
+        <section className="card" aria-labelledby="helpRevenueTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpRevenueTitle" style={{ marginBottom: 10 }}>
+            Revenue estimate
+          </h2>
+          <p style={{ margin: 0 }}>
+            These figures are a lower bound: pricing the average customer under rising price steps undercounts what
+            heavier users actually pay. They use the latest published tariff (1 July 2024) and exclude taxes, so
+            real income will differ, especially after any later price change.
+          </p>
+        </section>
+      )}
+
       {permissions.includes('data:view') && (
         <section className="card" aria-labelledby="helpHistoricalTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpHistoricalTitle" style={{ marginBottom: 10 }}>

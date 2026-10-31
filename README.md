@@ -107,6 +107,17 @@ pages, there's:
   (shares summing to 100%, allocations summing to the active plan, the
   share-change and seasonal-swing figures) runs on the server
   (`backend/distribution.js`), not in the browser.
+- **Revenue estimate** (Commercial Analysts only, `revenue:view`) - how
+  much money water sales are expected to bring in, from `GET /api/revenue`.
+  Each (district, subscriber-type) cell's share of the published city
+  forecast is priced through the latest tariff's bands (water and
+  wastewater separately, 1 Jul 2024 prices, excluding taxes), assuming one
+  average subscriber per cell at its Aug 2024 subscriber count. A cell with
+  no tariff mapping, an ambiguous tariff, or no subscriber count is
+  reported as "not priced" rather than guessed at. All of this
+  (`backend/revenue.js`) runs on the server; the estimate is a lower bound,
+  since pricing the average customer under rising price steps undercounts
+  what heavier users actually pay.
 
 The app also has a user menu (top bar) linking to:
 
@@ -188,19 +199,21 @@ Run these in order:
 5. `psql`/pgAdmin: `database/schema/004_accounts.sql` — accounts: nullable password, Google sign-in columns, the `data:view` permission, and `login_attempts` (the emergency-login lockout rule).
 6. `psql`/pgAdmin: `database/schema/005_sessions.sql` — adds the `sessions` table Google/emergency sign-in use.
 7. `psql`/pgAdmin: `database/schema/006_remove_password_login.sql` — deactivates any remaining password-based accounts and drops `users.role` now that nothing reads it.
-8. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
-9. `python database/load_izsu.py` — 128 monthly totals.
-10. `python database/load_detail.py` — 86,749 detail rows.
-11. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates.
-12. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
-13. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
-14. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
-15. `python database/create_emergency_admin.py` — creates (or rotates the password of) the one password-based fallback admin, from `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD` in `.env`.
-16. `python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager` — invites everyone else; they sign in with Google the first time, using the email you invited.
+8. `psql`/pgAdmin: `database/schema/007_role_names_job_title.sql` — friendlier role display names and a per-user job title.
+9. `psql`/pgAdmin: `database/schema/008_tariff_wastewater.sql` — adds `tariffs.wastewater_price_per_m3` (Module 5, Revenue Estimate).
+10. `python database/preprocess_izsu.py` — raw file -> monthly totals + district/customer detail.
+11. `python database/load_izsu.py` — 128 monthly totals.
+12. `python database/load_detail.py` — 86,749 detail rows.
+13. `python database/load_tariffs.py` — 1,582 water tariff rows, 39 price dates, each with both a water and a wastewater price per m3 (run again after step 9 if you loaded tariffs before that migration existed).
+14. `python database/load_water_balance.py` — 2019 water balance, 20 districts.
+15. `python database/build_tariff_map.py` — builds `tariff_type_map.csv` from the proposal.
+16. `python database/load_tariff_map.py` — 90 mappings; 94.66% of consumption priced.
+17. `python database/create_emergency_admin.py` — creates (or rotates the password of) the one password-based fallback admin, from `EMERGENCY_ADMIN_EMAIL`/`EMERGENCY_ADMIN_PASSWORD` in `.env`.
+18. `python database/invite_user.py --name "Jane Doe" --email jane@example.com --role production_manager` — invites everyone else; they sign in with Google the first time, using the email you invited.
 
 `database/propose_tariff_map.py` is not part of this sequence — it's only
 needed if you want to regenerate `tariff_type_map_proposal.csv` (the input
-to step 13) from scratch, e.g. after the detail data changes.
+to step 15) from scratch, e.g. after the detail data changes.
 
 ### 4. Train the forecasting model
 Train and save the model, then publish the forecast the website reads —

@@ -6,6 +6,7 @@ import Dashboard from './Dashboard';
 import DataOverview from './DataOverview';
 import ProductionPlanning from './ProductionPlanning';
 import DemandByDistrict from './DemandByDistrict';
+import RevenueEstimate from './RevenueEstimate';
 import Users from './Users';
 import MyAccount from './MyAccount';
 import Help from './Help';
@@ -26,6 +27,7 @@ function App() {
           <Route path="/data-overview" element={<DataOverview />} />
           <Route path="/production-planning" element={<ProductionPlanning />} />
           <Route path="/demand-by-district" element={<DemandByDistrict />} />
+          <Route path="/revenue" element={<RevenueEstimate />} />
           <Route path="/users" element={<Users />} />
           <Route path="/account" element={<MyAccount />} />
           <Route path="/help" element={<Help />} />

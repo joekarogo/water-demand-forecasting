@@ -1,4 +1,4 @@
-import { ForecastNavIcon, HistoryNavIcon, ProductionNavIcon, DistrictNavIcon, UsersNavIcon } from './icons';
+import { ForecastNavIcon, HistoryNavIcon, ProductionNavIcon, DistrictNavIcon, RevenueNavIcon, UsersNavIcon } from './icons';
 
 // One line per page: { label, path, icon, permission }. The sidebar shows
 // only items whose permission the signed-in user has — see
@@ -9,6 +9,7 @@ export const MENU_ITEMS = [
   { label: 'Forecast', path: '/dashboard', icon: ForecastNavIcon, permission: 'forecast:view' },
   { label: 'Production Planning', path: '/production-planning', icon: ProductionNavIcon, permission: 'plan:view' },
   { label: 'Demand by district', path: '/demand-by-district', icon: DistrictNavIcon, permission: 'distribution:view' },
+  { label: 'Revenue estimate', path: '/revenue', icon: RevenueNavIcon, permission: 'revenue:view' },
   { label: 'Historical Analysis', path: '/data-overview', icon: HistoryNavIcon, permission: 'data:view' },
   { label: 'Users', path: '/users', icon: UsersNavIcon, permission: 'user:manage' },
 ];

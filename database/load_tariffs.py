@@ -70,6 +70,11 @@ for _, row in su.iterrows():
         'band_min_m3': band_min,
         'band_max_m3': band_max,
         'price_per_m3': float(row['SU_FIYATI']),
+        # The same SU (water) rows carry the matching wastewater price for
+        # this subscriber_type/band/date in ATIKSU_FIYATI — no separate
+        # ATIK SU rows need loading. 0 stays 0 (e.g. "ATIKSU BEDELSİZ"
+        # subscriber types, which are wastewater-exempt).
+        'wastewater_price_per_m3': float(row['ATIKSU_FIYATI']),
         'currency': 'TRY',
         'valid_from': valid_from,
         'source': 'IZSU su-atiksu-tarifeleri.csv',
@@ -90,10 +95,11 @@ print(f"First: {valid_from_dates[0]}, Last: {valid_from_dates[-1]}")
 
 # Duplicates: same subscriber_type + band + valid_from. All water rows are
 # loaded exactly as published — ambiguous groups (same key, different
-# prices) are NOT resolved here. Instead, the revenue-calculation logic
-# detects them at query time and reports "unavailable: ambiguous tariff in
-# source data" for the affected subscriber_type/band/date rather than
-# guessing which price applies.
+# water OR wastewater prices) are NOT resolved here. Instead, the
+# revenue-calculation logic (backend/revenue.js) detects them at query
+# time and reports "unavailable: ambiguous tariff in source data" for the
+# affected subscriber_type/band/date rather than guessing which price
+# applies.
 dup_key = ['subscriber_type', 'band_min_m3', 'band_max_m3', 'valid_from']
 ambiguous_groups = []
 # dropna=False: band_max_m3 is NaN for every "üstü" (no-upper-limit) band —
@@ -102,20 +108,23 @@ ambiguous_groups = []
 for key, group in parsed.groupby(dup_key, dropna=False):
     if len(group) <= 1:
         continue
-    prices = sorted(group['price_per_m3'].unique())
-    if len(prices) > 1:
-        ambiguous_groups.append((key, len(group), list(group['price_per_m3'])))
+    water_prices = sorted(group['price_per_m3'].unique())
+    wastewater_prices = sorted(group['wastewater_price_per_m3'].unique())
+    if len(water_prices) > 1 or len(wastewater_prices) > 1:
+        ambiguous_groups.append(
+            (key, len(group), list(group['price_per_m3']), list(group['wastewater_price_per_m3']))
+        )
 
-print(f"\nAmbiguous groups (same type + band + valid_from, different prices): {len(ambiguous_groups)}")
-ambiguous_dates = sorted({key[3] for key, _, _ in ambiguous_groups})
+print(f"\nAmbiguous groups (same type + band + valid_from, different water or wastewater prices): {len(ambiguous_groups)}")
+ambiguous_dates = sorted({key[3] for key, _, _, _ in ambiguous_groups})
 print(f"Dates these fall on ({len(ambiguous_dates)}): {', '.join(str(d) for d in ambiguous_dates)}")
 
 latest_date = valid_from_dates[-1]
 on_latest = [g for g in ambiguous_groups if g[0][3] == latest_date]
 print(f"\nAmbiguous groups on the latest date ({latest_date}) — in full:")
 if on_latest:
-    for key, n, prices in on_latest:
-        print(f"  {key}: {n} rows, prices {prices}")
+    for key, n, water_prices, wastewater_prices in on_latest:
+        print(f"  {key}: {n} rows, water prices {water_prices}, wastewater prices {wastewater_prices}")
 else:
     print("  None.")
 
@@ -132,7 +141,10 @@ ustu_row_count = int(parsed['band_max_m3'].isna().sum())
 cursor = conn.cursor()
 try:
     cursor.execute("DELETE FROM tariffs")
-    insert_cols = ['subscriber_type', 'band_min_m3', 'band_max_m3', 'price_per_m3', 'currency', 'valid_from', 'source']
+    insert_cols = [
+        'subscriber_type', 'band_min_m3', 'band_max_m3', 'price_per_m3',
+        'wastewater_price_per_m3', 'currency', 'valid_from', 'source',
+    ]
     # Convert NaN -> None before inserting, so psycopg2 sends SQL NULL
     # rather than the numeric NaN value (which Postgres would otherwise
     # happily store in a NUMERIC column) — this matters especially for
@@ -141,7 +153,8 @@ try:
     records = records_df.values.tolist()
     execute_values(cursor, """
         INSERT INTO tariffs
-            (subscriber_type, band_min_m3, band_max_m3, price_per_m3, currency, valid_from, source)
+            (subscriber_type, band_min_m3, band_max_m3, price_per_m3,
+             wastewater_price_per_m3, currency, valid_from, source)
         VALUES %s
     """, records)
     conn.commit()
@@ -163,6 +176,15 @@ print(f"\nRows with band_max_m3 IS NULL: {null_count} "
 cursor.execute("SELECT COUNT(*) FROM tariffs WHERE band_max_m3 = 'NaN'::numeric")
 nan_count = cursor.fetchone()[0]
 print(f"Rows where band_max_m3 = 'NaN'::numeric: {nan_count} (must be 0)")
+
+cursor.execute("SELECT COUNT(*) FROM tariffs WHERE wastewater_price_per_m3 IS NOT NULL")
+wastewater_count = cursor.fetchone()[0]
+
+print("\n--- Summary ---")
+print(f"Rows loaded: {len(parsed)}")
+print(f"Distinct valid_from dates: {len(valid_from_dates)}")
+print(f"Rows with a wastewater price loaded: {wastewater_count}")
+print(f"Ambiguous groups (water or wastewater): {len(ambiguous_groups)} ({len(on_latest)} on the latest date)")
 
 cursor.close()
 conn.close()

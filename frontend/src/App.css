@@ -856,10 +856,13 @@ svg {
      tooltip's 230px-wide box is removed from layout entirely and can't
      push the page wider than the viewport (it still has position:absolute,
      but a `display:none` box is never measured for an ancestor's
-     scrollable overflow). */
+     scrollable overflow). Opens BELOW the icon, not above: an info icon
+     sitting near the top of the page (as on the Demand by district and
+     Revenue estimate pages) would otherwise open upward into, or above,
+     the top bar and get clipped by the viewport. */
   display: none;
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   width: 230px;
@@ -877,11 +880,11 @@ svg {
 .tip::after {
   content: '';
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: #0f2537;
+  border-bottom-color: #0f2537;
 }
 .info:hover .tip,
 .info-btn:focus-visible + .tip,
