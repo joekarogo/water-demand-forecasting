@@ -1,0 +1,9 @@
+{
+  "changepoint_prior_scale": 0.01,
+  "seasonality_prior_scale": 1,
+  "seasonality_mode": "multiplicative",
+  "mean_rmse": 1628646.0354606463,
+  "mean_mae": 1280672.8373826426,
+  "mean_mape": 6.813622147483957,
+  "cv_folds": 12
+}

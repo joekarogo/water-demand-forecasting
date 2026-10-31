@@ -1,0 +1,218 @@
+[
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1628646.0354606463,
+    "mean_mae": 1280672.8373826426,
+    "mean_mape": 6.813622147483957,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1632165.9124395049,
+    "mean_mae": 1248127.0472211381,
+    "mean_mape": 6.6446998549962615,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1637962.6755350796,
+    "mean_mae": 1199098.7557965124,
+    "mean_mape": 6.289247580607009,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1655922.6514142342,
+    "mean_mae": 1345594.9060005299,
+    "mean_mape": 7.295540883845765,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1678165.15475461,
+    "mean_mae": 1270590.9574190548,
+    "mean_mape": 6.761780311803111,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1705378.4248260744,
+    "mean_mae": 1279217.038957135,
+    "mean_mape": 6.811896303652502,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1708399.57647182,
+    "mean_mae": 1377081.3266271485,
+    "mean_mape": 7.464214773846778,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1718944.1106319588,
+    "mean_mae": 1381556.207931817,
+    "mean_mape": 7.490468564996626,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1730766.5020278788,
+    "mean_mae": 1274862.778777213,
+    "mean_mape": 6.731671891948163,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1765305.4222166408,
+    "mean_mae": 1278310.0875373506,
+    "mean_mape": 6.740326750227505,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1771674.817498341,
+    "mean_mae": 1295899.9049842705,
+    "mean_mape": 6.843225408478321,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1774634.6028508986,
+    "mean_mae": 1353943.387132357,
+    "mean_mape": 7.203925873956668,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.01,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1784588.346197831,
+    "mean_mae": 1359999.4661536356,
+    "mean_mape": 7.238773428298123,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "additive",
+    "mean_rmse": 1916801.2392694254,
+    "mean_mae": 1395668.5793210557,
+    "mean_mape": 7.389755385331259,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1920114.9045655234,
+    "mean_mae": 1306022.0990426245,
+    "mean_mape": 6.824799157069214,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1954925.3321700874,
+    "mean_mae": 1336026.1238737328,
+    "mean_mape": 7.000368633471619,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.05,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1957014.3166021085,
+    "mean_mae": 1338870.975580739,
+    "mean_mape": 7.013471053839079,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 1999939.9033888523,
+    "mean_mae": 1345048.7206596306,
+    "mean_mape": 7.033901015853498,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.1,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 2015079.258619705,
+    "mean_mae": 1345485.3702690376,
+    "mean_mape": 7.0353722113444634,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 1,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 2044705.7166472885,
+    "mean_mae": 1408425.0934369992,
+    "mean_mape": 7.376991995190639,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "additive",
+    "mean_rmse": 2243304.8872736287,
+    "mean_mae": 1568448.2193272826,
+    "mean_mape": 8.279640296456288,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "additive",
+    "mean_rmse": 2371725.304796554,
+    "mean_mae": 1601728.3823515812,
+    "mean_mape": 8.515497546889044,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 10,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 2548300.4130580113,
+    "mean_mae": 1598912.4344638071,
+    "mean_mape": 8.381701403222925,
+    "cv_folds": 12
+  },
+  {
+    "changepoint_prior_scale": 0.5,
+    "seasonality_prior_scale": 5,
+    "seasonality_mode": "multiplicative",
+    "mean_rmse": 2717134.5437025637,
+    "mean_mae": 1659430.0203905709,
+    "mean_mape": 8.710980033743983,
+    "cv_folds": 12
+  }
+]

@@ -1,65 +1,122 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { apiFetch } from './apiClient';
+import { useSession } from './session';
+import { getFirstPermittedPath } from './layout/menuConfig';
+import { AlertCircleIcon, ClockIcon, CheckCircleIcon } from './layout/icons';
+import AuthLayout from './AuthLayout';
+import { useDocumentTitle } from './useDocumentTitle';
+import './App.css';
+
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const SIGNED_OUT_MESSAGE = "You've signed out.";
 
 function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { refreshSession } = useSession();
+  const googleButtonRef = useRef(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  const [googleError, setGoogleError] = useState('');
+  const [navMessage, setNavMessage] = useState(location.state?.message || '');
+  const [signingIn, setSigningIn] = useState(false);
 
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+  useDocumentTitle('Sign in');
 
-      const data = await response.json();
+  // Google Identity Services renders its own button into googleButtonRef
+  // once the gsi/client script (loaded in public/index.html) is ready; we
+  // poll for it rather than assume it has finished loading by the time we
+  // mount. That button stays mounted the whole time — while a sign-in is
+  // pending we only hide it with CSS and show the busy indicator next to
+  // it, so there's nothing to re-render into it afterwards.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    let cancelled = false;
 
-      if (!response.ok) {
-        setError(data.error || 'Login failed');
-        return;
+    const handleCredential = async (response) => {
+      setGoogleError('');
+      setNavMessage('');
+      setSigningIn(true);
+      try {
+        const res = await apiFetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: response.credential }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setGoogleError(data.error || "This Google account isn't authorised for this system. Contact your administrator.");
+          return;
+        }
+        const me = await refreshSession();
+        navigate(getFirstPermittedPath(me?.permissions || []), { replace: true });
+      } catch (err) {
+        setGoogleError("We couldn't reach the server. Check your connection and try again.");
+      } finally {
+        setSigningIn(false);
       }
+    };
 
-      localStorage.setItem('token', data.token);
-      window.location.href = '/dashboard';
-    } catch (err) {
-      setError('Unable to reach the server. Please try again.');
-    }
-  };
+    const tryInit = () => {
+      if (cancelled) return;
+      if (window.google?.accounts?.id && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredential,
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 300,
+        });
+      } else {
+        setTimeout(tryInit, 100);
+      }
+    };
+    tryInit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, refreshSession]);
 
   return (
-    <div className="login-container">
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+    <AuthLayout title="Sign in" subtitle="Use your registered Google account.">
+      <div className="msg-slot" role="alert">
+        {(googleError || !GOOGLE_CLIENT_ID) && (
+          <div className="msg red">
+            <AlertCircleIcon />
+            <span>{googleError || "Google sign-in isn't configured (missing REACT_APP_GOOGLE_CLIENT_ID)."}</span>
+          </div>
+        )}
+      </div>
+      <div className="msg-slot" role="status">
+        {navMessage && (
+          <div className={`msg ${navMessage === SIGNED_OUT_MESSAGE ? 'green' : 'amber'}`}>
+            {navMessage === SIGNED_OUT_MESSAGE ? <CheckCircleIcon /> : <ClockIcon />}
+            <span>{navMessage}</span>
+          </div>
+        )}
+        {signingIn && <span className="sr-only">Signing you in…</span>}
+      </div>
+
+      {GOOGLE_CLIENT_ID && (
+        <div className="gsi-wrap">
+          <div ref={googleButtonRef} style={signingIn ? { display: 'none' } : undefined} />
+          {signingIn && (
+            <div className="gsi-busy">
+              <span className="spinner" aria-hidden="true" />
+              <span>Signing you in…</span>
+            </div>
+          )}
         </div>
-        <div>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        {error && <p className="login-error">{error}</p>}
-        <button type="submit">Log In</button>
-      </form>
-    </div>
+      )}
+
+      <p className="help">No access? Contact your system administrator.</p>
+      <p className="auth-note">
+        Sign-ins and actions are recorded. <Link to="/privacy">Privacy notice</Link>
+      </p>
+    </AuthLayout>
   );
 }
 
