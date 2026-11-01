@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../session';
-import { getFirstPermittedPath } from './menuConfig';
+import { getFirstPermittedPath, hasMenuAccess } from './menuConfig';
 import { useDocumentTitle } from '../useDocumentTitle';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -13,9 +13,11 @@ import '../App.css';
 // Also the route guard for every page that uses it: signed-out users
 // (session === null, once the initial GET /api/me has resolved) are sent
 // to /login instead of ever seeing the shell or its children. A page that
-// passes `requiredPermission` and whose signed-in user lacks it sees an
-// "access denied" view inside the normal shell instead of its children —
-// it never gets redirected away.
+// passes `requiredPermission` (a single permission code, or an array of
+// codes when more than one grants access on its own — e.g. Activity log's
+// audit:view_all OR audit:view_own) and whose signed-in user lacks all of
+// them sees an "access denied" view inside the normal shell instead of
+// its children — it never gets redirected away.
 function AppLayout({ title, subtitle, extraLines, requiredPermission, children }) {
   const { session, loading } = useSession();
   const navigate = useNavigate();
@@ -55,7 +57,7 @@ function AppLayout({ title, subtitle, extraLines, requiredPermission, children }
     return null;
   }
 
-  const hasAccess = !requiredPermission || (session.permissions || []).includes(requiredPermission);
+  const hasAccess = hasMenuAccess(requiredPermission, session.permissions);
 
   return (
     <div className="shell">

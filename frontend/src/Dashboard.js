@@ -37,6 +37,7 @@ import {
   fmtPercentChange,
 } from './utils/format';
 import { useViewportWidth } from './utils/useViewportWidth';
+import { downloadTextFile } from './utils/download';
 import './App.css';
 
 const SHOW_NEXT_OPTIONS = [3, 6, 12];
@@ -135,15 +136,7 @@ function exportCsv(rows, showNext) {
       ].join(',')
     )
   );
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `izmir-demand-forecast-${showNext}m.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadTextFile(`izmir-demand-forecast-${showNext}m.csv`, lines.join('\n'));
 }
 
 function Dashboard() {

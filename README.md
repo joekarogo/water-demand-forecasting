@@ -157,6 +157,19 @@ pages, there's:
   instead of guessing. Only two-sided 80% coverage is stored in these
   files; there's no separate one-sided upper/lower coverage figure to
   show.
+- **Activity log** (`/activity-log`, for anyone with `audit:view_all` or
+  `audit:view_own`) - the audit trail: every sign-in, failed sign-in,
+  emergency sign-in, user-management change, saved production plan,
+  stock entry and permission denial, newest first, from
+  `GET /api/activity-log`. `audit:view_all` (Admin) sees every event,
+  including who the IP address belongs to; `audit:view_own` (everyone
+  else) only ever sees their own rows — enforced in the SQL `WHERE`
+  clause itself, not by hiding anything client-side — and never sees
+  `ip_address` at all. Filterable by date, category, free-text search
+  and (Admin only) a specific user; `GET /api/activity-log/export`
+  exports the same filtered rows as CSV (capped at 5,000 rows) and is
+  itself an audited action. Overview's failed-sign-in and
+  emergency-sign-in alerts link here, pre-filtered.
 
 The app also has a user menu (top bar) linking to:
 

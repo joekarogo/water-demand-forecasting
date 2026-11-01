@@ -1,12 +1,12 @@
 import { Link, NavLink } from 'react-router-dom';
 import { useSession } from '../session';
-import { MENU_ITEMS } from './menuConfig';
+import { MENU_ITEMS, hasMenuAccess } from './menuConfig';
 import { BrandIcon } from './icons';
 
 function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
   const { session } = useSession();
   const permissions = session?.permissions || [];
-  const visibleItems = MENU_ITEMS.filter((item) => item.permission == null || permissions.includes(item.permission));
+  const visibleItems = MENU_ITEMS.filter((item) => hasMenuAccess(item.permission, permissions));
 
   return (
     <nav className={`sidebar${open ? ' open' : ''}`} id="sidebar" aria-label="Main navigation">

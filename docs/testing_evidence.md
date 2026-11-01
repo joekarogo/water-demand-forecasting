@@ -502,3 +502,58 @@ real discrepancy between what the app already says elsewhere and what
 the stored evaluation files actually show; it predates this task and
 touches pages outside it, so it was not changed here, but it's flagged
 for follow-up.
+
+## Part P — Activity log (Module 7)
+
+"Activity log" (`/activity-log`, `GET /api/activity-log` and
+`GET /api/activity-log/export`, for anyone holding `audit:view_all` or
+`audit:view_own`) is the audit trail viewer. `audit:view_all` (Admin)
+sees every event, including `ip_address`; `audit:view_own` (everyone
+else) only ever sees rows where `user_id` is their own — enforced in
+the SQL `WHERE` clause itself, never by hiding anything client-side —
+and `ip_address` is omitted from the response entirely for them, not
+just hidden in the UI. The plain-language action labels and the
+category -> action mapping live in one shared module
+(`backend/auditLog.js`), used by both this route and Overview's
+"Recent activity" list, so there's only ever one copy. Automated:
+`backend/test/auditLog.test.js` (category mapping, filter validation,
+details summarisation, CSV escaping), `backend/test/permissions.matrix.test.js`
+(route table entries plus a dedicated scope-isolation test), and
+`frontend/src/ActivityLog.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| P1 | Every category in `CATEGORY_ACTIONS` | Each maps to at least one real, known action name; no action belongs to more than one category | Automated: `auditLog.test.js` "every category maps to a non-empty set" / "no action belongs to more than one category" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P2 | `validateActivityLogFilters` with a malformed date, an impossible calendar date (Feb 30), `to` before `from`, an unknown category, `page_size` above the max, a non-integer `page` | Each is a clear field-level error, not a crash or a silent pass-through | Automated: `auditLog.test.js`, 6 dedicated cases | Pass | `npm test` in `backend/`: 321/321 pass |
+| P3 | `validateActivityLogFilters` with `user_id` set and `canFilterByUser: false` | `user_id` is silently ignored (valid, no error, not applied) rather than rejected — an `audit:view_own`-only caller can only ever see their own rows regardless | Automated: `auditLog.test.js` "user_id is silently ignored... for a view_own-only caller" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P4 | `GET /api/activity-log` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 (every active role holds `audit:view_all` or `audit:view_own`) | Automated: matrix test route table entries | Pass | `npm test` in `backend/`: 321/321 pass |
+| P5 | `GET /api/activity-log` as Admin (`audit:view_all`), against seeded rows for three different users plus one row with no matching user at all | All rows visible, including the no-user row shown as "Unknown user (ghost@test.local)"; `ip_address` present on every row | Automated: matrix test "audit:view_all sees everything..." | Pass | `npm test` in `backend/`: 321/321 pass |
+| P6 | `GET /api/activity-log` as Production Planner / Commercial Analyst (`audit:view_own` only), same seeded data | Each sees only their own rows; the response's `total` exactly matches an independent `COUNT(*) WHERE user_id = <their own id>` query against the database; `ip_address` is absent from every row (not just empty); the no-user row never appears | Automated: matrix test, same block | Pass | `npm test` in `backend/`: 321/321 pass |
+| P7 | `GET /api/activity-log?category=emergency` as Admin | Only `emergency.login`/`emergency.login_failed` rows returned | Automated: matrix test "category filter narrows to that category's actions only" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P8 | `GET /api/activity-log?from=not-a-date` | 400 with a field-level error naming `from`, not a crash | Automated: matrix test "an invalid filter is a 400 with a field-level error" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P9 | `GET /api/activity-log/export` as Admin | Returns `text/csv`, correct header row, the filtered rows; writes a new `audit.exported` row recording the filters used | Automated: matrix test "returns CSV and audits the export" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P10 | Load `/activity-log` as an Admin session | The IP address column and subtitle "Everything that happened in the system" appear | Automated: `ActivityLog.test.js` "an Admin (audit:view_all) session sees the IP address column and subtitle" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P11 | Load `/activity-log` as a Production Planner session | No IP address column; subtitle "Your own activity" | Automated: `ActivityLog.test.js` "a Production Planner (audit:view_own) session never sees an IP address column" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P12 | Change the category filter on the page | A new request fires with the chosen category in the query string; the URL updates to match | Automated: `ActivityLog.test.js` "changing the category filter re-fetches with the new category in the query string" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P13 | A response with zero matching rows | A calm "No activity matches these filters." message, not an error banner | Automated: `ActivityLog.test.js` "no matching rows shows a calm empty state, not an error" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P14 | Navigate to `/activity-log?category=failed_sign_in&days=7` directly | The page opens with the category filter already set to "Failed sign-in" and the date range already set to the last 7 days | pending manual test | — | — |
+| P15 | Open Overview as Admin with ≥1 failed sign-in in the last 7 days / a recent emergency sign-in | Each alert's "Open Activity log" link lands on `/activity-log` pre-filtered as above | pending manual test | — | — |
+| P16 | Open "My account" | A "See all your activity" link to `/activity-log` appears for every signed-in user | pending manual test | — | — |
+| P17 | Click "Export CSV" with a real signed-in session | A CSV file downloads with the expected columns and rows | pending manual test | — | — |
+| P18 | View the page at 375px wide | No horizontal page scroll; the table scrolls within its own card if needed | pending manual test | — | — |
+| P19 | Open "Help" as any role | An "Activity log" section appears, worded differently for `audit:view_all` vs `audit:view_own` | pending manual test | — | — |
+| P20 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 321/321 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 65/65 pass across 14 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** P14-P19 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no
+servers were started, no `.env` touched, no migration or SQL run
+against any database, and no `ml/` script run). Everything else above
+was actually executed as part of this change.
+
+**Judgment call, not in the original brief:** the "User" filter
+(Admin/`audit:view_all` only) is populated from `GET /api/users` rather
+than a dedicated endpoint — this works because, in the current role
+design, the one role holding `audit:view_all` (Admin) also always holds
+`user:manage`, but the frontend treats this defensively (the filter is
+simply not offered if that request fails) rather than assuming it will
+always succeed.

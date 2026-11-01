@@ -11,6 +11,7 @@ import RevenueEstimate from './RevenueEstimate';
 import RevenueScenarios from './RevenueScenarios';
 import Users from './Users';
 import ModelEvaluation from './ModelEvaluation';
+import ActivityLog from './ActivityLog';
 import MyAccount from './MyAccount';
 import Help from './Help';
 import Privacy from './Privacy';
@@ -35,6 +36,7 @@ function App() {
           <Route path="/revenue/scenarios" element={<RevenueScenarios />} />
           <Route path="/users" element={<Users />} />
           <Route path="/model-evaluation" element={<ModelEvaluation />} />
+          <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/account" element={<MyAccount />} />
           <Route path="/help" element={<Help />} />
           <Route path="/privacy" element={<Privacy />} />

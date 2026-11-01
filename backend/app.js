@@ -12,6 +12,7 @@ const revenue = require('./revenue');
 const revenueScenarios = require('./revenueScenarios');
 const overview = require('./overview');
 const modelEvaluation = require('./modelEvaluation');
+const auditLog = require('./auditLog');
 const users = require('./users');
 const auth = require('./auth');
 const packageJson = require('./package.json');
@@ -185,6 +186,8 @@ function requireRecentAuth(req, res, next) {
 //   GET  /api/me/sign-ins                authenticateToken
 //   GET  /api/about                      authenticateToken
 //   GET  /api/overview                   authenticateToken (sections shown vary by permission)
+//   GET  /api/activity-log               authenticateToken, requireActivityLogAccess (audit:view_all sees everything, audit:view_own sees only their own rows)
+//   GET  /api/activity-log/export        authenticateToken, requireActivityLogAccess (same scoping; writes an audit.exported row)
 //   POST /api/auth/google                public
 //   POST /api/auth/emergency-login       public (rate-limited by IP)
 //   POST /api/auth/logout                authenticateToken, csrfProtection
@@ -2262,25 +2265,6 @@ app.post(
 // other route in this file already does for itself.
 // ---------------------------------------------------------------------------
 
-// Plain-language label for an audit_log action code, for the "5 most
-// recent events" list — the stored code itself is also returned, so the
-// frontend/CSV always has the raw value too, not just this gloss.
-const AUDIT_ACTION_LABELS = {
-  'login.success': 'Signed in',
-  'login.failure': 'Failed sign-in attempt',
-  'emergency.login': 'Emergency sign-in',
-  'emergency.login_failed': 'Failed emergency sign-in',
-  logout: 'Signed out',
-  'permission.denied': 'Permission denied',
-  'user.invited': 'Invited a user',
-  'user.role_changed': 'Changed a role',
-  'user.deactivated': 'Deactivated a user',
-  'user.reactivated': 'Reactivated a user',
-  'user.job_title_changed': 'Changed a job title',
-  'plan.save': 'Saved a production plan',
-  'stock.record': 'Recorded stock',
-};
-
 // 'YYYY-MM-DD' -> 'November 2026', for alert text only — never used to
 // compute anything, so there's no risk of this disagreeing with the date
 // value itself returned alongside it.
@@ -2584,7 +2568,7 @@ app.get('/api/overview', authenticateToken, async (req, res) => {
           time: row.occurred_at,
           actor_name: row.actor_name,
           action: row.action,
-          label: AUDIT_ACTION_LABELS[row.action] || row.action,
+          label: auditLog.ACTION_LABELS[row.action] || row.action,
         })),
       };
 
@@ -2609,6 +2593,237 @@ app.get('/api/overview', authenticateToken, async (req, res) => {
     const reference = generateErrorReference();
     console.error(`[${reference}] /api/overview failed:`, err);
     res.status(500).json({ error: 'Unable to load your overview right now.', reference });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Activity log — the audit trail viewer. Not gated by requirePermission
+// (that helper only ever checks ONE code): audit:view_all sees every
+// event, audit:view_own sees only their own, and holding neither is a
+// 403, exactly like every other permission check in this file.
+// ---------------------------------------------------------------------------
+
+async function requireActivityLogAccess(req, res, next) {
+  const userId = req.user.user_id;
+  const deny = async () => {
+    try {
+      await insertAuditLog(pool, {
+        userId,
+        action: 'permission.denied',
+        details: { permission: 'audit:view_all|audit:view_own', method: req.method, path: req.path },
+        ip: req.ip,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write permission.denied audit row:', auditErr);
+    }
+    return res.status(403).json({ error: "You don't have permission to do this." });
+  };
+
+  try {
+    const result = await pool.query(
+      `SELECT p.code
+       FROM users u
+       JOIN roles r ON r.role_id = u.role_id
+       JOIN role_permissions rp ON rp.role_id = r.role_id
+       JOIN permissions p ON p.permission_id = rp.permission_id
+       WHERE u.user_id = $1 AND u.status = 'active' AND p.code IN ('audit:view_all', 'audit:view_own')`,
+      [userId]
+    );
+    const codes = result.rows.map((row) => row.code);
+    if (codes.length === 0) {
+      return deny();
+    }
+    req.activityLogScope = codes.includes('audit:view_all') ? 'all' : 'own';
+    next();
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] requireActivityLogAccess failed:`, err);
+    res.status(500).json({ error: 'Unable to verify permissions right now.', reference });
+  }
+}
+
+// Shared between the JSON route and the CSV export below, so the two
+// never drift apart on what counts as "matching the filters".
+async function queryActivityLog({ scope, userId, filters, limit, offset }) {
+  const conditions = [];
+  const params = [];
+
+  if (scope !== 'all') {
+    params.push(userId);
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.from) {
+    params.push(filters.from);
+    conditions.push(`a.occurred_at >= $${params.length}::date`);
+  }
+  if (filters.to) {
+    params.push(filters.to);
+    conditions.push(`a.occurred_at < ($${params.length}::date + interval '1 day')`);
+  }
+  if (filters.category) {
+    params.push(auditLog.CATEGORY_ACTIONS[filters.category]);
+    conditions.push(`a.action = ANY($${params.length})`);
+  }
+  if (scope === 'all' && filters.userId) {
+    params.push(filters.userId);
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.q) {
+    const matchingActions = Object.entries(auditLog.ACTION_LABELS)
+      .filter(([, label]) => label.toLowerCase().includes(filters.q.toLowerCase()))
+      .map(([action]) => action);
+    params.push(matchingActions.length > 0 ? matchingActions : [null]);
+    const actionsIdx = params.length;
+    params.push(`%${filters.q}%`);
+    const likeIdx = params.length;
+    conditions.push(
+      `(a.action = ANY($${actionsIdx}) OR a.entity ILIKE $${likeIdx} OR a.details::text ILIKE $${likeIdx} OR a.action ILIKE $${likeIdx})`
+    );
+  }
+
+  const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const countResult = await pool.query(`SELECT COUNT(*)::int AS total FROM audit_log a ${whereSql}`, params);
+
+  const dataParams = [...params, limit, offset];
+  const rowsResult = await pool.query(
+    // ORDER BY occurred_at DESC, with no function wrapping the column
+    // itself in any filter above, so this can use idx_audit_log_occurred_at.
+    `SELECT a.occurred_at, a.user_id, u.name AS actor_name, a.action, a.entity, a.entity_id, a.details, a.ip_address
+     FROM audit_log a
+     LEFT JOIN users u ON u.user_id = a.user_id
+     ${whereSql}
+     ORDER BY a.occurred_at DESC
+     LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+    dataParams
+  );
+
+  return { total: countResult.rows[0].total, rows: rowsResult.rows };
+}
+
+// A row with no user_id (a failed sign-in, or an action with no signed-in
+// actor at all) can only ever reach here for an audit:view_all caller —
+// the SQL above already excludes every such row for an audit:view_own-only
+// caller, by filtering on a.user_id = <their own id>.
+function serializeActivityLogRow(row, scope) {
+  const details = row.details || {};
+  const actor = auditLog.getActor({
+    userId: row.user_id,
+    actorName: row.actor_name,
+    action: row.action,
+    email: details.email,
+    canSeeEmail: scope === 'all',
+  });
+
+  const out = {
+    occurred_at: row.occurred_at,
+    actor,
+    action: row.action,
+    label: auditLog.ACTION_LABELS[row.action] || row.action,
+    category: auditLog.getCategoryForAction(row.action),
+    entity: row.entity,
+    entity_id: row.entity_id,
+    details: auditLog.summarizeDetails(row.action, details),
+  };
+  if (scope === 'all') {
+    out.ip_address = row.ip_address;
+  }
+  return out;
+}
+
+app.get('/api/activity-log', authenticateToken, requireActivityLogAccess, async (req, res) => {
+  const { valid, errors, filters } = auditLog.validateActivityLogFilters(req.query, {
+    canFilterByUser: req.activityLogScope === 'all',
+  });
+  if (!valid) {
+    return res.status(400).json({ error: 'Validation failed.', fields: errors });
+  }
+
+  try {
+    const limit = filters.pageSize;
+    const offset = (filters.page - 1) * filters.pageSize;
+    const { total, rows } = await queryActivityLog({
+      scope: req.activityLogScope,
+      userId: req.user.user_id,
+      filters,
+      limit,
+      offset,
+    });
+
+    res.json({
+      rows: rows.map((row) => serializeActivityLogRow(row, req.activityLogScope)),
+      total,
+      page: filters.page,
+      page_size: filters.pageSize,
+      scope: req.activityLogScope,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/activity-log failed:`, err);
+    res.status(500).json({ error: 'Unable to load the activity log right now.', reference });
+  }
+});
+
+app.get('/api/activity-log/export', authenticateToken, requireActivityLogAccess, async (req, res) => {
+  const { valid, errors, filters } = auditLog.validateActivityLogFilters(req.query, {
+    canFilterByUser: req.activityLogScope === 'all',
+  });
+  if (!valid) {
+    return res.status(400).json({ error: 'Validation failed.', fields: errors });
+  }
+
+  try {
+    const EXPORT_ROW_LIMIT = 5000;
+    const { rows } = await queryActivityLog({
+      scope: req.activityLogScope,
+      userId: req.user.user_id,
+      filters,
+      limit: EXPORT_ROW_LIMIT,
+      offset: 0,
+    });
+    const serializedRows = rows.map((row) => serializeActivityLogRow(row, req.activityLogScope));
+
+    const columns = [
+      { header: 'Time', value: (r) => r.occurred_at },
+      { header: 'Who', value: (r) => r.actor },
+      { header: 'What', value: (r) => r.label },
+      { header: 'Category', value: (r) => r.category || '' },
+      { header: 'Details', value: (r) => r.details || '' },
+    ];
+    if (req.activityLogScope === 'all') {
+      columns.push({ header: 'IP address', value: (r) => r.ip_address || '' });
+    }
+    const csv = auditLog.buildCsv(serializedRows, columns);
+
+    // Exporting the audit log is itself audited. Best-effort, same as
+    // every other audit write in this file — it never blocks the export.
+    try {
+      await insertAuditLog(pool, {
+        userId: req.user.user_id,
+        action: 'audit.exported',
+        entity: 'audit_log',
+        details: {
+          filters: {
+            from: filters.from || null,
+            to: filters.to || null,
+            category: filters.category || null,
+            q: filters.q || null,
+            user_id: filters.userId || null,
+          },
+        },
+        ip: req.ip,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write audit.exported row:', auditErr);
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="activity-log-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/activity-log/export failed:`, err);
+    res.status(500).json({ error: 'Unable to export the activity log right now.', reference });
   }
 });
 
