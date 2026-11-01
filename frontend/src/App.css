@@ -719,6 +719,30 @@ svg {
   border: 1px solid #c8e6e6;
 }
 
+.disclosure {
+  margin-top: 4px;
+}
+.disclosure-summary {
+  cursor: pointer;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.disclosure-summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.disclosure-content {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .insight {
   margin: -8px 0 0;
   display: flex;

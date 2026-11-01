@@ -146,6 +146,17 @@ pages, there's:
   (`backend/revenueScenarios.js`) reuses `backend/revenue.js`'s own tariff
   and tiered-billing logic rather than duplicating it, and runs on the
   server.
+- **Model evaluation** (every role with `forecast:view`) - how accurate the
+  forecast has actually been: 26-month held-out test-set metrics, rolling-
+  origin results by horizon, Diebold-Mariano significance tests, interval
+  coverage, error by season, and the evaluation protocol, from
+  `GET /api/model-evaluation`. This reads the already-committed result
+  files under `ml/results/` once at server startup (`backend/modelEvaluation.js`)
+  — a live request never retrains or re-evaluates anything, and a section
+  the stored files don't cover shows a plain "not available" notice
+  instead of guessing. Only two-sided 80% coverage is stored in these
+  files; there's no separate one-sided upper/lower coverage figure to
+  show.
 
 The app also has a user menu (top bar) linking to:
 

@@ -11,6 +11,7 @@ const distribution = require('./distribution');
 const revenue = require('./revenue');
 const revenueScenarios = require('./revenueScenarios');
 const overview = require('./overview');
+const modelEvaluation = require('./modelEvaluation');
 const users = require('./users');
 const auth = require('./auth');
 const packageJson = require('./package.json');
@@ -179,6 +180,7 @@ function requireRecentAuth(req, res, next) {
 //
 //   GET  /api/health                     public (health check)
 //   GET  /api/forecast/published         authenticateToken, requirePermission('forecast:view')
+//   GET  /api/model-evaluation           authenticateToken, requirePermission('forecast:view')
 //   GET  /api/me                         authenticateToken
 //   GET  /api/me/sign-ins                authenticateToken
 //   GET  /api/about                      authenticateToken
@@ -293,6 +295,23 @@ app.get('/api/forecast/published', authenticateToken, requirePermission('forecas
       reference,
     });
   }
+});
+
+// Read once at startup, not on every request: these are committed result
+// files from the offline evaluation runs under ml/ — they never change
+// while the server is running, so there's nothing to gain by re-reading
+// disk per request, and every request gets exactly the same answer.
+const MODEL_EVALUATION_RESULTS_DIR = path.join(__dirname, '..', 'ml', 'results');
+const MODEL_EVALUATION_CACHE = modelEvaluation.loadModelEvaluation(MODEL_EVALUATION_RESULTS_DIR);
+if (MODEL_EVALUATION_CACHE.unavailable.length > 0) {
+  console.warn(
+    'GET /api/model-evaluation: some sections are unavailable:',
+    MODEL_EVALUATION_CACHE.unavailable.map((u) => `${u.section} (${u.reason})`).join('; ')
+  );
+}
+
+app.get('/api/model-evaluation', authenticateToken, requirePermission('forecast:view'), (req, res) => {
+  res.json(MODEL_EVALUATION_CACHE);
 });
 
 // Permission check — used after authenticateToken. Looks up the caller's

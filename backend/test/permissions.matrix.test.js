@@ -280,6 +280,7 @@ test('permission matrix', async (t) => {
     let inviteCounter = 0;
     const ROUTES = [
       { name: 'GET /api/forecast/published', method: 'GET', path: '/api/forecast/published', permission: 'forecast:view' },
+      { name: 'GET /api/model-evaluation', method: 'GET', path: '/api/model-evaluation', permission: 'forecast:view' },
       { name: 'GET /api/consumption-history', method: 'GET', path: '/api/consumption-history', permission: 'data:view' },
       { name: 'GET /api/production/plan', method: 'GET', path: '/api/production/plan', permission: 'plan:view' },
       {

@@ -87,6 +87,7 @@ POST/PATCH route — the allowed role's request again with the
 | Route | Permission | admin | production_manager | commercial_officer |
 |---|---|---|---|---|
 | `GET /api/forecast/published` | `forecast:view` | 200 | 200 | 200 |
+| `GET /api/model-evaluation` | `forecast:view` | 200 | 200 | 200 |
 | `GET /api/consumption-history` | `data:view` | 200 | 403 | 403 |
 | `GET /api/production/plan` | `plan:view` | 403 | 200 | 403 |
 | `GET /api/production/plan/:month/history` | `plan:view` | 403 | 200 | 403 |

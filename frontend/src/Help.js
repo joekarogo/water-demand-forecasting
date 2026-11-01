@@ -45,6 +45,20 @@ function Help() {
         </section>
       )}
 
+      {permissions.includes('forecast:view') && (
+        <section className="card" aria-labelledby="helpEvaluationTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpEvaluationTitle" style={{ marginBottom: 10 }}>
+            Model evaluation
+          </h2>
+          <p style={{ margin: 0 }}>
+            Shows how accurate the forecast has actually been, from the project's own test results — it never
+            retrains or re-evaluates anything live. If a particular result wasn't stored, that section says so
+            rather than guessing, and the page is explicit about which model differences are statistically
+            significant and which could just be chance.
+          </p>
+        </section>
+      )}
+
       {permissions.includes('plan:view') && (
         <section className="card" aria-labelledby="helpPlanningTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpPlanningTitle" style={{ marginBottom: 10 }}>
