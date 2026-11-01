@@ -270,6 +270,18 @@ test('permission matrix', async (t) => {
       `INSERT INTO audit_log (user_id, action, ip_address) VALUES ($1, 'emergency.login', $2)`,
       [fixtures.production_manager.userId, '203.0.113.20']
     );
+    await setupClient.query(
+      `INSERT INTO audit_log (user_id, action, ip_address) VALUES ($1, 'login.success', $2)`,
+      [fixtures.commercial_officer.userId, '203.0.113.30']
+    );
+    // No matching user at all (e.g. a failed sign-in against an email
+    // with no account) — must be visible to audit:view_all, and must
+    // never be shown to an audit:view_own-only caller, since they can
+    // only ever see rows where user_id is literally their own.
+    await setupClient.query(
+      `INSERT INTO audit_log (user_id, action, details, ip_address) VALUES (NULL, 'login.failure', $1, $2)`,
+      [{ reason: 'not_found', email: 'ghost@test.local' }, '203.0.113.99']
+    );
 
     const appModule = require('../app');
     appPool = appModule.pool;
@@ -280,6 +292,7 @@ test('permission matrix', async (t) => {
     let inviteCounter = 0;
     const ROUTES = [
       { name: 'GET /api/forecast/published', method: 'GET', path: '/api/forecast/published', permission: 'forecast:view' },
+      { name: 'GET /api/model-evaluation', method: 'GET', path: '/api/model-evaluation', permission: 'forecast:view' },
       { name: 'GET /api/consumption-history', method: 'GET', path: '/api/consumption-history', permission: 'data:view' },
       { name: 'GET /api/production/plan', method: 'GET', path: '/api/production/plan', permission: 'plan:view' },
       {
@@ -299,6 +312,14 @@ test('permission matrix', async (t) => {
       { name: 'GET /api/production/stock', method: 'GET', path: '/api/production/stock', permission: 'plan:view' },
       { name: 'GET /api/distribution', method: 'GET', path: '/api/distribution', permission: 'distribution:view' },
       { name: 'GET /api/revenue', method: 'GET', path: '/api/revenue', permission: 'revenue:view' },
+      {
+        name: 'POST /api/revenue/scenario',
+        method: 'POST',
+        path: '/api/revenue/scenario',
+        permission: 'revenue:view',
+        csrf: true,
+        body: () => ({ scenarios: [{ name: 'Matrix Scenario', mode: 'uniform', uniform_pct: 10 }] }),
+      },
       {
         name: 'POST /api/production/stock',
         method: 'POST',
@@ -356,6 +377,9 @@ test('permission matrix', async (t) => {
       { name: 'GET /api/me', method: 'GET', path: '/api/me', permission: null },
       { name: 'GET /api/me/sign-ins', method: 'GET', path: '/api/me/sign-ins', permission: null },
       { name: 'GET /api/about', method: 'GET', path: '/api/about', permission: null },
+      { name: 'GET /api/overview', method: 'GET', path: '/api/overview', permission: null },
+      { name: 'GET /api/activity-log', method: 'GET', path: '/api/activity-log', permission: null },
+      { name: 'GET /api/activity-log/export', method: 'GET', path: '/api/activity-log/export', permission: null },
     ];
 
     for (const route of ROUTES) {
@@ -453,6 +477,144 @@ test('permission matrix', async (t) => {
         `expected an ISO timestamp with a 'Z' or numeric UTC offset, got: ${publishedAt}`
       );
       assert.ok(!Number.isNaN(Date.parse(publishedAt)), `expected a parseable timestamp, got: ${publishedAt}`);
+    });
+
+    await t.test('GET /api/overview: each role sees only the sections its own permissions unlock', async () => {
+      const adminRes = await request(baseUrl, { method: 'GET', path: '/api/overview', cookie: fixtures.admin.cookie });
+      assert.strictEqual(adminRes.status, 200);
+      const adminBody = await adminRes.json();
+      assert.ok(adminBody.sections.forecast, 'admin has forecast:view');
+      assert.ok(adminBody.sections.users, 'admin has user:manage');
+      assert.strictEqual(adminBody.sections.production, undefined, 'admin lacks plan:view');
+      assert.strictEqual(adminBody.sections.distribution, undefined, 'admin lacks distribution:view');
+      assert.strictEqual(adminBody.sections.revenue, undefined, 'admin lacks revenue:view');
+
+      const plannerRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/overview',
+        cookie: fixtures.production_manager.cookie,
+      });
+      const plannerBody = await plannerRes.json();
+      assert.ok(plannerBody.sections.forecast, 'production_manager has forecast:view');
+      assert.ok(plannerBody.sections.production, 'production_manager has plan:view');
+      assert.ok('distribution' in plannerBody.sections, 'production_manager has distribution:view');
+      assert.strictEqual(plannerBody.sections.users, undefined, 'production_manager lacks user:manage');
+      assert.strictEqual(plannerBody.sections.revenue, undefined, 'production_manager lacks revenue:view');
+
+      const analystRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/overview',
+        cookie: fixtures.commercial_officer.cookie,
+      });
+      const analystBody = await analystRes.json();
+      assert.ok(analystBody.sections.forecast, 'commercial_officer has forecast:view');
+      assert.ok(analystBody.sections.revenue, 'commercial_officer has revenue:view');
+      assert.strictEqual(analystBody.sections.production, undefined, 'commercial_officer lacks plan:view');
+      assert.strictEqual(analystBody.sections.distribution, undefined, 'commercial_officer lacks distribution:view');
+      assert.strictEqual(analystBody.sections.users, undefined, 'commercial_officer lacks user:manage');
+
+      // Every response also carries the live thresholds, not a second
+      // hardcoded copy the frontend would have to keep in sync by hand.
+      assert.strictEqual(adminBody.thresholds.not_priced_pct_warning, 5);
+    });
+
+    await t.test('GET /api/activity-log: audit:view_all sees everything, audit:view_own sees only their own rows', async () => {
+      const adminRes = await request(baseUrl, { method: 'GET', path: '/api/activity-log', cookie: fixtures.admin.cookie });
+      assert.strictEqual(adminRes.status, 200);
+      const adminBody = await adminRes.json();
+      assert.strictEqual(adminBody.scope, 'all');
+      const adminIps = adminBody.rows.map((r) => r.ip_address);
+      assert.ok(adminIps.includes('203.0.113.10'), "admin's own login.success should be visible");
+      assert.ok(adminIps.includes('203.0.113.20'), "the production_manager's emergency.login should be visible to view_all");
+      assert.ok(adminIps.includes('203.0.113.30'), "the commercial_officer's login.success should be visible to view_all");
+      assert.ok(adminIps.includes('203.0.113.99'), 'a row with no matching user should still be visible to view_all');
+      const ghostRow = adminBody.rows.find((r) => r.ip_address === '203.0.113.99');
+      assert.match(ghostRow.actor, /Unknown user.*ghost@test\.local/, 'view_all sees the attempted email for an unknown user');
+
+      const plannerRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/activity-log',
+        cookie: fixtures.production_manager.cookie,
+      });
+      assert.strictEqual(plannerRes.status, 200);
+      const plannerBody = await plannerRes.json();
+      assert.strictEqual(plannerBody.scope, 'own');
+      assert.ok(
+        plannerBody.rows.some((r) => r.action === 'emergency.login'),
+        'production_manager should see their own emergency.login'
+      );
+      assert.ok(
+        plannerBody.rows.every((r) => r.ip_address === undefined),
+        'audit:view_own must never see ip_address at all'
+      );
+      // The real proof of isolation: however many rows this scope returns
+      // in total must exactly equal this user's own rows in the table —
+      // never more, which is what an accidental cross-user leak would show.
+      const plannerOwnCount = await setupClient.query('SELECT COUNT(*)::int AS n FROM audit_log WHERE user_id = $1', [
+        fixtures.production_manager.userId,
+      ]);
+      assert.strictEqual(plannerBody.total, plannerOwnCount.rows[0].n);
+
+      const analystRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/activity-log',
+        cookie: fixtures.commercial_officer.cookie,
+      });
+      assert.strictEqual(analystRes.status, 200);
+      const analystBody = await analystRes.json();
+      assert.strictEqual(analystBody.scope, 'own');
+      assert.ok(analystBody.rows.every((r) => r.ip_address === undefined));
+      const analystOwnCount = await setupClient.query('SELECT COUNT(*)::int AS n FROM audit_log WHERE user_id = $1', [
+        fixtures.commercial_officer.userId,
+      ]);
+      assert.strictEqual(analystBody.total, analystOwnCount.rows[0].n);
+      // Neither view_own caller ever sees the unmatched-user row, since
+      // its user_id (NULL) can never equal either of their own ids.
+      assert.ok(plannerBody.rows.every((r) => !r.actor.startsWith('Unknown user')));
+      assert.ok(analystBody.rows.every((r) => !r.actor.startsWith('Unknown user')));
+    });
+
+    await t.test('GET /api/activity-log: category filter narrows to that category\'s actions only', async () => {
+      const res = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/activity-log?category=emergency',
+        cookie: fixtures.admin.cookie,
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.ok(body.rows.length > 0);
+      assert.ok(body.rows.every((r) => r.action === 'emergency.login' || r.action === 'emergency.login_failed'));
+    });
+
+    await t.test('GET /api/activity-log: an invalid filter is a 400 with a field-level error, not a crash', async () => {
+      const res = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/activity-log?from=not-a-date',
+        cookie: fixtures.admin.cookie,
+      });
+      assert.strictEqual(res.status, 400);
+      const body = await res.json();
+      assert.ok(body.fields.from);
+    });
+
+    await t.test('GET /api/activity-log/export: returns CSV and audits the export', async () => {
+      const res = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/activity-log/export?category=emergency',
+        cookie: fixtures.admin.cookie,
+      });
+      assert.strictEqual(res.status, 200);
+      assert.ok((res.headers.get('content-type') || '').includes('text/csv'));
+      const text = await res.text();
+      assert.ok(text.startsWith('Time,Who,What,Category,Details,IP address'));
+      assert.ok(text.includes('203.0.113.20'));
+
+      const followUp = await request(baseUrl, { method: 'GET', path: '/api/activity-log', cookie: fixtures.admin.cookie });
+      const followUpBody = await followUp.json();
+      assert.ok(
+        followUpBody.rows.some((r) => r.action === 'audit.exported'),
+        'exporting the log should itself write an audit.exported row'
+      );
     });
 
     await t.test('unmatched /api route returns a JSON 404', async () => {

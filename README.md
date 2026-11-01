@@ -97,6 +97,22 @@ validate it.
 
 ## Pages and API
 
+- **Overview** (`/overview`, every signed-in user) - the landing page after
+  sign-in, for every role. "Needs your attention" lists actionable alerts
+  (an unplanned upcoming month, low days of stock, stale stock readings, a
+  month with too much unpriced revenue, invited-but-never-signed-in users,
+  recent failed sign-ins, a recent emergency sign-in), each linking to the
+  page that fixes it. The rest of the page - KPIs, a chart or list - varies
+  by permission, from `GET /api/overview`: a section only appears if the
+  signed-in user already holds that section's permission elsewhere
+  (`forecast:view`, `plan:view`, `distribution:view`, `revenue:view`,
+  `user:manage`), so nobody ever sees data their own other pages would
+  403 them out of. Every alert threshold (days-of-stock warning/alert,
+  stock staleness, the not-priced-revenue cutoff, the audit/emergency-login
+  windows) lives in one place (`backend/overview.js`) and is returned
+  alongside the alerts themselves, so the page's "How alerts work" tip
+  always matches the rules actually in force.
+
 Besides the Forecast, Historical Analysis, Production Planning and Users
 pages, there's:
 
@@ -118,6 +134,42 @@ pages, there's:
   (`backend/revenue.js`) runs on the server; the estimate is a lower bound,
   since pricing the average customer under rising price steps undercounts
   what heavier users actually pay.
+- **Revenue scenarios** (Commercial Analysts only, `revenue:view`) - "what
+  happens to revenue if prices change?", comparing up to two live,
+  unsaved price-change scenarios against the Revenue estimate baseline,
+  from `POST /api/revenue/scenario`. A scenario can raise/lower every
+  tariff band uniformly, or change only housing/workplace bands per band
+  (with a "May 2025 İzmir change" preset); an optional demand-response
+  setting (price elasticity, defaulting to a literature figure of -0.35
+  for residential customers, Dalhuisen et al., 2003) models usage falling
+  as prices rise via a constant-elasticity approximation. All of this
+  (`backend/revenueScenarios.js`) reuses `backend/revenue.js`'s own tariff
+  and tiered-billing logic rather than duplicating it, and runs on the
+  server.
+- **Model evaluation** (every role with `forecast:view`) - how accurate the
+  forecast has actually been: 26-month held-out test-set metrics, rolling-
+  origin results by horizon, Diebold-Mariano significance tests, interval
+  coverage, error by season, and the evaluation protocol, from
+  `GET /api/model-evaluation`. This reads the already-committed result
+  files under `ml/results/` once at server startup (`backend/modelEvaluation.js`)
+  — a live request never retrains or re-evaluates anything, and a section
+  the stored files don't cover shows a plain "not available" notice
+  instead of guessing. Only two-sided 80% coverage is stored in these
+  files; there's no separate one-sided upper/lower coverage figure to
+  show.
+- **Activity log** (`/activity-log`, for anyone with `audit:view_all` or
+  `audit:view_own`) - the audit trail: every sign-in, failed sign-in,
+  emergency sign-in, user-management change, saved production plan,
+  stock entry and permission denial, newest first, from
+  `GET /api/activity-log`. `audit:view_all` (Admin) sees every event,
+  including who the IP address belongs to; `audit:view_own` (everyone
+  else) only ever sees their own rows — enforced in the SQL `WHERE`
+  clause itself, not by hiding anything client-side — and never sees
+  `ip_address` at all. Filterable by date, category, free-text search
+  and (Admin only) a specific user; `GET /api/activity-log/export`
+  exports the same filtered rows as CSV (capped at 5,000 rows) and is
+  itself an audited action. Overview's failed-sign-in and
+  emergency-sign-in alerts link here, pre-filtered.
 
 The app also has a user menu (top bar) linking to:
 

@@ -606,6 +606,13 @@ svg {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
+/* ---------- Scenario panels (Revenue scenarios) ---------- */
+.scenario-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -710,6 +717,30 @@ svg {
   place-items: center;
   color: var(--teal);
   border: 1px solid #c8e6e6;
+}
+
+.disclosure {
+  margin-top: 4px;
+}
+.disclosure-summary {
+  cursor: pointer;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.disclosure-summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.disclosure-content {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .insight {
@@ -1111,6 +1142,9 @@ svg {
 @media (max-width: 1100px) {
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .scenario-panels {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 900px) {
@@ -2014,6 +2048,7 @@ textarea.input {
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.4;
+  text-decoration: none;
 }
 .alert.danger {
   background: var(--danger-soft);
@@ -2024,6 +2059,41 @@ textarea.input {
   background: #fff8e6;
   color: #6b4800;
   border: 1px solid #f3e1b3;
+}
+.alert.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+/* A clickable alert (Overview's "Needs your attention" list) — same
+   look as a plain alert, plus a visible focus ring and a slight hover
+   shift, since these are links, not just status text. */
+a.alert {
+  cursor: pointer;
+}
+.alert-message {
+  flex: 1;
+}
+.alert-go {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-weight: 600;
+  text-decoration: underline;
+}
+a.alert:hover {
+  filter: brightness(0.97);
+}
+a.alert:focus-visible {
+  outline: 2px solid var(--focus, #0b5c8f);
+  outline-offset: 2px;
+}
+.overview-alerts {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .history h3 {
   margin: 0 0 10px;

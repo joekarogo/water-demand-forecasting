@@ -2,12 +2,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SessionProvider } from './session';
 import Login from './Login';
 import EmergencyLogin from './EmergencyLogin';
+import Overview from './Overview';
 import Dashboard from './Dashboard';
 import DataOverview from './DataOverview';
 import ProductionPlanning from './ProductionPlanning';
 import DemandByDistrict from './DemandByDistrict';
 import RevenueEstimate from './RevenueEstimate';
+import RevenueScenarios from './RevenueScenarios';
 import Users from './Users';
+import ModelEvaluation from './ModelEvaluation';
+import ActivityLog from './ActivityLog';
 import MyAccount from './MyAccount';
 import Help from './Help';
 import Privacy from './Privacy';
@@ -23,12 +27,16 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/emergency-login" element={<EmergencyLogin />} />
+          <Route path="/overview" element={<Overview />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/data-overview" element={<DataOverview />} />
           <Route path="/production-planning" element={<ProductionPlanning />} />
           <Route path="/demand-by-district" element={<DemandByDistrict />} />
           <Route path="/revenue" element={<RevenueEstimate />} />
+          <Route path="/revenue/scenarios" element={<RevenueScenarios />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/model-evaluation" element={<ModelEvaluation />} />
+          <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/account" element={<MyAccount />} />
           <Route path="/help" element={<Help />} />
           <Route path="/privacy" element={<Privacy />} />

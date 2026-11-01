@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
-import { getFirstPermittedPath } from './layout/menuConfig';
 import { AlertCircleIcon, ErrorTriangleIcon } from './layout/icons';
 import AuthLayout from './AuthLayout';
 import { useDocumentTitle } from './useDocumentTitle';
@@ -46,8 +45,10 @@ function EmergencyLogin() {
         return;
       }
 
-      const me = await refreshSession();
-      navigate(getFirstPermittedPath(me?.permissions || []), { replace: true });
+      await refreshSession();
+      // Overview is the landing page for every role (it has no
+      // permission gate of its own).
+      navigate('/overview', { replace: true });
     } catch (err) {
       setError('Unable to reach the server. Please try again.');
     } finally {

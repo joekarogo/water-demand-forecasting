@@ -19,6 +19,18 @@ function Help() {
         </p>
       </section>
 
+      <section className="card" aria-labelledby="helpOverviewTitle" style={{ padding: 20 }}>
+        <h2 className="card-title" id="helpOverviewTitle" style={{ marginBottom: 10 }}>
+          Overview
+        </h2>
+        <p style={{ margin: 0 }}>
+          Your Overview page is the first thing you see after signing in. "Needs your attention"
+          lists anything worth checking right now — each item links straight to the page where you
+          can act on it. The rest of the page shows a short summary built from whichever pages your
+          permissions let you see; it never shows anything you couldn't already see elsewhere.
+        </p>
+      </section>
+
       {permissions.includes('forecast:view') && (
         <section className="card" aria-labelledby="helpForecastTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpForecastTitle" style={{ marginBottom: 10 }}>
@@ -29,6 +41,20 @@ function Help() {
             about 2 months in 3, and it fell below the range more often than above it, so treat the
             low end as optimistic. The upper end held about 9 months in 10, which is why the safe
             production plan uses it.
+          </p>
+        </section>
+      )}
+
+      {permissions.includes('forecast:view') && (
+        <section className="card" aria-labelledby="helpEvaluationTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpEvaluationTitle" style={{ marginBottom: 10 }}>
+            Model evaluation
+          </h2>
+          <p style={{ margin: 0 }}>
+            Shows how accurate the forecast has actually been, from the project's own test results — it never
+            retrains or re-evaluates anything live. If a particular result wasn't stored, that section says so
+            rather than guessing, and the page is explicit about which model differences are statistically
+            significant and which could just be chance.
           </p>
         </section>
       )}
@@ -74,6 +100,21 @@ function Help() {
         </section>
       )}
 
+      {permissions.includes('revenue:view') && (
+        <section className="card" aria-labelledby="helpScenariosTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpScenariosTitle" style={{ marginBottom: 10 }}>
+            Revenue scenarios
+          </h2>
+          <p style={{ margin: 0 }}>
+            Compare up to two "what if prices changed" scenarios against the baseline, live — nothing here is saved.
+            A demand-response setting models customers using a little less water as prices rise, using price
+            elasticity figures from international research on residential water demand, not measurements from
+            İzmir. This is a simplified, constant-elasticity approximation, and the same lower-bound caveat as
+            Revenue estimate still applies.
+          </p>
+        </section>
+      )}
+
       {permissions.includes('data:view') && (
         <section className="card" aria-labelledby="helpHistoricalTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpHistoricalTitle" style={{ marginBottom: 10 }}>
@@ -96,6 +137,21 @@ function Help() {
             accounts. Changing a role, or deactivating/reactivating an account, needs a recent
             sign-in (within the last 10 minutes) — if you've been signed in a while, you'll be asked
             to sign in again before the change goes through.
+          </p>
+        </section>
+      )}
+
+      {(permissions.includes('audit:view_all') || permissions.includes('audit:view_own')) && (
+        <section className="card" aria-labelledby="helpActivityTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpActivityTitle" style={{ marginBottom: 10 }}>
+            Activity log
+          </h2>
+          <p style={{ margin: 0 }}>
+            {permissions.includes('audit:view_all')
+              ? 'Admins can see everything that happened in the system: who signed in, who was invited or had their role changed, failed sign-in attempts, and more.'
+              : 'You can see your own activity in the system — your sign-ins and anything you changed.'}{' '}
+            Entries are recorded automatically and can't be edited or deleted. Filter by date, category
+            or a search term, and export the results as a CSV file.
           </p>
         </section>
       )}

@@ -87,6 +87,7 @@ POST/PATCH route — the allowed role's request again with the
 | Route | Permission | admin | production_manager | commercial_officer |
 |---|---|---|---|---|
 | `GET /api/forecast/published` | `forecast:view` | 200 | 200 | 200 |
+| `GET /api/model-evaluation` | `forecast:view` | 200 | 200 | 200 |
 | `GET /api/consumption-history` | `data:view` | 200 | 403 | 403 |
 | `GET /api/production/plan` | `plan:view` | 403 | 200 | 403 |
 | `GET /api/production/plan/:month/history` | `plan:view` | 403 | 200 | 403 |
@@ -94,6 +95,7 @@ POST/PATCH route — the allowed role's request again with the
 | `GET /api/production/stock` | `plan:view` | 403 | 200 | 403 |
 | `GET /api/distribution` | `distribution:view` | 403 | 200 | 403 |
 | `GET /api/revenue` | `revenue:view` | 403 | 403 | 200 |
+| `POST /api/revenue/scenario` | `revenue:view` | 403 | 403 | 200 |
 | `POST /api/production/stock` | `stock:create` | 403 | 200 | 403 |
 | `GET /api/roles` | `user:manage` | 200 | 403 | 403 |
 | `GET /api/users` | `user:manage` | 200 | 403 | 403 |
@@ -105,6 +107,9 @@ POST/PATCH route — the allowed role's request again with the
 | `GET /api/me` | *(authenticated only)* | 200 | 200 | 200 |
 | `GET /api/me/sign-ins` | *(authenticated only)* | 200 | 200 | 200 |
 | `GET /api/about` | *(authenticated only)* | 200 | 200 | 200 |
+| `GET /api/overview` | *(authenticated only — each section gated on its own permission)* | 200 | 200 | 200 |
+| `GET /api/activity-log` | `audit:view_all` OR `audit:view_own` | 200 (all) | 200 (own only) | 200 (own only) |
+| `GET /api/activity-log/export` | `audit:view_all` OR `audit:view_own` | 200 (all) | 200 (own only) | 200 (own only) |
 | `POST /api/auth/logout` | *(authenticated only)* | 204 | 204 | 204 |
 
 The role-change, deactivate and reactivate routes are also gated by
@@ -123,3 +128,17 @@ header (whole seconds remaining) and an `X-Session-Max-Reached` header
 (`"false"` for the matrix's always-freshly-created fixture sessions);
 and an unmatched `/api/*` path returns a JSON 404 rather than Express's
 default HTML one.
+
+`GET /api/activity-log` is the one route where both active, non-admin
+roles get 200 (they hold `audit:view_own`), but the matrix checks more
+than status codes here: a fixture row with no matching user at all (a
+failed sign-in against an unregistered email) is proven visible to the
+`audit:view_all` caller and absent for both `audit:view_own` callers;
+`ip_address` is proven present for `audit:view_all` and absent entirely
+(not just hidden) for `audit:view_own`; and each `audit:view_own`
+response's reported `total` is checked against an independent
+`COUNT(*) WHERE user_id = <that caller's own id>` query against the
+database directly, so an accidental cross-user leak would show up as a
+mismatch even if no individual row happened to look wrong.
+`GET /api/activity-log/export` is checked to return CSV and to itself
+write a new `audit.exported` row.

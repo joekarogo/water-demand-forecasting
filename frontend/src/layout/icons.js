@@ -16,6 +16,17 @@ export function BrandIcon() {
   );
 }
 
+export function OverviewNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.2" />
+      <rect x="13" y="3.5" width="7.5" height="4.5" rx="1.2" />
+      <rect x="13" y="10" width="7.5" height="10.5" rx="1.2" />
+      <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.2" />
+    </svg>
+  );
+}
+
 export function ForecastNavIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -65,6 +76,15 @@ export function RevenueNavIcon() {
   );
 }
 
+export function ScenariosNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20V10m0 0 4-4 4 4m-4-4v4" />
+      <path d="M12 20v-6m0 0 4-4 4 4m-4-4v6" />
+    </svg>
+  );
+}
+
 export function UsersNavIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -72,6 +92,24 @@ export function UsersNavIcon() {
       <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
       <path d="M16 8.2a3 3 0 0 1 0 5.8" />
       <path d="M18.5 19c0-2.2-1.3-4-3.2-4.7" />
+    </svg>
+  );
+}
+
+export function EvaluationNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M8.3 11.2l1.8 1.8 3.3-4" />
+      <path d="M20 20l-3.1-3.1" />
+    </svg>
+  );
+}
+
+export function ActivityNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h4l2 6 4-14 2 8h6" />
     </svg>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import AppLayout from './layout/AppLayout';
 import { useSession } from './session';
 import { apiFetch } from './apiClient';
@@ -9,6 +10,8 @@ function MyAccount() {
   const { session } = useSession();
   const [signIns, setSignIns] = useState(null); // null = loading
   const [error, setError] = useState(false);
+  const permissions = session?.permissions || [];
+  const hasActivityLogAccess = permissions.includes('audit:view_all') || permissions.includes('audit:view_own');
 
   useEffect(() => {
     let cancelled = false;
@@ -65,9 +68,12 @@ function MyAccount() {
       </section>
 
       <section className="card" aria-labelledby="signInsTitle" style={{ padding: 20 }}>
-        <h2 className="card-title" id="signInsTitle" style={{ marginBottom: 14 }}>
-          Recent sign-ins
-        </h2>
+        <div className="card-head" style={{ padding: 0, marginBottom: 14 }}>
+          <h2 className="card-title" id="signInsTitle">
+            Recent sign-ins
+          </h2>
+          {hasActivityLogAccess && <Link to="/activity-log">See all your activity</Link>}
+        </div>
         {error && <p className="field-err">Unable to load your sign-in history right now.</p>}
         {!error && signIns === null && <p className="field-hint">Loading…</p>}
         {!error && signIns !== null && signIns.length === 0 && (

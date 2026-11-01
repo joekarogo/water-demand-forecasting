@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
-import { getFirstPermittedPath } from './layout/menuConfig';
 import { AlertCircleIcon, ClockIcon, CheckCircleIcon } from './layout/icons';
 import AuthLayout from './AuthLayout';
 import { useDocumentTitle } from './useDocumentTitle';
@@ -48,8 +47,12 @@ function Login() {
           setGoogleError(data.error || "This Google account isn't authorised for this system. Contact your administrator.");
           return;
         }
-        const me = await refreshSession();
-        navigate(getFirstPermittedPath(me?.permissions || []), { replace: true });
+        await refreshSession();
+        // Overview is the landing page for every role (it has no
+        // permission gate of its own) — existing deep links to a
+        // specific page are untouched, since this only applies right
+        // after signing in.
+        navigate('/overview', { replace: true });
       } catch (err) {
         setGoogleError("We couldn't reach the server. Check your connection and try again.");
       } finally {

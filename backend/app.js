@@ -9,6 +9,10 @@ const bcrypt = require('bcryptjs');
 const planning = require('./planning');
 const distribution = require('./distribution');
 const revenue = require('./revenue');
+const revenueScenarios = require('./revenueScenarios');
+const overview = require('./overview');
+const modelEvaluation = require('./modelEvaluation');
+const auditLog = require('./auditLog');
 const users = require('./users');
 const auth = require('./auth');
 const packageJson = require('./package.json');
@@ -177,9 +181,13 @@ function requireRecentAuth(req, res, next) {
 //
 //   GET  /api/health                     public (health check)
 //   GET  /api/forecast/published         authenticateToken, requirePermission('forecast:view')
+//   GET  /api/model-evaluation           authenticateToken, requirePermission('forecast:view')
 //   GET  /api/me                         authenticateToken
 //   GET  /api/me/sign-ins                authenticateToken
 //   GET  /api/about                      authenticateToken
+//   GET  /api/overview                   authenticateToken (sections shown vary by permission)
+//   GET  /api/activity-log               authenticateToken, requireActivityLogAccess (audit:view_all sees everything, audit:view_own sees only their own rows)
+//   GET  /api/activity-log/export        authenticateToken, requireActivityLogAccess (same scoping; writes an audit.exported row)
 //   POST /api/auth/google                public
 //   POST /api/auth/emergency-login       public (rate-limited by IP)
 //   POST /api/auth/logout                authenticateToken, csrfProtection
@@ -192,6 +200,7 @@ function requireRecentAuth(req, res, next) {
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
 //   GET  /api/distribution               authenticateToken, requirePermission('distribution:view')
 //   GET  /api/revenue                    authenticateToken, requirePermission('revenue:view')
+//   POST /api/revenue/scenario           authenticateToken, csrfProtection, requirePermission('revenue:view')
 //   GET  /api/roles                      authenticateToken, requirePermission('user:manage')
 //   GET  /api/users                      authenticateToken, requirePermission('user:manage')
 //   POST /api/users                      authenticateToken, csrfProtection, requirePermission('user:manage')
@@ -289,6 +298,23 @@ app.get('/api/forecast/published', authenticateToken, requirePermission('forecas
       reference,
     });
   }
+});
+
+// Read once at startup, not on every request: these are committed result
+// files from the offline evaluation runs under ml/ — they never change
+// while the server is running, so there's nothing to gain by re-reading
+// disk per request, and every request gets exactly the same answer.
+const MODEL_EVALUATION_RESULTS_DIR = path.join(__dirname, '..', 'ml', 'results');
+const MODEL_EVALUATION_CACHE = modelEvaluation.loadModelEvaluation(MODEL_EVALUATION_RESULTS_DIR);
+if (MODEL_EVALUATION_CACHE.unavailable.length > 0) {
+  console.warn(
+    'GET /api/model-evaluation: some sections are unavailable:',
+    MODEL_EVALUATION_CACHE.unavailable.map((u) => `${u.section} (${u.reason})`).join('; ')
+  );
+}
+
+app.get('/api/model-evaluation', authenticateToken, requirePermission('forecast:view'), (req, res) => {
+  res.json(MODEL_EVALUATION_CACHE);
 });
 
 // Permission check — used after authenticateToken. Looks up the caller's
@@ -2007,6 +2033,797 @@ app.get('/api/revenue', authenticateToken, requirePermission('revenue:view'), as
     const reference = generateErrorReference();
     console.error(`[${reference}] /api/revenue failed:`, err);
     res.status(500).json({ error: 'Unable to load the revenue estimate right now.', reference });
+  }
+});
+
+// Revenue Scenarios (Module 5b) — "what happens to revenue if prices
+// change?" Same consumption/tariff/subscriber inputs GET /api/revenue
+// already loads, re-priced under up to 2 scenarios via revenueScenarios.js
+// (price-change multipliers + constant-elasticity demand response). Never
+// saved — everything here is calculated live, per request.
+app.post(
+  '/api/revenue/scenario',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('revenue:view'),
+  async (req, res) => {
+    const { valid, errors, scenarios } = revenueScenarios.validateScenarioRequest(req.body || {});
+    if (!valid) {
+      return res.status(400).json({ error: 'Validation failed.', fields: errors });
+    }
+
+    try {
+      const forecast = await getLatestPublishedForecast(pool);
+      if (!forecast) {
+        return res.status(404).json({ error: 'No forecast has been published yet.' });
+      }
+
+      const forecastMonths = await getForecastMonths(pool, forecast.forecast_id);
+
+      const consumptionResult = await pool.query(
+        `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+                EXTRACT(MONTH FROM year_month)::int AS month,
+                district, subscriber_type,
+                SUM(consumption_m3)::double precision AS consumption_m3
+         FROM consumption_detail
+         GROUP BY year, month, district, subscriber_type`
+      );
+      const consumptionRows = consumptionResult.rows;
+      const cells = revenue.listCells(consumptionRows);
+
+      const latestMonthResult = await pool.query(
+        `SELECT TO_CHAR(MAX(year_month), 'YYYY-MM-DD') AS month FROM consumption_detail`
+      );
+      const subscribersMonth = latestMonthResult.rows[0].month;
+
+      const subscribersByCell = new Map();
+      if (subscribersMonth) {
+        const subscribersResult = await pool.query(
+          `SELECT district, subscriber_type, SUM(subscribers)::int AS subscribers
+           FROM consumption_detail
+           WHERE year_month = $1::date
+           GROUP BY district, subscriber_type`,
+          [subscribersMonth]
+        );
+        subscribersResult.rows.forEach((row) => {
+          subscribersByCell.set(revenue.cellKey(row.district, row.subscriber_type), row.subscribers);
+        });
+      }
+
+      const tariffTypeMapResult = await pool.query(`SELECT consumption_type, tariff_type FROM tariff_type_map`);
+      const consumptionTypeToTariffType = new Map(
+        tariffTypeMapResult.rows.map((row) => [row.consumption_type, row.tariff_type])
+      );
+
+      // Same lookup GET /api/revenue uses: a cell's customer_group, from
+      // consumption_detail across every month (not just subscribersMonth),
+      // since a subscriber_type/district cell belongs to one customer_group
+      // regardless of which month you check. This is what "housing" scope
+      // means for demand response — the Konut customer_group, not the
+      // KONUT ABONELERİ tariff type (those are different axes of a cell).
+      const customerGroupByKey = new Map();
+      const customerGroupResult = await pool.query(
+        `SELECT district, subscriber_type, (array_agg(customer_group))[1] AS customer_group
+         FROM consumption_detail
+         GROUP BY district, subscriber_type`
+      );
+      customerGroupResult.rows.forEach((row) => {
+        customerGroupByKey.set(revenue.cellKey(row.district, row.subscriber_type), row.customer_group);
+      });
+
+      const latestTariffDateResult = await pool.query(
+        `SELECT TO_CHAR(MAX(valid_from), 'YYYY-MM-DD') AS valid_from FROM tariffs`
+      );
+      const tariffVersionDate = latestTariffDateResult.rows[0].valid_from;
+
+      let tariffCatalog = new Map();
+      if (tariffVersionDate) {
+        const tariffRowsResult = await pool.query(
+          `SELECT subscriber_type, band_min_m3, band_max_m3, price_per_m3, wastewater_price_per_m3
+           FROM tariffs
+           WHERE valid_from = $1::date
+           ORDER BY subscriber_type, band_min_m3`,
+          [tariffVersionDate]
+        );
+        tariffCatalog = revenue.buildTariffCatalog(tariffRowsResult.rows);
+      }
+
+      // Read-only band labels for the per-step inputs — pulled from the
+      // same catalog, never hardcoded (band thresholds could change).
+      const tariffsInUse = {};
+      ['KONUT ABONELERİ', 'İŞYERİ ABONELERİ'].forEach((type) => {
+        const entry = tariffCatalog.get(type);
+        if (entry && !entry.ambiguous) {
+          tariffsInUse[type] = entry.bands;
+        }
+      });
+
+      const months = forecastMonths.map((row) => {
+        const calendarMonth = Number(row.date.slice(5, 7));
+
+        const { cells: baselineCells, totals: baselineTotals } = revenue.buildRevenueBreakdown({
+          consumptionRows,
+          cells,
+          calendarMonth,
+          forecastM3: row.predicted_value,
+          lowerM3: row.yhat_lower,
+          upperM3: row.yhat_upper,
+          subscribersByCell,
+          consumptionTypeToTariffType,
+          tariffCatalog,
+        });
+        const baselineVolume = baselineCells.reduce((sum, c) => sum + c.volume_m3, 0);
+
+        const scenarioMonths = scenarios.map((scenario) =>
+          revenueScenarios.buildScenarioMonth({
+            baselineCells,
+            baselineTotals,
+            tariffCatalog,
+            consumptionTypeToTariffType,
+            customerGroupByKey,
+            scenario,
+          })
+        );
+
+        return {
+          month: row.date,
+          baseline: {
+            water: baselineTotals.water,
+            wastewater: baselineTotals.wastewater,
+            total: baselineTotals.total,
+            volume_m3: baselineVolume,
+            not_priced_pct: baselineTotals.not_priced_pct,
+          },
+          scenarios: scenarioMonths.map((m, i) => {
+            const changeTry = revenue.round2(m.totals.total.mid - baselineTotals.total.mid);
+            const changePct =
+              baselineTotals.total.mid > 0 ? revenue.round2((changeTry / baselineTotals.total.mid) * 100) : null;
+            return {
+              name: scenarios[i].name,
+              water: m.totals.water,
+              wastewater: m.totals.wastewater,
+              total: m.totals.total,
+              volume_m3: m.totals.volume_m3,
+              volume_change_m3: revenue.round2(m.totals.volume_m3 - baselineVolume),
+              change_try: changeTry,
+              change_pct: changePct,
+              not_priced_pct: m.totals.not_priced_pct,
+            };
+          }),
+        };
+      });
+
+      const sumTotals = (field) => ({
+        mid: revenue.round2(months.reduce((s, m) => s + m.baseline[field].mid, 0)),
+        low: revenue.round2(months.reduce((s, m) => s + m.baseline[field].low, 0)),
+        high: revenue.round2(months.reduce((s, m) => s + m.baseline[field].high, 0)),
+      });
+      const twelveMonthBaseline = {
+        water: sumTotals('water'),
+        wastewater: sumTotals('wastewater'),
+        total: sumTotals('total'),
+        volume_m3: months.reduce((s, m) => s + m.baseline.volume_m3, 0),
+      };
+      const twelveMonthScenarios = scenarios.map((scenario, i) => {
+        const sumScenario = (field) => ({
+          mid: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].mid, 0)),
+          low: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].low, 0)),
+          high: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].high, 0)),
+        });
+        const total = sumScenario('total');
+        const volume_m3 = months.reduce((s, m) => s + m.scenarios[i].volume_m3, 0);
+        const changeTry = revenue.round2(total.mid - twelveMonthBaseline.total.mid);
+        const changePct =
+          twelveMonthBaseline.total.mid > 0 ? revenue.round2((changeTry / twelveMonthBaseline.total.mid) * 100) : null;
+        return {
+          name: scenario.name,
+          water: sumScenario('water'),
+          wastewater: sumScenario('wastewater'),
+          total,
+          volume_m3,
+          volume_change_m3: revenue.round2(volume_m3 - twelveMonthBaseline.volume_m3),
+          change_try: changeTry,
+          change_pct: changePct,
+        };
+      });
+
+      res.json({
+        forecast_id: forecast.forecast_id,
+        published_at: forecast.generated_at,
+        tariff_version_date: tariffVersionDate,
+        tariffs_in_use: tariffsInUse,
+        scenarios: scenarios.map((s) => ({
+          name: s.name,
+          mode: s.mode,
+          elasticity: s.elasticity,
+          elasticity_scope: s.elasticity_scope,
+          note: s.note,
+        })),
+        months,
+        twelve_month_totals: {
+          baseline: twelveMonthBaseline,
+          scenarios: twelveMonthScenarios,
+        },
+      });
+    } catch (err) {
+      const reference = generateErrorReference();
+      console.error(`[${reference}] POST /api/revenue/scenario failed:`, err);
+      res.status(500).json({ error: 'Unable to calculate these scenarios right now.', reference });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Overview (Module 6) — the role-based landing page after sign-in. One
+// route, authenticateToken only: each section below is built only if the
+// signed-in user actually holds that section's permission (checked
+// against mePayload.permissions, fetched fresh the same way GET /api/me
+// does), so a role never sees a section — or an alert linking to one —
+// that its own other routes would 403 it out of. All the maths reuses
+// the same helpers/pure functions the other modules already use; only
+// the SQL that fetches rows for them is repeated here, same as every
+// other route in this file already does for itself.
+// ---------------------------------------------------------------------------
+
+// 'YYYY-MM-DD' -> 'November 2026', for alert text only — never used to
+// compute anything, so there's no risk of this disagreeing with the date
+// value itself returned alongside it.
+function monthLongLabel(dateStr) {
+  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+app.get('/api/overview', authenticateToken, async (req, res) => {
+  try {
+    const mePayload = await getMePayload(pool, req.user.user_id);
+    if (!mePayload) {
+      return res.status(401).json({ error: 'Not signed in.' });
+    }
+    const permissions = new Set(mePayload.permissions);
+    const sections = {};
+    const alerts = [];
+
+    const forecast = await getLatestPublishedForecast(pool);
+    const forecastMonths = forecast ? await getForecastMonths(pool, forecast.forecast_id) : [];
+    const firstMonthRow = forecastMonths[0] || null;
+
+    // Forecast dates (not the predicted values) are already exposed to
+    // every authenticated user regardless of permission via GET
+    // /api/about, so showing them unconditionally here too isn't a new
+    // leak — only the actual predicted/lower/upper numbers stay gated
+    // behind forecast:view, in sections.forecast below.
+    const firstMonth = firstMonthRow ? firstMonthRow.date : null;
+    const dataUpTo = forecast ? forecast.data_up_to : null;
+    const publishedAt = forecast ? forecast.generated_at : null;
+
+    if (permissions.has('forecast:view') && firstMonthRow) {
+      sections.forecast = {
+        first_month: firstMonthRow.date,
+        predicted: firstMonthRow.predicted_value,
+        lower: firstMonthRow.yhat_lower,
+        upper: firstMonthRow.yhat_upper,
+        published_at: forecast.generated_at,
+        data_up_to: forecast.data_up_to,
+      };
+    }
+
+    if (permissions.has('plan:view') && forecast && firstMonthRow) {
+      const activePlansByMonth = await getActivePlansByMonth(pool, forecast.forecast_id);
+      const nextMonths = forecastMonths.slice(0, 3).map((row) => {
+        const activePlan = activePlansByMonth.get(row.date);
+        return {
+          month: row.date,
+          plan: activePlan ? { plan_type: activePlan.plan_type, chosen_m3: activePlan.chosen_m3 } : null,
+        };
+      });
+
+      const stockResult = await pool.query(
+        `SELECT TO_CHAR(recorded_on, 'YYYY-MM-DD') AS recorded_on, stock_m3::double precision AS stock_m3
+         FROM stock_entries
+         ORDER BY recorded_on DESC, entry_id DESC
+         LIMIT 1`
+      );
+      const latestStock = stockResult.rows[0] || null;
+
+      let daysOfCover = null;
+      const firstMonthPlan = nextMonths[0] ? nextMonths[0].plan : null;
+      if (latestStock && firstMonthPlan) {
+        const [year, month] = firstMonthRow.date.split('-').map(Number);
+        const daysInFirstMonth = planning.daysInMonth(year, month);
+        daysOfCover = planning.calculateDaysOfCover(latestStock.stock_m3, firstMonthPlan.chosen_m3, daysInFirstMonth);
+      }
+
+      const daysSinceStock = latestStock
+        ? Math.floor((Date.now() - new Date(`${latestStock.recorded_on}T00:00:00Z`).getTime()) / 86_400_000)
+        : null;
+
+      // The full forecast horizon (not just the next 3 months) — only
+      // what the chart needs (month, forecast m3, whether a plan is
+      // saved), reusing the same activePlansByMonth lookup above rather
+      // than a second query.
+      const allMonths = forecastMonths.map((row) => ({
+        month: row.date,
+        forecast_m3: row.predicted_value,
+        has_plan: activePlansByMonth.has(row.date),
+      }));
+
+      sections.production = {
+        next_months: nextMonths,
+        all_months: allMonths,
+        latest_stock: latestStock,
+        days_of_cover: daysOfCover,
+      };
+
+      const unplannedMonths = nextMonths
+        .filter((m) => !m.plan)
+        .map((m) => ({ month: m.month, label: monthLongLabel(m.month) }));
+      alerts.push(...overview.productionAlerts({ unplannedMonths, daysOfCover, daysSinceStock }));
+    }
+
+    if (permissions.has('distribution:view') && forecast && firstMonthRow) {
+      const consumptionResult = await pool.query(
+        `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+                EXTRACT(MONTH FROM year_month)::int AS month,
+                district,
+                SUM(consumption_m3)::double precision AS consumption_m3
+         FROM consumption_detail
+         GROUP BY year, month, district`
+      );
+      const consumptionRows = consumptionResult.rows;
+      const districts = distribution.listDistricts(consumptionRows);
+      const calendarMonth = Number(firstMonthRow.date.slice(5, 7));
+
+      const { rows: districtRows } = distribution.buildDistrictBreakdown({
+        consumptionRows,
+        districts,
+        calendarMonth,
+        forecastM3: firstMonthRow.predicted_value,
+        lowerM3: firstMonthRow.yhat_lower,
+        upperM3: firstMonthRow.yhat_upper,
+        planChosenM3: null,
+      });
+
+      const largest = districtRows.length
+        ? districtRows.reduce((best, r) => (r.forecast_m3 > best.forecast_m3 ? r : best))
+        : null;
+
+      sections.distribution = largest
+        ? {
+            month: firstMonthRow.date,
+            district: largest.district,
+            share_pct: largest.share_pct,
+            forecast_m3: largest.forecast_m3,
+          }
+        : null;
+    }
+
+    if (permissions.has('revenue:view') && forecast && firstMonthRow) {
+      const consumptionResult = await pool.query(
+        `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+                EXTRACT(MONTH FROM year_month)::int AS month,
+                district, subscriber_type,
+                SUM(consumption_m3)::double precision AS consumption_m3
+         FROM consumption_detail
+         GROUP BY year, month, district, subscriber_type`
+      );
+      const consumptionRows = consumptionResult.rows;
+      const cells = revenue.listCells(consumptionRows);
+
+      const latestMonthResult = await pool.query(
+        `SELECT TO_CHAR(MAX(year_month), 'YYYY-MM-DD') AS month FROM consumption_detail`
+      );
+      const subscribersMonth = latestMonthResult.rows[0].month;
+      const subscribersByCell = new Map();
+      if (subscribersMonth) {
+        const subscribersResult = await pool.query(
+          `SELECT district, subscriber_type, SUM(subscribers)::int AS subscribers
+           FROM consumption_detail
+           WHERE year_month = $1::date
+           GROUP BY district, subscriber_type`,
+          [subscribersMonth]
+        );
+        subscribersResult.rows.forEach((row) => {
+          subscribersByCell.set(revenue.cellKey(row.district, row.subscriber_type), row.subscribers);
+        });
+      }
+
+      const customerGroupByKey = new Map();
+      const customerGroupResult = await pool.query(
+        `SELECT district, subscriber_type, (array_agg(customer_group))[1] AS customer_group
+         FROM consumption_detail
+         GROUP BY district, subscriber_type`
+      );
+      customerGroupResult.rows.forEach((row) => {
+        customerGroupByKey.set(revenue.cellKey(row.district, row.subscriber_type), row.customer_group);
+      });
+
+      const tariffTypeMapResult = await pool.query(`SELECT consumption_type, tariff_type FROM tariff_type_map`);
+      const consumptionTypeToTariffType = new Map(
+        tariffTypeMapResult.rows.map((row) => [row.consumption_type, row.tariff_type])
+      );
+
+      const latestTariffDateResult = await pool.query(
+        `SELECT TO_CHAR(MAX(valid_from), 'YYYY-MM-DD') AS valid_from FROM tariffs`
+      );
+      const tariffVersionDate = latestTariffDateResult.rows[0].valid_from;
+
+      let tariffCatalog = new Map();
+      if (tariffVersionDate) {
+        const tariffRowsResult = await pool.query(
+          `SELECT subscriber_type, band_min_m3, band_max_m3, price_per_m3, wastewater_price_per_m3
+           FROM tariffs
+           WHERE valid_from = $1::date
+           ORDER BY subscriber_type, band_min_m3`,
+          [tariffVersionDate]
+        );
+        tariffCatalog = revenue.buildTariffCatalog(tariffRowsResult.rows);
+      }
+
+      let firstMonthTotals = null;
+      let housingSharePct = null;
+      let averagePricePerM3 = null;
+      let twelveMonthTotalMid = 0;
+      // One entry per forecast month — just enough for the 12-month
+      // revenue chart (full detail stays on GET /api/revenue itself).
+      const monthlyTotals = [];
+
+      forecastMonths.forEach((row, i) => {
+        const calendarMonth = Number(row.date.slice(5, 7));
+        const { cells: pricedCells, totals } = revenue.buildRevenueBreakdown({
+          consumptionRows,
+          cells,
+          calendarMonth,
+          forecastM3: row.predicted_value,
+          lowerM3: row.yhat_lower,
+          upperM3: row.yhat_upper,
+          subscribersByCell,
+          consumptionTypeToTariffType,
+          tariffCatalog,
+        });
+
+        twelveMonthTotalMid += totals.total.mid;
+        monthlyTotals.push({ month: row.date, total_mid: totals.total.mid });
+
+        if (i === 0) {
+          firstMonthTotals = totals;
+          const byGroup = revenue.buildGroupBreakdown(pricedCells, customerGroupByKey);
+          const housing = byGroup.find((g) => g.customer_group === 'Konut');
+          housingSharePct = housing && totals.total.mid > 0 ? (housing.total_try / totals.total.mid) * 100 : null;
+
+          const totalVolume = pricedCells.reduce((sum, c) => sum + c.volume_m3, 0);
+          const pricedVolume = totalVolume - totals.not_priced_volume_m3;
+          averagePricePerM3 = pricedVolume > 0 ? revenue.round2(totals.total.mid / pricedVolume) : null;
+        }
+      });
+
+      sections.revenue = {
+        month: firstMonthRow.date,
+        total: firstMonthTotals.total,
+        twelve_month_total_mid: revenue.round2(twelveMonthTotalMid),
+        housing_share_pct: housingSharePct,
+        average_price_per_m3: averagePricePerM3,
+        not_priced_pct: firstMonthTotals.not_priced_pct,
+        tariff_version_date: tariffVersionDate,
+        months: monthlyTotals,
+      };
+
+      alerts.push(...overview.revenueAlerts({ notPricedPct: firstMonthTotals.not_priced_pct }));
+    }
+
+    if (permissions.has('user:manage')) {
+      const activeByRoleResult = await pool.query(
+        `SELECT r.display_name AS role_label, COUNT(*)::int AS count
+         FROM users u
+         JOIN roles r ON r.role_id = u.role_id
+         WHERE u.status = 'active'
+         GROUP BY r.display_name
+         ORDER BY r.display_name`
+      );
+
+      const invitedResult = await pool.query(`SELECT name FROM users WHERE status = 'invited' ORDER BY name`);
+
+      const windowDays = overview.OVERVIEW_THRESHOLDS.audit_window_days;
+      const signInsResult = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM audit_log
+         WHERE action IN ('login.success', 'emergency.login') AND occurred_at >= now() - ($1 || ' days')::interval`,
+        [windowDays]
+      );
+      const failedResult = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM audit_log
+         WHERE action IN ('login.failure', 'emergency.login_failed') AND occurred_at >= now() - ($1 || ' days')::interval`,
+        [windowDays]
+      );
+      const deniedResult = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM audit_log
+         WHERE action = 'permission.denied' AND occurred_at >= now() - ($1 || ' days')::interval`,
+        [windowDays]
+      );
+      const lastEmergencyResult = await pool.query(
+        `SELECT MAX(occurred_at) AS last_at FROM audit_log WHERE action = 'emergency.login'`
+      );
+      const recentEventsResult = await pool.query(
+        `SELECT a.occurred_at, a.action, u.name AS actor_name
+         FROM audit_log a
+         LEFT JOIN users u ON u.user_id = a.user_id
+         ORDER BY a.occurred_at DESC
+         LIMIT 5`
+      );
+
+      const lastEmergencyAt = lastEmergencyResult.rows[0].last_at;
+      const daysSinceEmergencyLogin = lastEmergencyAt
+        ? Math.floor((Date.now() - new Date(lastEmergencyAt).getTime()) / 86_400_000)
+        : null;
+
+      sections.users = {
+        active_by_role: activeByRoleResult.rows,
+        invited_never_signed_in: invitedResult.rows.map((row) => row.name),
+        sign_ins_last_7_days: signInsResult.rows[0].count,
+        failed_attempts_last_7_days: failedResult.rows[0].count,
+        permission_denied_last_7_days: deniedResult.rows[0].count,
+        last_emergency_login_at: lastEmergencyAt,
+        recent_events: recentEventsResult.rows.map((row) => ({
+          time: row.occurred_at,
+          actor_name: row.actor_name,
+          action: row.action,
+          label: auditLog.ACTION_LABELS[row.action] || row.action,
+        })),
+      };
+
+      alerts.push(
+        ...overview.userManageAlerts({
+          invitedNeverSignedInNames: invitedResult.rows.map((row) => row.name),
+          failedAttempts: failedResult.rows[0].count,
+          daysSinceEmergencyLogin,
+        })
+      );
+    }
+
+    res.json({
+      first_month: firstMonth,
+      data_up_to: dataUpTo,
+      published_at: publishedAt,
+      thresholds: overview.OVERVIEW_THRESHOLDS,
+      alerts,
+      sections,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] /api/overview failed:`, err);
+    res.status(500).json({ error: 'Unable to load your overview right now.', reference });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Activity log — the audit trail viewer. Not gated by requirePermission
+// (that helper only ever checks ONE code): audit:view_all sees every
+// event, audit:view_own sees only their own, and holding neither is a
+// 403, exactly like every other permission check in this file.
+// ---------------------------------------------------------------------------
+
+async function requireActivityLogAccess(req, res, next) {
+  const userId = req.user.user_id;
+  const deny = async () => {
+    try {
+      await insertAuditLog(pool, {
+        userId,
+        action: 'permission.denied',
+        details: { permission: 'audit:view_all|audit:view_own', method: req.method, path: req.path },
+        ip: req.ip,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write permission.denied audit row:', auditErr);
+    }
+    return res.status(403).json({ error: "You don't have permission to do this." });
+  };
+
+  try {
+    const result = await pool.query(
+      `SELECT p.code
+       FROM users u
+       JOIN roles r ON r.role_id = u.role_id
+       JOIN role_permissions rp ON rp.role_id = r.role_id
+       JOIN permissions p ON p.permission_id = rp.permission_id
+       WHERE u.user_id = $1 AND u.status = 'active' AND p.code IN ('audit:view_all', 'audit:view_own')`,
+      [userId]
+    );
+    const codes = result.rows.map((row) => row.code);
+    if (codes.length === 0) {
+      return deny();
+    }
+    req.activityLogScope = codes.includes('audit:view_all') ? 'all' : 'own';
+    next();
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] requireActivityLogAccess failed:`, err);
+    res.status(500).json({ error: 'Unable to verify permissions right now.', reference });
+  }
+}
+
+// Shared between the JSON route and the CSV export below, so the two
+// never drift apart on what counts as "matching the filters".
+async function queryActivityLog({ scope, userId, filters, limit, offset }) {
+  const conditions = [];
+  const params = [];
+
+  if (scope !== 'all') {
+    params.push(userId);
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.from) {
+    params.push(filters.from);
+    conditions.push(`a.occurred_at >= $${params.length}::date`);
+  }
+  if (filters.to) {
+    params.push(filters.to);
+    conditions.push(`a.occurred_at < ($${params.length}::date + interval '1 day')`);
+  }
+  if (filters.category) {
+    params.push(auditLog.CATEGORY_ACTIONS[filters.category]);
+    conditions.push(`a.action = ANY($${params.length})`);
+  }
+  if (scope === 'all' && filters.userId) {
+    params.push(filters.userId);
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.q) {
+    const matchingActions = Object.entries(auditLog.ACTION_LABELS)
+      .filter(([, label]) => label.toLowerCase().includes(filters.q.toLowerCase()))
+      .map(([action]) => action);
+    params.push(matchingActions.length > 0 ? matchingActions : [null]);
+    const actionsIdx = params.length;
+    params.push(`%${filters.q}%`);
+    const likeIdx = params.length;
+    conditions.push(
+      `(a.action = ANY($${actionsIdx}) OR a.entity ILIKE $${likeIdx} OR a.details::text ILIKE $${likeIdx} OR a.action ILIKE $${likeIdx})`
+    );
+  }
+
+  const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const countResult = await pool.query(`SELECT COUNT(*)::int AS total FROM audit_log a ${whereSql}`, params);
+
+  const dataParams = [...params, limit, offset];
+  const rowsResult = await pool.query(
+    // ORDER BY occurred_at DESC, with no function wrapping the column
+    // itself in any filter above, so this can use idx_audit_log_occurred_at.
+    `SELECT a.occurred_at, a.user_id, u.name AS actor_name, a.action, a.entity, a.entity_id, a.details, a.ip_address
+     FROM audit_log a
+     LEFT JOIN users u ON u.user_id = a.user_id
+     ${whereSql}
+     ORDER BY a.occurred_at DESC
+     LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+    dataParams
+  );
+
+  return { total: countResult.rows[0].total, rows: rowsResult.rows };
+}
+
+// A row with no user_id (a failed sign-in, or an action with no signed-in
+// actor at all) can only ever reach here for an audit:view_all caller —
+// the SQL above already excludes every such row for an audit:view_own-only
+// caller, by filtering on a.user_id = <their own id>.
+function serializeActivityLogRow(row, scope) {
+  const details = row.details || {};
+  const actor = auditLog.getActor({
+    userId: row.user_id,
+    actorName: row.actor_name,
+    action: row.action,
+    email: details.email,
+    canSeeEmail: scope === 'all',
+  });
+
+  const out = {
+    occurred_at: row.occurred_at,
+    actor,
+    action: row.action,
+    label: auditLog.ACTION_LABELS[row.action] || row.action,
+    category: auditLog.getCategoryForAction(row.action),
+    entity: row.entity,
+    entity_id: row.entity_id,
+    details: auditLog.summarizeDetails(row.action, details),
+  };
+  if (scope === 'all') {
+    out.ip_address = row.ip_address;
+  }
+  return out;
+}
+
+app.get('/api/activity-log', authenticateToken, requireActivityLogAccess, async (req, res) => {
+  const { valid, errors, filters } = auditLog.validateActivityLogFilters(req.query, {
+    canFilterByUser: req.activityLogScope === 'all',
+  });
+  if (!valid) {
+    return res.status(400).json({ error: 'Validation failed.', fields: errors });
+  }
+
+  try {
+    const limit = filters.pageSize;
+    const offset = (filters.page - 1) * filters.pageSize;
+    const { total, rows } = await queryActivityLog({
+      scope: req.activityLogScope,
+      userId: req.user.user_id,
+      filters,
+      limit,
+      offset,
+    });
+
+    res.json({
+      rows: rows.map((row) => serializeActivityLogRow(row, req.activityLogScope)),
+      total,
+      page: filters.page,
+      page_size: filters.pageSize,
+      scope: req.activityLogScope,
+    });
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/activity-log failed:`, err);
+    res.status(500).json({ error: 'Unable to load the activity log right now.', reference });
+  }
+});
+
+app.get('/api/activity-log/export', authenticateToken, requireActivityLogAccess, async (req, res) => {
+  const { valid, errors, filters } = auditLog.validateActivityLogFilters(req.query, {
+    canFilterByUser: req.activityLogScope === 'all',
+  });
+  if (!valid) {
+    return res.status(400).json({ error: 'Validation failed.', fields: errors });
+  }
+
+  try {
+    const EXPORT_ROW_LIMIT = 5000;
+    const { rows } = await queryActivityLog({
+      scope: req.activityLogScope,
+      userId: req.user.user_id,
+      filters,
+      limit: EXPORT_ROW_LIMIT,
+      offset: 0,
+    });
+    const serializedRows = rows.map((row) => serializeActivityLogRow(row, req.activityLogScope));
+
+    const columns = [
+      { header: 'Time', value: (r) => r.occurred_at },
+      { header: 'Who', value: (r) => r.actor },
+      { header: 'What', value: (r) => r.label },
+      { header: 'Category', value: (r) => r.category || '' },
+      { header: 'Details', value: (r) => r.details || '' },
+    ];
+    if (req.activityLogScope === 'all') {
+      columns.push({ header: 'IP address', value: (r) => r.ip_address || '' });
+    }
+    const csv = auditLog.buildCsv(serializedRows, columns);
+
+    // Exporting the audit log is itself audited. Best-effort, same as
+    // every other audit write in this file — it never blocks the export.
+    try {
+      await insertAuditLog(pool, {
+        userId: req.user.user_id,
+        action: 'audit.exported',
+        entity: 'audit_log',
+        details: {
+          filters: {
+            from: filters.from || null,
+            to: filters.to || null,
+            category: filters.category || null,
+            q: filters.q || null,
+            user_id: filters.userId || null,
+          },
+        },
+        ip: req.ip,
+      });
+    } catch (auditErr) {
+      console.error('Failed to write audit.exported row:', auditErr);
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="activity-log-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] GET /api/activity-log/export failed:`, err);
+    res.status(500).json({ error: 'Unable to export the activity log right now.', reference });
   }
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
@@ -174,6 +174,7 @@ function StockTrendTooltip({ active, payload }) {
 
 function ProductionPlanning() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { session, loading: sessionLoading, clearSession } = useSession();
   const hasPlanView = useMemo(() => Boolean(session?.permissions?.includes('plan:view')), [session]);
 
@@ -340,6 +341,23 @@ function ProductionPlanning() {
       openerRef.current.focus();
     }
   }, []);
+
+  // Deep-linked from Overview's "no plan saved" alert
+  // (/production-planning?month=YYYY-MM-01) — opens that month's panel
+  // once the data is ready, then drops the query param so closing the
+  // panel and navigating back here later doesn't reopen it.
+  const deepLinkedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkedRef.current || !computed) return;
+    const targetMonth = new URLSearchParams(location.search).get('month');
+    if (!targetMonth) return;
+    deepLinkedRef.current = true;
+    const index = computed.months.findIndex((m) => m.month === targetMonth);
+    if (index !== -1) {
+      openPanel(index, null);
+    }
+    navigate(location.pathname, { replace: true });
+  }, [computed, location.search, location.pathname, navigate, openPanel]);
 
   useEffect(() => {
     if (panelMonthIndex === null) return;

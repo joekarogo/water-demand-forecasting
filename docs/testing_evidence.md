@@ -364,3 +364,196 @@ and a loader re-run against real tariff data — none of this was run in this
 session (no servers were started, no migration or loader was run, no `.env`
 touched). Everything else above was actually executed as part of this
 change.
+
+## Part M - Overview (Module 6)
+
+The role-based landing page after sign-in (`GET /api/overview`,
+`backend/overview.js`) and the new "Overview" page, for every signed-in
+user — no permission gate of its own, but each section inside it only
+appears for a permission the signed-in user already has elsewhere
+(`forecast:view`, `plan:view`, `distribution:view`, `revenue:view`,
+`user:manage`). All of the section data and alert-threshold logic runs on
+the server, reusing `backend/distribution.js`/`backend/revenue.js`/the
+existing Production Planning helpers rather than re-implementing any of
+that maths. Automated: `backend/test/overview.test.js` (pure alert-rule
+functions), `backend/test/permissions.matrix.test.js` (`GET /api/overview`
+added to the route table, plus a dedicated per-role section-content
+check), `frontend/src/Overview.test.js`, and
+`frontend/src/PostLoginRedirect.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| M1 | `productionAlerts({ daysOfCover: 30, ... })` / `daysOfCover: 29` / `daysOfCover: 15` / `daysOfCover: 14` | 30 and 15 raise no alert yet (not strictly below the threshold); 29 is a `warning`; 14 is an `alert`, never both at once | Automated: `overview.test.js` the four "days of cover" boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M2 | `productionAlerts({ daysSinceStock: 30 })` / `daysSinceStock: 31` / `daysSinceStock: null` | 30 days is still fresh (no alert); 31 days and "never recorded" (`null`) both raise the stale-stock `info` alert | Automated: `overview.test.js` the three "stock recorded" boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M3 | `revenueAlerts({ notPricedPct: 5 })` / `notPricedPct: 5.1` | Exactly 5% raises no warning; 5.1% does; the July-2024-tariff `info` alert is always present | Automated: `overview.test.js` the three `revenueAlerts` tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M4 | `userManageAlerts({ failedAttempts: 0 })` / `failedAttempts: 1`; `daysSinceEmergencyLogin: 30` / `31` | Zero failed attempts raises nothing; one does; an emergency sign-in exactly 30 days ago still warns, 31 days ago no longer does | Automated: `overview.test.js` the failed-attempt and emergency-login boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M5 | `GET /api/overview` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 respectively (every active role gets 200 — only the sections inside differ) | Automated: matrix test route table entry for `GET /api/overview` | Pass | `npm test` in `backend/`: 234/234 pass |
+| M6 | Same request, comparing each role's response body | Admin's body has `forecast`/`users` but not `production`/`distribution`/`revenue`; Production Planner's has `forecast`/`production`/`distribution` but not `users`/`revenue`; Commercial Analyst's has `forecast`/`revenue` but not `production`/`distribution`/`users` | Automated: `permissions.matrix.test.js` "GET /api/overview: each role sees only the sections its own permissions unlock" | Pass | `npm test` in `backend/`: 234/234 pass |
+| M7 | Load `/overview` as Admin, Production Planner, and Commercial Analyst with sample API data | Admin sees only admin KPIs/sections (active users, recent activity); Production Planner sees only production KPIs/sections (days of stock, largest district, the 12-month forecast chart); Commercial Analyst sees only revenue KPIs/sections (expected revenue, not-priced %, the 12-month revenue chart) | Automated: `Overview.test.js`, one test per role | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M8 | An alert in the "Needs your attention" list | Rendered as a link (not just status text) to the page that fixes it, with an icon that differs by level (info/warning/alert), never colour alone | Automated: `Overview.test.js` "an Admin session shows only admin sections" (checks the alert's link target) | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M9 | A role with zero alerts | A calm "Nothing needs your attention." state, not an error-styled one | Automated: `Overview.test.js` "a Production Planner session shows only production sections" | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M10 | Signing in (Google or emergency) | Lands on `/overview`, regardless of role | Automated: `PostLoginRedirect.test.js` "signing in (emergency login) lands on /overview, regardless of role" | Pass | `npm test -- --watchAll=false` in `frontend/`: `PostLoginRedirect.test.js` green |
+| M11 | A signed-in visit straight to an existing deep link (e.g. `/demand-by-district`) | Renders that page directly; is never redirected to `/overview` | Automated: `PostLoginRedirect.test.js` "a signed-in deep link to another page is not redirected to /overview" | Pass | `npm test -- --watchAll=false` in `frontend/`: `PostLoginRedirect.test.js` green |
+| M12 | Click a "no plan saved" alert's link (`/production-planning?month=YYYY-MM-01`) | Opens straight to that month's detail panel on Production Planning, then drops the query param | pending manual test (the `?month=` deep-link handling in `ProductionPlanning.js` wasn't covered by an automated test this session) | — | — |
+| M13 | Open the "How alerts work" info tip | Lists the actual threshold values from the API response (`thresholds`), not a second hardcoded copy | pending manual test | — | — |
+| M14 | Open "Help" as any role | A plain-language "Overview" section is present (no permission gate) | pending manual test (section renders per automated Help coverage elsewhere, but this session's run didn't re-verify the new section's exact copy against a live Help page) | — | — |
+| M15 | View the page at 375px wide | No horizontal page scroll; charts/tables stay inside their own card | pending manual test | — | — |
+| M16 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 234/234 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 32/32 pass across 10 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** M12, M13, M14, M15 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no servers
+were started, no `.env` touched). Everything else above was actually
+executed as part of this change.
+
+## Part N - Revenue scenarios (Module 5b)
+
+"What happens to revenue if prices change?" — up to two live, unsaved
+price-change scenarios compared against the Revenue estimate baseline
+(`POST /api/revenue/scenario`, `backend/revenueScenarios.js`), for
+Commercial Analysts (`revenue:view`) only. A scenario can scale every
+tariff band uniformly or change only housing/workplace bands per band; an
+optional constant-elasticity demand-response step models usage changing
+with price. All of this reuses `backend/revenue.js`'s own tariff and
+tiered-billing functions (`priceThroughBands`, `buildRevenueBreakdown`,
+`sumField`) rather than duplicating that maths — the only new logic is
+the price-scaling and elasticity steps themselves. Automated:
+`backend/test/revenueScenarios.test.js` (pure functions),
+`backend/test/permissions.matrix.test.js` (`POST /api/revenue/scenario`
+added to the route table), and `frontend/src/RevenueScenarios.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| N1 | `validateScenarioRequest` with 3 scenarios / an out-of-range `uniform_pct` / an out-of-range `elasticity` / a malformed `steps` shape | Each is rejected with a field-level error (`scenarios`, `scenarios[0].uniform_pct`, `scenarios[0].elasticity`, `scenarios[0].steps`) | Automated: `revenueScenarios.test.js` the four validation tests | Pass | `npm test` in `backend/`: 258/258 pass |
+| N2 | `buildScenarioMonth(...)` with `mode: 'uniform', uniform_pct: 0, elasticity: 0` | Reproduces the baseline month's water/wastewater/total totals exactly | Automated: `revenueScenarios.test.js` "zero % change and elasticity 0 reproduces the baseline exactly" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N3 | `buildScenarioMonth(...)` with `mode: 'uniform', uniform_pct: 10, elasticity: 0` | Total revenue is exactly the baseline total × 1.1 (rounded to the cent); priced volume is unchanged (no demand response) | Automated: `revenueScenarios.test.js` "a uniform +10% scenario with elasticity 0 gives exactly +10% revenue, with volume unchanged" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N4 | `rescoreCell(...)` with a scenario price +20% and `elasticity: -0.35`, in scope | The price ratio is > 1, and the new volume is lower than the baseline volume | Automated: `revenueScenarios.test.js` "elasticity -0.35 with a price rise lowers volume" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N5 | `rescoreCell(...)` for a cell outside the elasticity scope, under a +50% scenario price | Volume is unchanged from baseline, but the cell is still re-priced at the new (higher) rate | Automated: `revenueScenarios.test.js` "a cell outside the elasticity scope keeps its baseline volume even under a price change" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N6 | `buildScenarioMonth(...)` with `mode: 'per_step'`, housing/workplace steps set, a third tariff type present | The third tariff type's revenue and volume are byte-identical to the baseline; housing's revenue changes | Automated: `revenueScenarios.test.js` "per_step changes touch only housing/workplace bands; every other tariff type is byte-identical to baseline" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N7 | `scaleTariffCatalog(...)` in per_step mode, for a tariff type that isn't housing or workplace | The returned catalog entry is the exact same object reference as the baseline catalog's | Automated: `revenueScenarios.test.js` "per_step mode leaves a third tariff type as the exact same object" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N8 | `buildScenarioMonth(...)` with a price change and elasticity, compared to the baseline's not-priced figures | `not_priced_pct`/`not_priced_volume_m3` are carried over unchanged from the baseline — a price/demand-response change never affects which cells are priceable | Automated: `revenueScenarios.test.js` "the not-priced share is carried over unchanged from the baseline" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N9 | `POST /api/revenue/scenario` as Commercial Analyst, Admin, Production Planner, and signed out | 200 / 403 / 403 / 401 respectively | Automated: matrix test route table entry for `POST /api/revenue/scenario` | Pass | `npm test` in `backend/`: 258/258 pass |
+| N10 | Load `/revenue/scenarios` as a Commercial Analyst with sample API data | The baseline-vs-scenario table shows the first forecast month's baseline and Scenario A totals | Automated: `RevenueScenarios.test.js` "renders the first forecast month with the baseline-vs-scenario table" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N11 | Change the month selector | The baseline-vs-scenario table updates to the newly selected month's figures | Automated: `RevenueScenarios.test.js` "changing the month updates the table figures" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N12 | The server returns a 400 with a field error for `scenarios[0].uniform_pct` | The error message appears inline, next to that input, not just as a toast | Automated: `RevenueScenarios.test.js` "a 400 validation error from the server is shown inline at the relevant input" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N13 | Switch Scenario A to per-step mode and click "May 2025 İzmir change" | Housing and workplace step inputs fill with 0/15/25/35 | Automated: `RevenueScenarios.test.js` "the May 2025 İzmir change preset fills in per-step housing and workplace values" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N14 | Open "Revenue scenarios" as Admin or Production Planner | The normal access-denied view (declarative `requiredPermission`), not a custom page | pending manual test | — | — |
+| N15 | Enable scenario B and compare it against Scenario A and the baseline | The side-by-side table and 12-month chart both show three series, each named and distinguishable by more than colour alone | pending manual test | — | — |
+| N16 | Open the "How are scenarios calculated?" info tip, on both this page and the Demand by district page, near the viewport edges | Opens below the icon, stays fully inside the viewport at 375px, closes on Escape | pending manual test | — | — |
+| N17 | View the page at 375px wide | No horizontal page scroll; tables scroll within their own card if needed | pending manual test | — | — |
+| N18 | Open "Help" as a Commercial Analyst | A "Revenue scenarios" section explains the method, the elasticity source, and the same lower-bound caveat as Revenue estimate | pending manual test | — | — |
+| N19 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 258/258 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 46/46 pass across 12 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** N14-N18 need a running backend + frontend with a real signed-in
+session to verify visually — not run in this session (no servers were
+started, no `.env` touched, no migration or SQL run against any
+database). Everything else above was actually executed as part of this
+change.
+
+## Part O — Model evaluation
+
+"Model evaluation" (`/model-evaluation`, `GET /api/model-evaluation`,
+every role with `forecast:view`) reads the already-committed evaluation
+result files under `ml/results/` once at server startup
+(`backend/modelEvaluation.js`) and never trains, retrains or
+re-evaluates anything live. Every figure shown is read straight from a
+stored file; a section with no backing file shows a plain "not
+available" notice instead of a guessed number. Automated:
+`backend/test/modelEvaluation.test.js` (the loader, against both
+constructed fixtures and the real `ml/results/` directory),
+`backend/test/permissions.matrix.test.js` (`GET /api/model-evaluation`
+added to the route table), and `frontend/src/ModelEvaluation.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| O1 | `loadTestSetMetrics(dir)` with no `sarima_test_comparison.json` in `dir` | Reported unavailable with a clear reason; no exception thrown | Automated: `modelEvaluation.test.js` "a missing file is reported unavailable, not a crash" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O2 | `loadTestSetMetrics(dir)` with a malformed-JSON file | Rejected with a clear "invalid JSON" reason | Automated: `modelEvaluation.test.js` "malformed JSON is rejected with a clear reason" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O3 | `loadTestSetMetrics(dir)` with valid JSON missing the `metrics` key, or with a non-numeric metric | Rejected with a clear reason naming the missing/invalid field; never passed through with garbage data | Automated: `modelEvaluation.test.js` "wrong shape is rejected" / "a model with a non-numeric metric is rejected" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O4 | `loadRollingOrigin(dir)`: mean MAPE vs. min/median/max/n per model and horizon | Mean comes from `rolling_evaluation_summary.json`; min/median/max/n are aggregated from the already-stored per-row `abs_pct_error` column in `rolling_evaluation_predictions.csv` (not re-derived from raw actual/predicted values) | Automated: `modelEvaluation.test.js` "mean comes from the summary; min/median/max/n come from the predictions CSV" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O5 | `loadModelEvaluation(dir)` against this repo's real `ml/results/` directory | All 6 sections load with zero entries in `unavailable` | Automated: `modelEvaluation.test.js` "the real ml/results directory in this repo loads every section with no gaps" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O6 | `GET /api/model-evaluation` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 respectively (every role holds `forecast:view`) | Automated: matrix test route table entry for `GET /api/model-evaluation` | Pass | `npm test` in `backend/`: 279/279 pass |
+| O7 | Load `/model-evaluation` with a full sample API response | The test-set metrics table renders, and the "How accurate is it?" verdict sentence is built from the actual MAPE/DM numbers, not canned text | Automated: `ModelEvaluation.test.js` "renders the test-set metrics table and a data-driven verdict" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O8 | Sample response where the best model's difference from every other model has p ≥ 0.05 in Diebold-Mariano | The verdict explicitly says the difference is **not statistically significant**, rather than implying a clean win | Automated: `ModelEvaluation.test.js` same test, asserts the "not statistically significant" text | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O9 | Sample response with `coverage` and `error_analysis` removed from `sections` | Those two sections show a calm "not available" notice; every other section (including "Is the difference real?") still renders normally; no error banner | Automated: `ModelEvaluation.test.js` "a partial response renders the available sections and a calm 'not available' notice" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O10 | The "Was the test fair?" section with sample protocol data | Shows the train/test periods and states the test set was never used to choose or tune any model | Automated: `ModelEvaluation.test.js` "the protocol section states the train/test periods..." | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O11 | A 500 from `GET /api/model-evaluation` | An error card with a Retry button; retry re-fetches | Automated: `ModelEvaluation.test.js` "an error response shows a retry button" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O12 | Open "Model evaluation" as each of the three roles, in a real browser | The page renders the charts/tables correctly with real data from `ml/results/`; the sidebar item appears after each role's own operational pages | pending manual test | — | — |
+| O13 | Open every ⓘ info tip on this page near the viewport edges, at 375px wide | Opens below the icon, stays fully inside the viewport, closes on Escape | pending manual test | — | — |
+| O14 | View the page at 375px wide | No horizontal page scroll; tables scroll within their own card if needed | pending manual test | — | — |
+| O15 | Open "Help" as any role with `forecast:view` | A "Model evaluation" section appears, explaining the page in plain words | pending manual test | — | — |
+| O16 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 279/279 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 55/55 pass across 13 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** O12-O15 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no
+servers were started, no `.env` touched, no migration or SQL run
+against any database). Everything else above was actually executed as
+part of this change.
+
+**Important finding, not fixed here (out of scope for this task):** the
+existing "safe plan" copy on the Production Planning page and in
+`Help.js`'s Forecast/Production Planning sections claims demand stayed
+below the forecast's upper bound "about 9 of 10 months at a 1-month
+horizon, about 8 of 10 months at a 12-month horizon." No file under
+`ml/results/` computes a one-sided (upper-bound-only) coverage figure —
+only two-sided coverage is stored, and for the actually-deployed model
+(Prophet, defaults) the stored two-sided figure is only about 2 in 3 at
+both horizons (0.667 at h=1, 0.667 at h=12 — see
+`rolling_evaluation_summary.json`'s `coverage_by_horizon`). This is a
+real discrepancy between what the app already says elsewhere and what
+the stored evaluation files actually show; it predates this task and
+touches pages outside it, so it was not changed here, but it's flagged
+for follow-up.
+
+## Part P — Activity log (Module 7)
+
+"Activity log" (`/activity-log`, `GET /api/activity-log` and
+`GET /api/activity-log/export`, for anyone holding `audit:view_all` or
+`audit:view_own`) is the audit trail viewer. `audit:view_all` (Admin)
+sees every event, including `ip_address`; `audit:view_own` (everyone
+else) only ever sees rows where `user_id` is their own — enforced in
+the SQL `WHERE` clause itself, never by hiding anything client-side —
+and `ip_address` is omitted from the response entirely for them, not
+just hidden in the UI. The plain-language action labels and the
+category -> action mapping live in one shared module
+(`backend/auditLog.js`), used by both this route and Overview's
+"Recent activity" list, so there's only ever one copy. Automated:
+`backend/test/auditLog.test.js` (category mapping, filter validation,
+details summarisation, CSV escaping), `backend/test/permissions.matrix.test.js`
+(route table entries plus a dedicated scope-isolation test), and
+`frontend/src/ActivityLog.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| P1 | Every category in `CATEGORY_ACTIONS` | Each maps to at least one real, known action name; no action belongs to more than one category | Automated: `auditLog.test.js` "every category maps to a non-empty set" / "no action belongs to more than one category" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P2 | `validateActivityLogFilters` with a malformed date, an impossible calendar date (Feb 30), `to` before `from`, an unknown category, `page_size` above the max, a non-integer `page` | Each is a clear field-level error, not a crash or a silent pass-through | Automated: `auditLog.test.js`, 6 dedicated cases | Pass | `npm test` in `backend/`: 321/321 pass |
+| P3 | `validateActivityLogFilters` with `user_id` set and `canFilterByUser: false` | `user_id` is silently ignored (valid, no error, not applied) rather than rejected — an `audit:view_own`-only caller can only ever see their own rows regardless | Automated: `auditLog.test.js` "user_id is silently ignored... for a view_own-only caller" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P4 | `GET /api/activity-log` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 (every active role holds `audit:view_all` or `audit:view_own`) | Automated: matrix test route table entries | Pass | `npm test` in `backend/`: 321/321 pass |
+| P5 | `GET /api/activity-log` as Admin (`audit:view_all`), against seeded rows for three different users plus one row with no matching user at all | All rows visible, including the no-user row shown as "Unknown user (ghost@test.local)"; `ip_address` present on every row | Automated: matrix test "audit:view_all sees everything..." | Pass | `npm test` in `backend/`: 321/321 pass |
+| P6 | `GET /api/activity-log` as Production Planner / Commercial Analyst (`audit:view_own` only), same seeded data | Each sees only their own rows; the response's `total` exactly matches an independent `COUNT(*) WHERE user_id = <their own id>` query against the database; `ip_address` is absent from every row (not just empty); the no-user row never appears | Automated: matrix test, same block | Pass | `npm test` in `backend/`: 321/321 pass |
+| P7 | `GET /api/activity-log?category=emergency` as Admin | Only `emergency.login`/`emergency.login_failed` rows returned | Automated: matrix test "category filter narrows to that category's actions only" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P8 | `GET /api/activity-log?from=not-a-date` | 400 with a field-level error naming `from`, not a crash | Automated: matrix test "an invalid filter is a 400 with a field-level error" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P9 | `GET /api/activity-log/export` as Admin | Returns `text/csv`, correct header row, the filtered rows; writes a new `audit.exported` row recording the filters used | Automated: matrix test "returns CSV and audits the export" | Pass | `npm test` in `backend/`: 321/321 pass |
+| P10 | Load `/activity-log` as an Admin session | The IP address column and subtitle "Everything that happened in the system" appear | Automated: `ActivityLog.test.js` "an Admin (audit:view_all) session sees the IP address column and subtitle" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P11 | Load `/activity-log` as a Production Planner session | No IP address column; subtitle "Your own activity" | Automated: `ActivityLog.test.js` "a Production Planner (audit:view_own) session never sees an IP address column" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P12 | Change the category filter on the page | A new request fires with the chosen category in the query string; the URL updates to match | Automated: `ActivityLog.test.js` "changing the category filter re-fetches with the new category in the query string" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P13 | A response with zero matching rows | A calm "No activity matches these filters." message, not an error banner | Automated: `ActivityLog.test.js` "no matching rows shows a calm empty state, not an error" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ActivityLog.test.js` green |
+| P14 | Navigate to `/activity-log?category=failed_sign_in&days=7` directly | The page opens with the category filter already set to "Failed sign-in" and the date range already set to the last 7 days | pending manual test | — | — |
+| P15 | Open Overview as Admin with ≥1 failed sign-in in the last 7 days / a recent emergency sign-in | Each alert's "Open Activity log" link lands on `/activity-log` pre-filtered as above | pending manual test | — | — |
+| P16 | Open "My account" | A "See all your activity" link to `/activity-log` appears for every signed-in user | pending manual test | — | — |
+| P17 | Click "Export CSV" with a real signed-in session | A CSV file downloads with the expected columns and rows | pending manual test | — | — |
+| P18 | View the page at 375px wide | No horizontal page scroll; the table scrolls within its own card if needed | pending manual test | — | — |
+| P19 | Open "Help" as any role | An "Activity log" section appears, worded differently for `audit:view_all` vs `audit:view_own` | pending manual test | — | — |
+| P20 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 321/321 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 65/65 pass across 14 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** P14-P19 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no
+servers were started, no `.env` touched, no migration or SQL run
+against any database, and no `ml/` script run). Everything else above
+was actually executed as part of this change.
+
+**Judgment call, not in the original brief:** the "User" filter
+(Admin/`audit:view_all` only) is populated from `GET /api/users` rather
+than a dedicated endpoint — this works because, in the current role
+design, the one role holding `audit:view_all` (Admin) also always holds
+`user:manage`, but the frontend treats this defensively (the filter is
+simply not offered if that request fails) rather than assuming it will
+always succeed.
