@@ -6,7 +6,7 @@ import { BrandIcon } from './icons';
 function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
   const { session } = useSession();
   const permissions = session?.permissions || [];
-  const visibleItems = MENU_ITEMS.filter((item) => permissions.includes(item.permission));
+  const visibleItems = MENU_ITEMS.filter((item) => item.permission == null || permissions.includes(item.permission));
 
   return (
     <nav className={`sidebar${open ? ' open' : ''}`} id="sidebar" aria-label="Main navigation">

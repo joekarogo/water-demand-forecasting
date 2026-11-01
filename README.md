@@ -97,6 +97,22 @@ validate it.
 
 ## Pages and API
 
+- **Overview** (`/overview`, every signed-in user) - the landing page after
+  sign-in, for every role. "Needs your attention" lists actionable alerts
+  (an unplanned upcoming month, low days of stock, stale stock readings, a
+  month with too much unpriced revenue, invited-but-never-signed-in users,
+  recent failed sign-ins, a recent emergency sign-in), each linking to the
+  page that fixes it. The rest of the page - KPIs, a chart or list - varies
+  by permission, from `GET /api/overview`: a section only appears if the
+  signed-in user already holds that section's permission elsewhere
+  (`forecast:view`, `plan:view`, `distribution:view`, `revenue:view`,
+  `user:manage`), so nobody ever sees data their own other pages would
+  403 them out of. Every alert threshold (days-of-stock warning/alert,
+  stock staleness, the not-priced-revenue cutoff, the audit/emergency-login
+  windows) lives in one place (`backend/overview.js`) and is returned
+  alongside the alerts themselves, so the page's "How alerts work" tip
+  always matches the rules actually in force.
+
 Besides the Forecast, Historical Analysis, Production Planning and Users
 pages, there's:
 

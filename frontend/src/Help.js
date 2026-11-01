@@ -19,6 +19,18 @@ function Help() {
         </p>
       </section>
 
+      <section className="card" aria-labelledby="helpOverviewTitle" style={{ padding: 20 }}>
+        <h2 className="card-title" id="helpOverviewTitle" style={{ marginBottom: 10 }}>
+          Overview
+        </h2>
+        <p style={{ margin: 0 }}>
+          Your Overview page is the first thing you see after signing in. "Needs your attention"
+          lists anything worth checking right now — each item links straight to the page where you
+          can act on it. The rest of the page shows a short summary built from whichever pages your
+          permissions let you see; it never shows anything you couldn't already see elsewhere.
+        </p>
+      </section>
+
       {permissions.includes('forecast:view') && (
         <section className="card" aria-labelledby="helpForecastTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpForecastTitle" style={{ marginBottom: 10 }}>

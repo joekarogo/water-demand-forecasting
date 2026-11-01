@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SessionProvider } from './session';
 import Login from './Login';
 import EmergencyLogin from './EmergencyLogin';
+import Overview from './Overview';
 import Dashboard from './Dashboard';
 import DataOverview from './DataOverview';
 import ProductionPlanning from './ProductionPlanning';
@@ -23,6 +24,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/emergency-login" element={<EmergencyLogin />} />
+          <Route path="/overview" element={<Overview />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/data-overview" element={<DataOverview />} />
           <Route path="/production-planning" element={<ProductionPlanning />} />

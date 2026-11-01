@@ -105,6 +105,7 @@ POST/PATCH route — the allowed role's request again with the
 | `GET /api/me` | *(authenticated only)* | 200 | 200 | 200 |
 | `GET /api/me/sign-ins` | *(authenticated only)* | 200 | 200 | 200 |
 | `GET /api/about` | *(authenticated only)* | 200 | 200 | 200 |
+| `GET /api/overview` | *(authenticated only — each section gated on its own permission)* | 200 | 200 | 200 |
 | `POST /api/auth/logout` | *(authenticated only)* | 204 | 204 | 204 |
 
 The role-change, deactivate and reactivate routes are also gated by
