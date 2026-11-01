@@ -86,6 +86,21 @@ function Help() {
         </section>
       )}
 
+      {permissions.includes('revenue:view') && (
+        <section className="card" aria-labelledby="helpScenariosTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpScenariosTitle" style={{ marginBottom: 10 }}>
+            Revenue scenarios
+          </h2>
+          <p style={{ margin: 0 }}>
+            Compare up to two "what if prices changed" scenarios against the baseline, live — nothing here is saved.
+            A demand-response setting models customers using a little less water as prices rise, using price
+            elasticity figures from international research on residential water demand, not measurements from
+            İzmir. This is a simplified, constant-elasticity approximation, and the same lower-bound caveat as
+            Revenue estimate still applies.
+          </p>
+        </section>
+      )}
+
       {permissions.includes('data:view') && (
         <section className="card" aria-labelledby="helpHistoricalTitle" style={{ padding: 20 }}>
           <h2 className="card-title" id="helpHistoricalTitle" style={{ marginBottom: 10 }}>

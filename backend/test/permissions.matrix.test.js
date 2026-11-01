@@ -300,6 +300,14 @@ test('permission matrix', async (t) => {
       { name: 'GET /api/distribution', method: 'GET', path: '/api/distribution', permission: 'distribution:view' },
       { name: 'GET /api/revenue', method: 'GET', path: '/api/revenue', permission: 'revenue:view' },
       {
+        name: 'POST /api/revenue/scenario',
+        method: 'POST',
+        path: '/api/revenue/scenario',
+        permission: 'revenue:view',
+        csrf: true,
+        body: () => ({ scenarios: [{ name: 'Matrix Scenario', mode: 'uniform', uniform_pct: 10 }] }),
+      },
+      {
         name: 'POST /api/production/stock',
         method: 'POST',
         path: '/api/production/stock',
