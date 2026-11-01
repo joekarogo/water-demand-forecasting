@@ -356,6 +356,7 @@ test('permission matrix', async (t) => {
       { name: 'GET /api/me', method: 'GET', path: '/api/me', permission: null },
       { name: 'GET /api/me/sign-ins', method: 'GET', path: '/api/me/sign-ins', permission: null },
       { name: 'GET /api/about', method: 'GET', path: '/api/about', permission: null },
+      { name: 'GET /api/overview', method: 'GET', path: '/api/overview', permission: null },
     ];
 
     for (const route of ROUTES) {
@@ -453,6 +454,45 @@ test('permission matrix', async (t) => {
         `expected an ISO timestamp with a 'Z' or numeric UTC offset, got: ${publishedAt}`
       );
       assert.ok(!Number.isNaN(Date.parse(publishedAt)), `expected a parseable timestamp, got: ${publishedAt}`);
+    });
+
+    await t.test('GET /api/overview: each role sees only the sections its own permissions unlock', async () => {
+      const adminRes = await request(baseUrl, { method: 'GET', path: '/api/overview', cookie: fixtures.admin.cookie });
+      assert.strictEqual(adminRes.status, 200);
+      const adminBody = await adminRes.json();
+      assert.ok(adminBody.sections.forecast, 'admin has forecast:view');
+      assert.ok(adminBody.sections.users, 'admin has user:manage');
+      assert.strictEqual(adminBody.sections.production, undefined, 'admin lacks plan:view');
+      assert.strictEqual(adminBody.sections.distribution, undefined, 'admin lacks distribution:view');
+      assert.strictEqual(adminBody.sections.revenue, undefined, 'admin lacks revenue:view');
+
+      const plannerRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/overview',
+        cookie: fixtures.production_manager.cookie,
+      });
+      const plannerBody = await plannerRes.json();
+      assert.ok(plannerBody.sections.forecast, 'production_manager has forecast:view');
+      assert.ok(plannerBody.sections.production, 'production_manager has plan:view');
+      assert.ok('distribution' in plannerBody.sections, 'production_manager has distribution:view');
+      assert.strictEqual(plannerBody.sections.users, undefined, 'production_manager lacks user:manage');
+      assert.strictEqual(plannerBody.sections.revenue, undefined, 'production_manager lacks revenue:view');
+
+      const analystRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/overview',
+        cookie: fixtures.commercial_officer.cookie,
+      });
+      const analystBody = await analystRes.json();
+      assert.ok(analystBody.sections.forecast, 'commercial_officer has forecast:view');
+      assert.ok(analystBody.sections.revenue, 'commercial_officer has revenue:view');
+      assert.strictEqual(analystBody.sections.production, undefined, 'commercial_officer lacks plan:view');
+      assert.strictEqual(analystBody.sections.distribution, undefined, 'commercial_officer lacks distribution:view');
+      assert.strictEqual(analystBody.sections.users, undefined, 'commercial_officer lacks user:manage');
+
+      // Every response also carries the live thresholds, not a second
+      // hardcoded copy the frontend would have to keep in sync by hand.
+      assert.strictEqual(adminBody.thresholds.not_priced_pct_warning, 5);
     });
 
     await t.test('unmatched /api route returns a JSON 404', async () => {

@@ -103,8 +103,13 @@ export function fmtTRY(value) {
 }
 
 // For KPI cards, where a full figure would be too wide — "₺12.3M", or
-// "₺1,065.5M" once the millions figure itself reaches 4+ digits.
+// "₺10.84B" once the total reaches ₺1,000M (₺1 billion) or more, so the
+// card never has to show a 4+ digit millions figure.
 export function fmtTRYMillions(value, decimals = 1) {
+  if (Math.abs(value) >= 1_000_000_000) {
+    const billions = (value / 1_000_000_000).toFixed(2);
+    return `₺${billions}B`;
+  }
   const millions = (value / 1_000_000).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

@@ -364,3 +364,43 @@ and a loader re-run against real tariff data — none of this was run in this
 session (no servers were started, no migration or loader was run, no `.env`
 touched). Everything else above was actually executed as part of this
 change.
+
+## Part M - Overview (Module 6)
+
+The role-based landing page after sign-in (`GET /api/overview`,
+`backend/overview.js`) and the new "Overview" page, for every signed-in
+user — no permission gate of its own, but each section inside it only
+appears for a permission the signed-in user already has elsewhere
+(`forecast:view`, `plan:view`, `distribution:view`, `revenue:view`,
+`user:manage`). All of the section data and alert-threshold logic runs on
+the server, reusing `backend/distribution.js`/`backend/revenue.js`/the
+existing Production Planning helpers rather than re-implementing any of
+that maths. Automated: `backend/test/overview.test.js` (pure alert-rule
+functions), `backend/test/permissions.matrix.test.js` (`GET /api/overview`
+added to the route table, plus a dedicated per-role section-content
+check), `frontend/src/Overview.test.js`, and
+`frontend/src/PostLoginRedirect.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| M1 | `productionAlerts({ daysOfCover: 30, ... })` / `daysOfCover: 29` / `daysOfCover: 15` / `daysOfCover: 14` | 30 and 15 raise no alert yet (not strictly below the threshold); 29 is a `warning`; 14 is an `alert`, never both at once | Automated: `overview.test.js` the four "days of cover" boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M2 | `productionAlerts({ daysSinceStock: 30 })` / `daysSinceStock: 31` / `daysSinceStock: null` | 30 days is still fresh (no alert); 31 days and "never recorded" (`null`) both raise the stale-stock `info` alert | Automated: `overview.test.js` the three "stock recorded" boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M3 | `revenueAlerts({ notPricedPct: 5 })` / `notPricedPct: 5.1` | Exactly 5% raises no warning; 5.1% does; the July-2024-tariff `info` alert is always present | Automated: `overview.test.js` the three `revenueAlerts` tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M4 | `userManageAlerts({ failedAttempts: 0 })` / `failedAttempts: 1`; `daysSinceEmergencyLogin: 30` / `31` | Zero failed attempts raises nothing; one does; an emergency sign-in exactly 30 days ago still warns, 31 days ago no longer does | Automated: `overview.test.js` the failed-attempt and emergency-login boundary tests | Pass | `npm test` in `backend/`: 234/234 pass |
+| M5 | `GET /api/overview` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 respectively (every active role gets 200 — only the sections inside differ) | Automated: matrix test route table entry for `GET /api/overview` | Pass | `npm test` in `backend/`: 234/234 pass |
+| M6 | Same request, comparing each role's response body | Admin's body has `forecast`/`users` but not `production`/`distribution`/`revenue`; Production Planner's has `forecast`/`production`/`distribution` but not `users`/`revenue`; Commercial Analyst's has `forecast`/`revenue` but not `production`/`distribution`/`users` | Automated: `permissions.matrix.test.js` "GET /api/overview: each role sees only the sections its own permissions unlock" | Pass | `npm test` in `backend/`: 234/234 pass |
+| M7 | Load `/overview` as Admin, Production Planner, and Commercial Analyst with sample API data | Admin sees only admin KPIs/sections (active users, recent activity); Production Planner sees only production KPIs/sections (days of stock, largest district, the 12-month forecast chart); Commercial Analyst sees only revenue KPIs/sections (expected revenue, not-priced %, the 12-month revenue chart) | Automated: `Overview.test.js`, one test per role | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M8 | An alert in the "Needs your attention" list | Rendered as a link (not just status text) to the page that fixes it, with an icon that differs by level (info/warning/alert), never colour alone | Automated: `Overview.test.js` "an Admin session shows only admin sections" (checks the alert's link target) | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M9 | A role with zero alerts | A calm "Nothing needs your attention." state, not an error-styled one | Automated: `Overview.test.js` "a Production Planner session shows only production sections" | Pass | `npm test -- --watchAll=false` in `frontend/`: `Overview.test.js` green |
+| M10 | Signing in (Google or emergency) | Lands on `/overview`, regardless of role | Automated: `PostLoginRedirect.test.js` "signing in (emergency login) lands on /overview, regardless of role" | Pass | `npm test -- --watchAll=false` in `frontend/`: `PostLoginRedirect.test.js` green |
+| M11 | A signed-in visit straight to an existing deep link (e.g. `/demand-by-district`) | Renders that page directly; is never redirected to `/overview` | Automated: `PostLoginRedirect.test.js` "a signed-in deep link to another page is not redirected to /overview" | Pass | `npm test -- --watchAll=false` in `frontend/`: `PostLoginRedirect.test.js` green |
+| M12 | Click a "no plan saved" alert's link (`/production-planning?month=YYYY-MM-01`) | Opens straight to that month's detail panel on Production Planning, then drops the query param | pending manual test (the `?month=` deep-link handling in `ProductionPlanning.js` wasn't covered by an automated test this session) | — | — |
+| M13 | Open the "How alerts work" info tip | Lists the actual threshold values from the API response (`thresholds`), not a second hardcoded copy | pending manual test | — | — |
+| M14 | Open "Help" as any role | A plain-language "Overview" section is present (no permission gate) | pending manual test (section renders per automated Help coverage elsewhere, but this session's run didn't re-verify the new section's exact copy against a live Help page) | — | — |
+| M15 | View the page at 375px wide | No horizontal page scroll; charts/tables stay inside their own card | pending manual test | — | — |
+| M16 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 234/234 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 32/32 pass across 10 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** M12, M13, M14, M15 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no servers
+were started, no `.env` touched). Everything else above was actually
+executed as part of this change.
