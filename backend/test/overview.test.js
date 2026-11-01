@@ -82,12 +82,12 @@ test('userManageAlerts: zero failed attempts raises no warning', () => {
   assert.strictEqual(alerts.length, 0);
 });
 
-test('userManageAlerts: exactly one failed attempt raises a warning with no link yet', () => {
+test('userManageAlerts: exactly one failed attempt raises a warning linking to the Activity log', () => {
   const alerts = userManageAlerts({ invitedNeverSignedInNames: [], failedAttempts: 1, daysSinceEmergencyLogin: null });
   assert.strictEqual(alerts.length, 1);
   assert.strictEqual(alerts[0].level, 'warning');
-  assert.strictEqual(alerts[0].link, undefined);
-  assert.strictEqual(alerts[0].linkText, undefined);
+  assert.strictEqual(alerts[0].link, '/activity-log?category=failed_sign_in&days=7');
+  assert.strictEqual(alerts[0].linkText, 'Open Activity log');
 });
 
 test('userManageAlerts: one invited-never-signed-in user is named by name', () => {
@@ -125,12 +125,12 @@ test('userManageAlerts: beyond three names, the rest are folded into "+N more"',
   assert.strictEqual(alerts[0].message, "Kate, Tom and Priya, +2 more have been invited but haven't signed in yet.");
 });
 
-test('userManageAlerts: an emergency login exactly 30 days ago still warns, with no link yet', () => {
+test('userManageAlerts: an emergency login exactly 30 days ago still warns, linking to the Activity log', () => {
   const alerts = userManageAlerts({ invitedNeverSignedInNames: [], failedAttempts: 0, daysSinceEmergencyLogin: 30 });
   assert.strictEqual(alerts.length, 1);
   assert.strictEqual(alerts[0].level, 'warning');
-  assert.strictEqual(alerts[0].link, undefined);
-  assert.strictEqual(alerts[0].linkText, undefined);
+  assert.strictEqual(alerts[0].link, '/activity-log?category=emergency&days=30');
+  assert.strictEqual(alerts[0].linkText, 'Open Activity log');
 });
 
 test('userManageAlerts: an emergency login 31 days ago no longer warns', () => {
@@ -157,10 +157,10 @@ test('every alert that has a link carries non-empty, visible link text', () => {
       assert.strictEqual(a.linkText, undefined);
     }
   });
-  // The failed-attempts and emergency-login alerts have no link yet
-  // (nothing on the Users page shows those events) — confirm at least
-  // one alert in this mixed batch is deliberately link-less.
-  assert.ok(all.some((a) => a.link === undefined));
+  // Every alert in this mixed batch now has a link — the failed-attempts
+  // and emergency-login alerts used to be link-less (before the Activity
+  // log page existed to point them at); confirm they're not any more.
+  assert.ok(all.every((a) => a.link !== undefined));
 });
 
 test('OVERVIEW_THRESHOLDS exposes every threshold the rules above depend on', () => {

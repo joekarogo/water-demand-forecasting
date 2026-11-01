@@ -44,6 +44,8 @@ function adminOverview() {
       {
         level: 'warning',
         message: '1 failed sign-in attempt in the last 7 days.',
+        link: '/activity-log?category=failed_sign_in&days=7',
+        linkText: 'Open Activity log',
       },
     ],
     sections: {
@@ -151,11 +153,11 @@ test('an Admin session shows only admin sections', async () => {
   expect(screen.queryByText('12-month forecast')).not.toBeInTheDocument();
   expect(screen.queryByText('12-month revenue')).not.toBeInTheDocument();
 
-  // No link yet: the Users page doesn't show failed-attempt events (it'll
-  // link to the audit log once that page exists), so this alert must not
-  // render as a clickable link, and must show no link text.
-  expect(screen.queryByRole('link', { name: /failed sign-in attempt/i })).not.toBeInTheDocument();
-  expect(screen.getByText(/1 failed sign-in attempt/i)).toBeInTheDocument();
+  // Now that the Activity log page exists, this alert links there,
+  // pre-filtered to failed sign-ins in the last 7 days.
+  const alertLink = screen.getByRole('link', { name: /failed sign-in attempt/i });
+  expect(alertLink).toHaveAttribute('href', '/activity-log?category=failed_sign_in&days=7');
+  expect(within(alertLink).getByText('Open Activity log')).toBeInTheDocument();
 });
 
 test('a Production Planner session shows only production sections', async () => {
@@ -216,19 +218,40 @@ test('an alert with a link shows visible link text at the end', async () => {
   expect(within(alertLink).getByText('Open Users')).toBeInTheDocument();
 });
 
-test('an alert with no link (failed attempts, emergency sign-in) renders as plain text, not a link', async () => {
+test('an alert with no link renders as plain text, not a link', async () => {
+  const body = adminOverview();
+  body.alerts = [{ level: 'info', message: 'A purely informational alert with nowhere to go.' }];
+  mockFetch(ADMIN_SESSION, body);
+  renderPage();
+
+  await waitFor(() => expect(screen.getByText(/A purely informational alert/i)).toBeInTheDocument());
+  expect(screen.queryByRole('link', { name: /A purely informational alert/i })).not.toBeInTheDocument();
+});
+
+test('the failed-attempts and emergency-sign-in alerts both link to the Activity log, pre-filtered', async () => {
   const body = adminOverview();
   body.alerts = [
-    { level: 'warning', message: '2 failed sign-in attempts in the last 7 days.' },
-    { level: 'warning', message: 'An emergency sign-in happened in the last 30 days.' },
+    {
+      level: 'warning',
+      message: '2 failed sign-in attempts in the last 7 days.',
+      link: '/activity-log?category=failed_sign_in&days=7',
+      linkText: 'Open Activity log',
+    },
+    {
+      level: 'warning',
+      message: 'An emergency sign-in happened in the last 30 days.',
+      link: '/activity-log?category=emergency&days=30',
+      linkText: 'Open Activity log',
+    },
   ];
   mockFetch(ADMIN_SESSION, body);
   renderPage();
 
-  await waitFor(() => expect(screen.getByText(/2 failed sign-in attempts/i)).toBeInTheDocument());
-  expect(screen.getByText(/An emergency sign-in happened/i)).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /failed sign-in attempts/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /emergency sign-in happened/i })).not.toBeInTheDocument();
+  const failedLink = await screen.findByRole('link', { name: /2 failed sign-in attempts/i });
+  expect(failedLink).toHaveAttribute('href', '/activity-log?category=failed_sign_in&days=7');
+
+  const emergencyLink = screen.getByRole('link', { name: /An emergency sign-in happened/i });
+  expect(emergencyLink).toHaveAttribute('href', '/activity-log?category=emergency&days=30');
 });
 
 test('an invited-never-signed-in alert names the person', async () => {

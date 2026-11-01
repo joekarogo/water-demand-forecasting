@@ -141,6 +141,21 @@ function Help() {
         </section>
       )}
 
+      {(permissions.includes('audit:view_all') || permissions.includes('audit:view_own')) && (
+        <section className="card" aria-labelledby="helpActivityTitle" style={{ padding: 20 }}>
+          <h2 className="card-title" id="helpActivityTitle" style={{ marginBottom: 10 }}>
+            Activity log
+          </h2>
+          <p style={{ margin: 0 }}>
+            {permissions.includes('audit:view_all')
+              ? 'Admins can see everything that happened in the system: who signed in, who was invited or had their role changed, failed sign-in attempts, and more.'
+              : 'You can see your own activity in the system — your sign-ins and anything you changed.'}{' '}
+            Entries are recorded automatically and can't be edited or deleted. Filter by date, category
+            or a search term, and export the results as a CSV file.
+          </p>
+        </section>
+      )}
+
       <section className="card" aria-labelledby="helpAccessTitle" style={{ padding: 20 }}>
         <h2 className="card-title" id="helpAccessTitle" style={{ marginBottom: 10 }}>
           Access problems

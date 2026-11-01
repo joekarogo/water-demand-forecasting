@@ -399,6 +399,9 @@ function Overview() {
                   </h2>
                   <p className="card-sub">5 most recent audit events.</p>
                 </div>
+                <Link to="/activity-log" className="btn">
+                  View all
+                </Link>
               </div>
               {sections.users.recent_events.length === 0 ? (
                 <p className="field-hint" style={{ padding: '0 20px' }}>No activity recorded yet.</p>

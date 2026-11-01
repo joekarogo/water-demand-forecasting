@@ -19,6 +19,7 @@ import {
   fmtTRYMillions,
   fmtTRYPerM3,
 } from './utils/format';
+import { downloadTextFile } from './utils/download';
 import './App.css';
 
 const API_URL = '/api/revenue';
@@ -246,14 +247,7 @@ function RevenueEstimate() {
         ].join(',')
       )
     );
-    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `revenue-estimate-${month.month}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    downloadTextFile(`revenue-estimate-${month.month}.csv`, lines.join('\n'));
   };
 
   const subtitle = 'How much money will water sales bring in?';

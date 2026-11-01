@@ -14,6 +14,7 @@ import {
   fmtMillions,
   formatDistrictName,
 } from './utils/format';
+import { downloadTextFile } from './utils/download';
 import './App.css';
 
 const API_URL = '/api/distribution';
@@ -215,14 +216,7 @@ function DemandByDistrict() {
         ].join(',')
       )
     );
-    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `district-demand-${month.month}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    downloadTextFile(`district-demand-${month.month}.csv`, lines.join('\n'));
   };
 
   const subtitle = 'Which districts need the most water in a given month?';

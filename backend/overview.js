@@ -123,21 +123,22 @@ function userManageAlerts({ invitedNeverSignedInNames, failedAttempts, daysSince
   }
 
   if (failedAttempts > 0) {
-    // No link yet: these events aren't shown anywhere on the Users page.
-    // Point this at the audit log once that page exists.
     alerts.push({
       level: 'warning',
       message: `${failedAttempts} failed sign-in attempt${failedAttempts === 1 ? '' : 's'} in the last ${
         OVERVIEW_THRESHOLDS.audit_window_days
       } days.`,
+      link: `/activity-log?category=failed_sign_in&days=${OVERVIEW_THRESHOLDS.audit_window_days}`,
+      linkText: 'Open Activity log',
     });
   }
 
   if (daysSinceEmergencyLogin != null && daysSinceEmergencyLogin <= OVERVIEW_THRESHOLDS.emergency_login_window_days) {
-    // No link yet, same reason as above.
     alerts.push({
       level: 'warning',
       message: 'An emergency sign-in happened in the last 30 days.',
+      link: `/activity-log?category=emergency&days=${OVERVIEW_THRESHOLDS.emergency_login_window_days}`,
+      linkText: 'Open Activity log',
     });
   }
 

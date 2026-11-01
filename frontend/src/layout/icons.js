@@ -106,6 +106,14 @@ export function EvaluationNavIcon() {
   );
 }
 
+export function ActivityNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h4l2 6 4-14 2 8h6" />
+    </svg>
+  );
+}
+
 export function EmptyForecastIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
