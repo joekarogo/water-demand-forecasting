@@ -7,6 +7,7 @@ import {
   RevenueNavIcon,
   ScenariosNavIcon,
   UsersNavIcon,
+  EvaluationNavIcon,
 } from './icons';
 
 // One line per page: { label, path, icon, permission }. The sidebar shows
@@ -28,6 +29,9 @@ export const MENU_ITEMS = [
   { label: 'Revenue scenarios', path: '/revenue/scenarios', icon: ScenariosNavIcon, permission: 'revenue:view' },
   { label: 'Historical Analysis', path: '/data-overview', icon: HistoryNavIcon, permission: 'data:view' },
   { label: 'Users', path: '/users', icon: UsersNavIcon, permission: 'user:manage' },
+  // Placed last so it always comes after every role's own operational
+  // pages above, regardless of which of those a given role actually has.
+  { label: 'Model evaluation', path: '/model-evaluation', icon: EvaluationNavIcon, permission: 'forecast:view' },
 ];
 
 // Where to send someone right after signing in: the first menu item

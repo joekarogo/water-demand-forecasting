@@ -448,3 +448,57 @@ session to verify visually — not run in this session (no servers were
 started, no `.env` touched, no migration or SQL run against any
 database). Everything else above was actually executed as part of this
 change.
+
+## Part O — Model evaluation
+
+"Model evaluation" (`/model-evaluation`, `GET /api/model-evaluation`,
+every role with `forecast:view`) reads the already-committed evaluation
+result files under `ml/results/` once at server startup
+(`backend/modelEvaluation.js`) and never trains, retrains or
+re-evaluates anything live. Every figure shown is read straight from a
+stored file; a section with no backing file shows a plain "not
+available" notice instead of a guessed number. Automated:
+`backend/test/modelEvaluation.test.js` (the loader, against both
+constructed fixtures and the real `ml/results/` directory),
+`backend/test/permissions.matrix.test.js` (`GET /api/model-evaluation`
+added to the route table), and `frontend/src/ModelEvaluation.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| O1 | `loadTestSetMetrics(dir)` with no `sarima_test_comparison.json` in `dir` | Reported unavailable with a clear reason; no exception thrown | Automated: `modelEvaluation.test.js` "a missing file is reported unavailable, not a crash" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O2 | `loadTestSetMetrics(dir)` with a malformed-JSON file | Rejected with a clear "invalid JSON" reason | Automated: `modelEvaluation.test.js` "malformed JSON is rejected with a clear reason" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O3 | `loadTestSetMetrics(dir)` with valid JSON missing the `metrics` key, or with a non-numeric metric | Rejected with a clear reason naming the missing/invalid field; never passed through with garbage data | Automated: `modelEvaluation.test.js` "wrong shape is rejected" / "a model with a non-numeric metric is rejected" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O4 | `loadRollingOrigin(dir)`: mean MAPE vs. min/median/max/n per model and horizon | Mean comes from `rolling_evaluation_summary.json`; min/median/max/n are aggregated from the already-stored per-row `abs_pct_error` column in `rolling_evaluation_predictions.csv` (not re-derived from raw actual/predicted values) | Automated: `modelEvaluation.test.js` "mean comes from the summary; min/median/max/n come from the predictions CSV" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O5 | `loadModelEvaluation(dir)` against this repo's real `ml/results/` directory | All 6 sections load with zero entries in `unavailable` | Automated: `modelEvaluation.test.js` "the real ml/results directory in this repo loads every section with no gaps" | Pass | `npm test` in `backend/`: 279/279 pass |
+| O6 | `GET /api/model-evaluation` as Admin, Production Planner, Commercial Analyst, and signed out | 200 / 200 / 200 / 401 respectively (every role holds `forecast:view`) | Automated: matrix test route table entry for `GET /api/model-evaluation` | Pass | `npm test` in `backend/`: 279/279 pass |
+| O7 | Load `/model-evaluation` with a full sample API response | The test-set metrics table renders, and the "How accurate is it?" verdict sentence is built from the actual MAPE/DM numbers, not canned text | Automated: `ModelEvaluation.test.js` "renders the test-set metrics table and a data-driven verdict" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O8 | Sample response where the best model's difference from every other model has p ≥ 0.05 in Diebold-Mariano | The verdict explicitly says the difference is **not statistically significant**, rather than implying a clean win | Automated: `ModelEvaluation.test.js` same test, asserts the "not statistically significant" text | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O9 | Sample response with `coverage` and `error_analysis` removed from `sections` | Those two sections show a calm "not available" notice; every other section (including "Is the difference real?") still renders normally; no error banner | Automated: `ModelEvaluation.test.js` "a partial response renders the available sections and a calm 'not available' notice" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O10 | The "Was the test fair?" section with sample protocol data | Shows the train/test periods and states the test set was never used to choose or tune any model | Automated: `ModelEvaluation.test.js` "the protocol section states the train/test periods..." | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O11 | A 500 from `GET /api/model-evaluation` | An error card with a Retry button; retry re-fetches | Automated: `ModelEvaluation.test.js` "an error response shows a retry button" | Pass | `npm test -- --watchAll=false` in `frontend/`: `ModelEvaluation.test.js` green |
+| O12 | Open "Model evaluation" as each of the three roles, in a real browser | The page renders the charts/tables correctly with real data from `ml/results/`; the sidebar item appears after each role's own operational pages | pending manual test | — | — |
+| O13 | Open every ⓘ info tip on this page near the viewport edges, at 375px wide | Opens below the icon, stays fully inside the viewport, closes on Escape | pending manual test | — | — |
+| O14 | View the page at 375px wide | No horizontal page scroll; tables scroll within their own card if needed | pending manual test | — | — |
+| O15 | Open "Help" as any role with `forecast:view` | A "Model evaluation" section appears, explaining the page in plain words | pending manual test | — | — |
+| O16 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 279/279 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 55/55 pass across 13 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** O12-O15 need a running backend + frontend with a real
+signed-in session to verify visually — not run in this session (no
+servers were started, no `.env` touched, no migration or SQL run
+against any database). Everything else above was actually executed as
+part of this change.
+
+**Important finding, not fixed here (out of scope for this task):** the
+existing "safe plan" copy on the Production Planning page and in
+`Help.js`'s Forecast/Production Planning sections claims demand stayed
+below the forecast's upper bound "about 9 of 10 months at a 1-month
+horizon, about 8 of 10 months at a 12-month horizon." No file under
+`ml/results/` computes a one-sided (upper-bound-only) coverage figure —
+only two-sided coverage is stored, and for the actually-deployed model
+(Prophet, defaults) the stored two-sided figure is only about 2 in 3 at
+both horizons (0.667 at h=1, 0.667 at h=12 — see
+`rolling_evaluation_summary.json`'s `coverage_by_horizon`). This is a
+real discrepancy between what the app already says elsewhere and what
+the stored evaluation files actually show; it predates this task and
+touches pages outside it, so it was not changed here, but it's flagged
+for follow-up.

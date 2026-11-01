@@ -10,6 +10,7 @@ import DemandByDistrict from './DemandByDistrict';
 import RevenueEstimate from './RevenueEstimate';
 import RevenueScenarios from './RevenueScenarios';
 import Users from './Users';
+import ModelEvaluation from './ModelEvaluation';
 import MyAccount from './MyAccount';
 import Help from './Help';
 import Privacy from './Privacy';
@@ -33,6 +34,7 @@ function App() {
           <Route path="/revenue" element={<RevenueEstimate />} />
           <Route path="/revenue/scenarios" element={<RevenueScenarios />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/model-evaluation" element={<ModelEvaluation />} />
           <Route path="/account" element={<MyAccount />} />
           <Route path="/help" element={<Help />} />
           <Route path="/privacy" element={<Privacy />} />
