@@ -606,6 +606,13 @@ svg {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
+/* ---------- Scenario panels (Revenue scenarios) ---------- */
+.scenario-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1111,6 +1118,9 @@ svg {
 @media (max-width: 1100px) {
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .scenario-panels {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 900px) {

@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const planning = require('./planning');
 const distribution = require('./distribution');
 const revenue = require('./revenue');
+const revenueScenarios = require('./revenueScenarios');
 const overview = require('./overview');
 const users = require('./users');
 const auth = require('./auth');
@@ -194,6 +195,7 @@ function requireRecentAuth(req, res, next) {
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
 //   GET  /api/distribution               authenticateToken, requirePermission('distribution:view')
 //   GET  /api/revenue                    authenticateToken, requirePermission('revenue:view')
+//   POST /api/revenue/scenario           authenticateToken, csrfProtection, requirePermission('revenue:view')
 //   GET  /api/roles                      authenticateToken, requirePermission('user:manage')
 //   GET  /api/users                      authenticateToken, requirePermission('user:manage')
 //   POST /api/users                      authenticateToken, csrfProtection, requirePermission('user:manage')
@@ -2011,6 +2013,223 @@ app.get('/api/revenue', authenticateToken, requirePermission('revenue:view'), as
     res.status(500).json({ error: 'Unable to load the revenue estimate right now.', reference });
   }
 });
+
+// Revenue Scenarios (Module 5b) — "what happens to revenue if prices
+// change?" Same consumption/tariff/subscriber inputs GET /api/revenue
+// already loads, re-priced under up to 2 scenarios via revenueScenarios.js
+// (price-change multipliers + constant-elasticity demand response). Never
+// saved — everything here is calculated live, per request.
+app.post(
+  '/api/revenue/scenario',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('revenue:view'),
+  async (req, res) => {
+    const { valid, errors, scenarios } = revenueScenarios.validateScenarioRequest(req.body || {});
+    if (!valid) {
+      return res.status(400).json({ error: 'Validation failed.', fields: errors });
+    }
+
+    try {
+      const forecast = await getLatestPublishedForecast(pool);
+      if (!forecast) {
+        return res.status(404).json({ error: 'No forecast has been published yet.' });
+      }
+
+      const forecastMonths = await getForecastMonths(pool, forecast.forecast_id);
+
+      const consumptionResult = await pool.query(
+        `SELECT EXTRACT(YEAR FROM year_month)::int AS year,
+                EXTRACT(MONTH FROM year_month)::int AS month,
+                district, subscriber_type,
+                SUM(consumption_m3)::double precision AS consumption_m3
+         FROM consumption_detail
+         GROUP BY year, month, district, subscriber_type`
+      );
+      const consumptionRows = consumptionResult.rows;
+      const cells = revenue.listCells(consumptionRows);
+
+      const latestMonthResult = await pool.query(
+        `SELECT TO_CHAR(MAX(year_month), 'YYYY-MM-DD') AS month FROM consumption_detail`
+      );
+      const subscribersMonth = latestMonthResult.rows[0].month;
+
+      const subscribersByCell = new Map();
+      if (subscribersMonth) {
+        const subscribersResult = await pool.query(
+          `SELECT district, subscriber_type, SUM(subscribers)::int AS subscribers
+           FROM consumption_detail
+           WHERE year_month = $1::date
+           GROUP BY district, subscriber_type`,
+          [subscribersMonth]
+        );
+        subscribersResult.rows.forEach((row) => {
+          subscribersByCell.set(revenue.cellKey(row.district, row.subscriber_type), row.subscribers);
+        });
+      }
+
+      const tariffTypeMapResult = await pool.query(`SELECT consumption_type, tariff_type FROM tariff_type_map`);
+      const consumptionTypeToTariffType = new Map(
+        tariffTypeMapResult.rows.map((row) => [row.consumption_type, row.tariff_type])
+      );
+
+      // Same lookup GET /api/revenue uses: a cell's customer_group, from
+      // consumption_detail across every month (not just subscribersMonth),
+      // since a subscriber_type/district cell belongs to one customer_group
+      // regardless of which month you check. This is what "housing" scope
+      // means for demand response — the Konut customer_group, not the
+      // KONUT ABONELERİ tariff type (those are different axes of a cell).
+      const customerGroupByKey = new Map();
+      const customerGroupResult = await pool.query(
+        `SELECT district, subscriber_type, (array_agg(customer_group))[1] AS customer_group
+         FROM consumption_detail
+         GROUP BY district, subscriber_type`
+      );
+      customerGroupResult.rows.forEach((row) => {
+        customerGroupByKey.set(revenue.cellKey(row.district, row.subscriber_type), row.customer_group);
+      });
+
+      const latestTariffDateResult = await pool.query(
+        `SELECT TO_CHAR(MAX(valid_from), 'YYYY-MM-DD') AS valid_from FROM tariffs`
+      );
+      const tariffVersionDate = latestTariffDateResult.rows[0].valid_from;
+
+      let tariffCatalog = new Map();
+      if (tariffVersionDate) {
+        const tariffRowsResult = await pool.query(
+          `SELECT subscriber_type, band_min_m3, band_max_m3, price_per_m3, wastewater_price_per_m3
+           FROM tariffs
+           WHERE valid_from = $1::date
+           ORDER BY subscriber_type, band_min_m3`,
+          [tariffVersionDate]
+        );
+        tariffCatalog = revenue.buildTariffCatalog(tariffRowsResult.rows);
+      }
+
+      // Read-only band labels for the per-step inputs — pulled from the
+      // same catalog, never hardcoded (band thresholds could change).
+      const tariffsInUse = {};
+      ['KONUT ABONELERİ', 'İŞYERİ ABONELERİ'].forEach((type) => {
+        const entry = tariffCatalog.get(type);
+        if (entry && !entry.ambiguous) {
+          tariffsInUse[type] = entry.bands;
+        }
+      });
+
+      const months = forecastMonths.map((row) => {
+        const calendarMonth = Number(row.date.slice(5, 7));
+
+        const { cells: baselineCells, totals: baselineTotals } = revenue.buildRevenueBreakdown({
+          consumptionRows,
+          cells,
+          calendarMonth,
+          forecastM3: row.predicted_value,
+          lowerM3: row.yhat_lower,
+          upperM3: row.yhat_upper,
+          subscribersByCell,
+          consumptionTypeToTariffType,
+          tariffCatalog,
+        });
+        const baselineVolume = baselineCells.reduce((sum, c) => sum + c.volume_m3, 0);
+
+        const scenarioMonths = scenarios.map((scenario) =>
+          revenueScenarios.buildScenarioMonth({
+            baselineCells,
+            baselineTotals,
+            tariffCatalog,
+            consumptionTypeToTariffType,
+            customerGroupByKey,
+            scenario,
+          })
+        );
+
+        return {
+          month: row.date,
+          baseline: {
+            water: baselineTotals.water,
+            wastewater: baselineTotals.wastewater,
+            total: baselineTotals.total,
+            volume_m3: baselineVolume,
+            not_priced_pct: baselineTotals.not_priced_pct,
+          },
+          scenarios: scenarioMonths.map((m, i) => {
+            const changeTry = revenue.round2(m.totals.total.mid - baselineTotals.total.mid);
+            const changePct =
+              baselineTotals.total.mid > 0 ? revenue.round2((changeTry / baselineTotals.total.mid) * 100) : null;
+            return {
+              name: scenarios[i].name,
+              water: m.totals.water,
+              wastewater: m.totals.wastewater,
+              total: m.totals.total,
+              volume_m3: m.totals.volume_m3,
+              volume_change_m3: revenue.round2(m.totals.volume_m3 - baselineVolume),
+              change_try: changeTry,
+              change_pct: changePct,
+              not_priced_pct: m.totals.not_priced_pct,
+            };
+          }),
+        };
+      });
+
+      const sumTotals = (field) => ({
+        mid: revenue.round2(months.reduce((s, m) => s + m.baseline[field].mid, 0)),
+        low: revenue.round2(months.reduce((s, m) => s + m.baseline[field].low, 0)),
+        high: revenue.round2(months.reduce((s, m) => s + m.baseline[field].high, 0)),
+      });
+      const twelveMonthBaseline = {
+        water: sumTotals('water'),
+        wastewater: sumTotals('wastewater'),
+        total: sumTotals('total'),
+        volume_m3: months.reduce((s, m) => s + m.baseline.volume_m3, 0),
+      };
+      const twelveMonthScenarios = scenarios.map((scenario, i) => {
+        const sumScenario = (field) => ({
+          mid: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].mid, 0)),
+          low: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].low, 0)),
+          high: revenue.round2(months.reduce((s, m) => s + m.scenarios[i][field].high, 0)),
+        });
+        const total = sumScenario('total');
+        const volume_m3 = months.reduce((s, m) => s + m.scenarios[i].volume_m3, 0);
+        const changeTry = revenue.round2(total.mid - twelveMonthBaseline.total.mid);
+        const changePct =
+          twelveMonthBaseline.total.mid > 0 ? revenue.round2((changeTry / twelveMonthBaseline.total.mid) * 100) : null;
+        return {
+          name: scenario.name,
+          water: sumScenario('water'),
+          wastewater: sumScenario('wastewater'),
+          total,
+          volume_m3,
+          volume_change_m3: revenue.round2(volume_m3 - twelveMonthBaseline.volume_m3),
+          change_try: changeTry,
+          change_pct: changePct,
+        };
+      });
+
+      res.json({
+        forecast_id: forecast.forecast_id,
+        published_at: forecast.generated_at,
+        tariff_version_date: tariffVersionDate,
+        tariffs_in_use: tariffsInUse,
+        scenarios: scenarios.map((s) => ({
+          name: s.name,
+          mode: s.mode,
+          elasticity: s.elasticity,
+          elasticity_scope: s.elasticity_scope,
+          note: s.note,
+        })),
+        months,
+        twelve_month_totals: {
+          baseline: twelveMonthBaseline,
+          scenarios: twelveMonthScenarios,
+        },
+      });
+    } catch (err) {
+      const reference = generateErrorReference();
+      console.error(`[${reference}] POST /api/revenue/scenario failed:`, err);
+      res.status(500).json({ error: 'Unable to calculate these scenarios right now.', reference });
+    }
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Overview (Module 6) — the role-based landing page after sign-in. One

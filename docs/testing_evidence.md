@@ -404,3 +404,47 @@ check), `frontend/src/Overview.test.js`, and
 signed-in session to verify visually — not run in this session (no servers
 were started, no `.env` touched). Everything else above was actually
 executed as part of this change.
+
+## Part N - Revenue scenarios (Module 5b)
+
+"What happens to revenue if prices change?" — up to two live, unsaved
+price-change scenarios compared against the Revenue estimate baseline
+(`POST /api/revenue/scenario`, `backend/revenueScenarios.js`), for
+Commercial Analysts (`revenue:view`) only. A scenario can scale every
+tariff band uniformly or change only housing/workplace bands per band; an
+optional constant-elasticity demand-response step models usage changing
+with price. All of this reuses `backend/revenue.js`'s own tariff and
+tiered-billing functions (`priceThroughBands`, `buildRevenueBreakdown`,
+`sumField`) rather than duplicating that maths — the only new logic is
+the price-scaling and elasticity steps themselves. Automated:
+`backend/test/revenueScenarios.test.js` (pure functions),
+`backend/test/permissions.matrix.test.js` (`POST /api/revenue/scenario`
+added to the route table), and `frontend/src/RevenueScenarios.test.js`.
+
+| Requirement | Input | Expected | Actual | Pass/Fail | Evidence |
+|---|---|---|---|---|---|
+| N1 | `validateScenarioRequest` with 3 scenarios / an out-of-range `uniform_pct` / an out-of-range `elasticity` / a malformed `steps` shape | Each is rejected with a field-level error (`scenarios`, `scenarios[0].uniform_pct`, `scenarios[0].elasticity`, `scenarios[0].steps`) | Automated: `revenueScenarios.test.js` the four validation tests | Pass | `npm test` in `backend/`: 258/258 pass |
+| N2 | `buildScenarioMonth(...)` with `mode: 'uniform', uniform_pct: 0, elasticity: 0` | Reproduces the baseline month's water/wastewater/total totals exactly | Automated: `revenueScenarios.test.js` "zero % change and elasticity 0 reproduces the baseline exactly" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N3 | `buildScenarioMonth(...)` with `mode: 'uniform', uniform_pct: 10, elasticity: 0` | Total revenue is exactly the baseline total × 1.1 (rounded to the cent); priced volume is unchanged (no demand response) | Automated: `revenueScenarios.test.js` "a uniform +10% scenario with elasticity 0 gives exactly +10% revenue, with volume unchanged" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N4 | `rescoreCell(...)` with a scenario price +20% and `elasticity: -0.35`, in scope | The price ratio is > 1, and the new volume is lower than the baseline volume | Automated: `revenueScenarios.test.js` "elasticity -0.35 with a price rise lowers volume" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N5 | `rescoreCell(...)` for a cell outside the elasticity scope, under a +50% scenario price | Volume is unchanged from baseline, but the cell is still re-priced at the new (higher) rate | Automated: `revenueScenarios.test.js` "a cell outside the elasticity scope keeps its baseline volume even under a price change" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N6 | `buildScenarioMonth(...)` with `mode: 'per_step'`, housing/workplace steps set, a third tariff type present | The third tariff type's revenue and volume are byte-identical to the baseline; housing's revenue changes | Automated: `revenueScenarios.test.js` "per_step changes touch only housing/workplace bands; every other tariff type is byte-identical to baseline" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N7 | `scaleTariffCatalog(...)` in per_step mode, for a tariff type that isn't housing or workplace | The returned catalog entry is the exact same object reference as the baseline catalog's | Automated: `revenueScenarios.test.js` "per_step mode leaves a third tariff type as the exact same object" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N8 | `buildScenarioMonth(...)` with a price change and elasticity, compared to the baseline's not-priced figures | `not_priced_pct`/`not_priced_volume_m3` are carried over unchanged from the baseline — a price/demand-response change never affects which cells are priceable | Automated: `revenueScenarios.test.js` "the not-priced share is carried over unchanged from the baseline" | Pass | `npm test` in `backend/`: 258/258 pass |
+| N9 | `POST /api/revenue/scenario` as Commercial Analyst, Admin, Production Planner, and signed out | 200 / 403 / 403 / 401 respectively | Automated: matrix test route table entry for `POST /api/revenue/scenario` | Pass | `npm test` in `backend/`: 258/258 pass |
+| N10 | Load `/revenue/scenarios` as a Commercial Analyst with sample API data | The baseline-vs-scenario table shows the first forecast month's baseline and Scenario A totals | Automated: `RevenueScenarios.test.js` "renders the first forecast month with the baseline-vs-scenario table" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N11 | Change the month selector | The baseline-vs-scenario table updates to the newly selected month's figures | Automated: `RevenueScenarios.test.js` "changing the month updates the table figures" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N12 | The server returns a 400 with a field error for `scenarios[0].uniform_pct` | The error message appears inline, next to that input, not just as a toast | Automated: `RevenueScenarios.test.js` "a 400 validation error from the server is shown inline at the relevant input" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N13 | Switch Scenario A to per-step mode and click "May 2025 İzmir change" | Housing and workplace step inputs fill with 0/15/25/35 | Automated: `RevenueScenarios.test.js` "the May 2025 İzmir change preset fills in per-step housing and workplace values" | Pass | `npm test -- --watchAll=false` in `frontend/`: `RevenueScenarios.test.js` green |
+| N14 | Open "Revenue scenarios" as Admin or Production Planner | The normal access-denied view (declarative `requiredPermission`), not a custom page | pending manual test | — | — |
+| N15 | Enable scenario B and compare it against Scenario A and the baseline | The side-by-side table and 12-month chart both show three series, each named and distinguishable by more than colour alone | pending manual test | — | — |
+| N16 | Open the "How are scenarios calculated?" info tip, on both this page and the Demand by district page, near the viewport edges | Opens below the icon, stays fully inside the viewport at 375px, closes on Escape | pending manual test | — | — |
+| N17 | View the page at 375px wide | No horizontal page scroll; tables scroll within their own card if needed | pending manual test | — | — |
+| N18 | Open "Help" as a Commercial Analyst | A "Revenue scenarios" section explains the method, the elasticity source, and the same lower-bound caveat as Revenue estimate | pending manual test | — | — |
+| N19 | `npm test` in `backend/`; `npm test -- --watchAll=false` and `npm run build` in `frontend/` | All pass | Backend 258/258 pass, 0 skipped (`TEST_DATABASE_URL` configured); frontend 46/46 pass across 12 suites; `npm run build` compiled successfully, no warnings | Pass | Ran all three this session |
+
+**Note:** N14-N18 need a running backend + frontend with a real signed-in
+session to verify visually — not run in this session (no servers were
+started, no `.env` touched, no migration or SQL run against any
+database). Everything else above was actually executed as part of this
+change.

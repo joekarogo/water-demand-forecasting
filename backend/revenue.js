@@ -367,4 +367,5 @@ module.exports = {
   buildDistrictGroupBreakdown,
   summarizeNotPriced,
   roundToTotal,
+  sumField,
 };

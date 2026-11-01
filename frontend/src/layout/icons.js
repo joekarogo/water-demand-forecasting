@@ -76,6 +76,15 @@ export function RevenueNavIcon() {
   );
 }
 
+export function ScenariosNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20V10m0 0 4-4 4 4m-4-4v4" />
+      <path d="M12 20v-6m0 0 4-4 4 4m-4-4v6" />
+    </svg>
+  );
+}
+
 export function UsersNavIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

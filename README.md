@@ -134,6 +134,18 @@ pages, there's:
   (`backend/revenue.js`) runs on the server; the estimate is a lower bound,
   since pricing the average customer under rising price steps undercounts
   what heavier users actually pay.
+- **Revenue scenarios** (Commercial Analysts only, `revenue:view`) - "what
+  happens to revenue if prices change?", comparing up to two live,
+  unsaved price-change scenarios against the Revenue estimate baseline,
+  from `POST /api/revenue/scenario`. A scenario can raise/lower every
+  tariff band uniformly, or change only housing/workplace bands per band
+  (with a "May 2025 İzmir change" preset); an optional demand-response
+  setting (price elasticity, defaulting to a literature figure of -0.35
+  for residential customers, Dalhuisen et al., 2003) models usage falling
+  as prices rise via a constant-elasticity approximation. All of this
+  (`backend/revenueScenarios.js`) reuses `backend/revenue.js`'s own tariff
+  and tiered-billing logic rather than duplicating it, and runs on the
+  server.
 
 The app also has a user menu (top bar) linking to:
 
