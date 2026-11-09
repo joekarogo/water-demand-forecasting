@@ -158,3 +158,34 @@ improve on Prophet (defaults) — a negative result is still a result.
 - The ERA5 weather data is a single reanalysis grid-cell value (roughly a
   25 km grid) for the whole city, not a station reading — it does not
   capture any intra-city variation in temperature or rainfall.
+
+## E1 method details (fixed 9 November 2026, before the E1 run)
+
+As with the rest of this document, the evidence that these choices were
+fixed before E1 was ever run is the git commit time of this file —
+committed strictly before `ml/conformal_calibration.py` is executed.
+
+- **Calibration origins**: every month-start from June 2017 to June 2021
+  inclusive — 49 origins in total. Each origin's 12-month-ahead target
+  window ends by June 2022 at the latest, so no calibration origin or
+  target month overlaps the 15 rolling-origin test set (June 2022 -
+  August 2023) or the 26-month held-out test period.
+- **Calibration score**: for each (origin, horizon) pair, the relative
+  error of a Prophet (defaults) refit trained on all data up to and
+  including that origin: `actual / yhat - 1`.
+- **Per-horizon finite-sample quantiles**: with 49 calibration scores at a
+  given horizon and `alpha = 0.20` (for an 80% interval), the lower and
+  upper conformal quantiles are the `k_lo`-th and `k_hi`-th smallest
+  scores, where `k_lo = floor((n+1) * alpha/2)` and
+  `k_hi = ceil((n+1) * (1 - alpha/2))` — with n=49 this is k_lo=5, k_hi=45.
+- **Test forecasts are not refit**: the 15-test-origin evaluation uses the
+  Prophet (defaults) `yhat`/`actual` values already stored in
+  `ml/results/rolling_evaluation_predictions.csv` directly. Prophet is
+  refit only once more beyond the 49 calibration origins, as a
+  consistency check (comparing a fresh refit at the June 2022 origin
+  against the stored values, within 0.01% relative tolerance, before any
+  stored value is trusted) — not to generate the test-set forecasts
+  themselves.
+- **Interval width** is always reported as a percentage of `yhat`
+  (`(upper - lower) / yhat * 100`), so intervals of different scale
+  (different horizons, different models) are directly comparable.
