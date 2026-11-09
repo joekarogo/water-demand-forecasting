@@ -95,6 +95,16 @@ validate it.
 | Chapter 5 | 5 | Next |
 | Hosting (Sprint III) | 4 | Next |
 
+## Experiment Protocol 2
+
+A second round of experiments (conformal calibration of Prophet's interval,
+weather and Bayram-holiday features, a Prophet/SARIMA ensemble, and shorter
+training windows) is planned but not yet run — see
+[docs/experiment_protocol_2.md](docs/experiment_protocol_2.md) for the full
+protocol, fixed before any of these experiments are executed. The weather
+input this protocol needs is documented in
+[ml/data/README.md](ml/data/README.md).
+
 ## Pages and API
 
 - **Overview** (`/overview`, every signed-in user) - the landing page after
