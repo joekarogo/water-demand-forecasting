@@ -1,0 +1,382 @@
+{
+  "method": "Split-conformal calibration of Prophet (defaults)'s 80% interval, using relative-error scores (actual/yhat - 1) from 49 calibration origins (2017-06-01 .. 2021-06-01, all inside the training period), and finite-sample per-horizon quantiles applied to the stored 15-test-origin rolling-evaluation forecasts (no refitting for the test evaluation itself).",
+  "calibration": {
+    "origins": [
+      "2017-06-01",
+      "2017-07-01",
+      "2017-08-01",
+      "2017-09-01",
+      "2017-10-01",
+      "2017-11-01",
+      "2017-12-01",
+      "2018-01-01",
+      "2018-02-01",
+      "2018-03-01",
+      "2018-04-01",
+      "2018-05-01",
+      "2018-06-01",
+      "2018-07-01",
+      "2018-08-01",
+      "2018-09-01",
+      "2018-10-01",
+      "2018-11-01",
+      "2018-12-01",
+      "2019-01-01",
+      "2019-02-01",
+      "2019-03-01",
+      "2019-04-01",
+      "2019-05-01",
+      "2019-06-01",
+      "2019-07-01",
+      "2019-08-01",
+      "2019-09-01",
+      "2019-10-01",
+      "2019-11-01",
+      "2019-12-01",
+      "2020-01-01",
+      "2020-02-01",
+      "2020-03-01",
+      "2020-04-01",
+      "2020-05-01",
+      "2020-06-01",
+      "2020-07-01",
+      "2020-08-01",
+      "2020-09-01",
+      "2020-10-01",
+      "2020-11-01",
+      "2020-12-01",
+      "2021-01-01",
+      "2021-02-01",
+      "2021-03-01",
+      "2021-04-01",
+      "2021-05-01",
+      "2021-06-01"
+    ],
+    "alpha": 0.2,
+    "k_lo": 5,
+    "k_hi": 45,
+    "n_per_horizon": {
+      "1": 49,
+      "2": 49,
+      "3": 49,
+      "4": 49,
+      "5": 49,
+      "6": 49,
+      "7": 49,
+      "8": 49,
+      "9": 49,
+      "10": 49,
+      "11": 49,
+      "12": 49
+    },
+    "q_lo_by_horizon": {
+      "1": -0.08424149775473322,
+      "2": -0.08127542233301077,
+      "3": -0.08121813323609872,
+      "4": -0.08241323336765927,
+      "5": -0.08636468394175045,
+      "6": -0.08889754852172227,
+      "7": -0.07903852517750198,
+      "8": -0.08737948051710942,
+      "9": -0.08736427814344949,
+      "10": -0.08505129341268447,
+      "11": -0.08509315042044951,
+      "12": -0.0851195854720942
+    },
+    "q_hi_by_horizon": {
+      "1": 0.11887930800065938,
+      "2": 0.11620072430613648,
+      "3": 0.11034750033897245,
+      "4": 0.09684444183847662,
+      "5": 0.0939954148798745,
+      "6": 0.09382448700818613,
+      "7": 0.09184277505257343,
+      "8": 0.0871763049776122,
+      "9": 0.08875047741158992,
+      "10": 0.08995948613301463,
+      "11": 0.08860293009393883,
+      "12": 0.07543890250778928
+    }
+  },
+  "consistency_check": {
+    "origin": "2022-06-01",
+    "tolerance_pct": 0.01,
+    "max_relative_diff_pct": 1.9152806593112375e-14,
+    "passed": true
+  },
+  "test_evaluation": {
+    "test_origins": [
+      "2022-06-01",
+      "2022-07-01",
+      "2022-08-01",
+      "2022-09-01",
+      "2022-10-01",
+      "2022-11-01",
+      "2022-12-01",
+      "2023-01-01",
+      "2023-02-01",
+      "2023-03-01",
+      "2023-04-01",
+      "2023-05-01",
+      "2023-06-01",
+      "2023-07-01",
+      "2023-08-01"
+    ],
+    "sarima_label": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+    "metrics_by_horizon": {
+      "prophet_raw": {
+        "1": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 11.47840221434807,
+          "n": 15
+        },
+        "2": {
+          "two_sided_coverage_pct": 73.33333333333333,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 11.633107578620509,
+          "n": 15
+        },
+        "3": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 11.618431243958087,
+          "n": 15
+        },
+        "4": {
+          "two_sided_coverage_pct": 60.0,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 11.845991676904013,
+          "n": 15
+        },
+        "5": {
+          "two_sided_coverage_pct": 60.0,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 11.774802438327928,
+          "n": 15
+        },
+        "6": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 12.241590014915191,
+          "n": 15
+        },
+        "7": {
+          "two_sided_coverage_pct": 73.33333333333333,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 12.195477560939405,
+          "n": 15
+        },
+        "8": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 12.109194080812966,
+          "n": 15
+        },
+        "9": {
+          "two_sided_coverage_pct": 73.33333333333333,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 11.96841556786836,
+          "n": 15
+        },
+        "10": {
+          "two_sided_coverage_pct": 60.0,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 11.743541319893037,
+          "n": 15
+        },
+        "11": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 11.496134209827918,
+          "n": 15
+        },
+        "12": {
+          "two_sided_coverage_pct": 66.66666666666666,
+          "at_or_below_upper_coverage_pct": 80.0,
+          "mean_width_pct": 11.39205766756744,
+          "n": 15
+        }
+      },
+      "prophet_conformal": {
+        "1": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 20.31208057553926,
+          "n": 15
+        },
+        "2": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 19.74761466391472,
+          "n": 15
+        },
+        "3": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 19.15656335750712,
+          "n": 15
+        },
+        "4": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 17.92576752061359,
+          "n": 15
+        },
+        "5": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 18.036009882162492,
+          "n": 15
+        },
+        "6": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 18.27220355299084,
+          "n": 15
+        },
+        "7": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 17.08813002300754,
+          "n": 15
+        },
+        "8": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 17.45557854947216,
+          "n": 15
+        },
+        "9": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 17.611475555503944,
+          "n": 15
+        },
+        "10": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 17.501077954569904,
+          "n": 15
+        },
+        "11": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 17.36960805143883,
+          "n": 15
+        },
+        "12": {
+          "two_sided_coverage_pct": 73.33333333333333,
+          "at_or_below_upper_coverage_pct": 80.0,
+          "mean_width_pct": 16.055848797988347,
+          "n": 15
+        }
+      },
+      "sarima": {
+        "1": {
+          "two_sided_coverage_pct": 80.0,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 18.311991718555344,
+          "n": 15
+        },
+        "2": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 19.189838892862905,
+          "n": 15
+        },
+        "3": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 19.600176555229773,
+          "n": 15
+        },
+        "4": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 19.94756569238149,
+          "n": 15
+        },
+        "5": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 20.14756310034895,
+          "n": 15
+        },
+        "6": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 20.336864308065994,
+          "n": 15
+        },
+        "7": {
+          "two_sided_coverage_pct": 93.33333333333333,
+          "at_or_below_upper_coverage_pct": 100.0,
+          "mean_width_pct": 20.348310415899103,
+          "n": 15
+        },
+        "8": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 20.322275718480327,
+          "n": 15
+        },
+        "9": {
+          "two_sided_coverage_pct": 86.66666666666667,
+          "at_or_below_upper_coverage_pct": 93.33333333333333,
+          "mean_width_pct": 20.08981462097921,
+          "n": 15
+        },
+        "10": {
+          "two_sided_coverage_pct": 80.0,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 19.83926240791776,
+          "n": 15
+        },
+        "11": {
+          "two_sided_coverage_pct": 80.0,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 19.483763561409333,
+          "n": 15
+        },
+        "12": {
+          "two_sided_coverage_pct": 80.0,
+          "at_or_below_upper_coverage_pct": 86.66666666666667,
+          "mean_width_pct": 19.23688522827016,
+          "n": 15
+        }
+      }
+    },
+    "metrics_average": {
+      "prophet_raw": {
+        "two_sided_coverage_pct": 66.66666666666666,
+        "at_or_below_upper_coverage_pct": 90.55555555555554,
+        "mean_width_pct": 11.79142879783191
+      },
+      "prophet_conformal": {
+        "two_sided_coverage_pct": 89.44444444444444,
+        "at_or_below_upper_coverage_pct": 96.66666666666667,
+        "mean_width_pct": 18.04432987372573
+      },
+      "sarima": {
+        "two_sided_coverage_pct": 87.77777777777777,
+        "at_or_below_upper_coverage_pct": 95.0,
+        "mean_width_pct": 19.73785935170003
+      }
+    }
+  },
+  "success_criteria": {
+    "a_two_sided_closer_to_80_than_66_7": {
+      "pass": true,
+      "conformal_avg_two_sided_coverage_pct": 89.44444444444444,
+      "baseline_avg_two_sided_coverage_pct": 66.7,
+      "nominal_pct": 80.0
+    },
+    "b_h1_at_or_below_upper_at_least_90": {
+      "pass": true,
+      "conformal_h1_at_or_below_upper_coverage_pct": 100.0
+    }
+  },
+  "coverage_caveat": "The 15 test origins overlap (each forecasts 12 months ahead, one month apart), so they are not independent observations; coverage and width figures above are descriptive, not a formal confidence-interval guarantee.",
+  "run_timestamp": "2026-11-09T07:00:16.910447+00:00"
+}
