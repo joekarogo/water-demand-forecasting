@@ -1,0 +1,346 @@
+{
+  "method": "Prophet (defaults) with exogenous regressors added via model.add_regressor() (Prophet's own defaults, no prior_scale tuning). Three variants: E2 weather (normals), E2 weather (actual, best case -- ineligible for selection), and E3 Bayram days. Training months always use the real observed exogenous value; 'normals'-mode future months are filled from ml/features.py's weather_normals(), computed from training-period-only months. Baseline comparison numbers (Prophet (defaults)'s test MAPE and h12 rolling MAPE) are read live from the stored Protocol 1 result files, never hard-coded.",
+  "variants": [
+    {
+      "name": "E2 weather (normals)",
+      "regressors": [
+        "temp_mean",
+        "temp_max",
+        "precip"
+      ],
+      "weather_mode": "normals",
+      "note": null,
+      "eligible_for_selection": true
+    },
+    {
+      "name": "E2 weather (actual, best case)",
+      "regressors": [
+        "temp_mean",
+        "temp_max",
+        "precip"
+      ],
+      "weather_mode": "actual",
+      "note": "best case, not achievable in practice",
+      "eligible_for_selection": false
+    },
+    {
+      "name": "E3 Bayram days",
+      "regressors": [
+        "bayram_days"
+      ],
+      "weather_mode": "normals",
+      "note": null,
+      "eligible_for_selection": true
+    }
+  ],
+  "consistency_check": {
+    "origin": "2022-06-01",
+    "tolerance_pct": 0.01,
+    "max_relative_diff_pct": 1.9152806593112375e-14,
+    "passed": true
+  },
+  "baseline": {
+    "model": "Prophet (defaults)",
+    "test_mape_pct": 4.863698764197311,
+    "h12_rolling_mape_pct": 4.6153711926997145,
+    "source": {
+      "test_mape": "ml\\results\\sarima_test_comparison.json",
+      "h12_rolling_mape": "ml\\results\\rolling_evaluation_summary.json"
+    }
+  },
+  "results_by_variant": {
+    "E2 weather (normals)": {
+      "test_metrics": {
+        "mae": 1004313.6845078007,
+        "rmse": 1268717.3630332209,
+        "mape": 4.77657854163274
+      },
+      "rolling_by_horizon": {
+        "1": {
+          "mape": 5.632406444017665,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "2": {
+          "mape": 5.439051273940747,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "3": {
+          "mape": 5.637902017564672,
+          "two_sided_coverage_pct": 53.333333333333336,
+          "n": 15
+        },
+        "4": {
+          "mape": 5.3519737989328755,
+          "two_sided_coverage_pct": 60.0,
+          "n": 15
+        },
+        "5": {
+          "mape": 5.115364589742048,
+          "two_sided_coverage_pct": 60.0,
+          "n": 15
+        },
+        "6": {
+          "mape": 5.033701420071725,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "7": {
+          "mape": 4.811605999891708,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "8": {
+          "mape": 5.179898522456884,
+          "two_sided_coverage_pct": 60.0,
+          "n": 15
+        },
+        "9": {
+          "mape": 4.668460817193026,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "10": {
+          "mape": 4.760293098791964,
+          "two_sided_coverage_pct": 60.0,
+          "n": 15
+        },
+        "11": {
+          "mape": 4.749800290598225,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "12": {
+          "mape": 4.68504756856316,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        }
+      },
+      "rolling_average": {
+        "mape": 5.088792153480391,
+        "two_sided_coverage_pct": 63.88888888888888
+      },
+      "dm_vs_baseline": {
+        "1": {
+          "n": 15,
+          "dm_statistic": -0.9546231296513648,
+          "p_value": 0.3559620394504881
+        },
+        "6": {
+          "n": 15,
+          "dm_statistic": 0.3982549378908004,
+          "p_value": 0.6964494712662086
+        },
+        "12": {
+          "n": 15,
+          "dm_statistic": "not computable",
+          "p_value": "not computable"
+        }
+      }
+    },
+    "E2 weather (actual, best case)": {
+      "test_metrics": {
+        "mae": 1015938.3007624224,
+        "rmse": 1214202.758032681,
+        "mape": 4.86952256679478
+      },
+      "rolling_by_horizon": {
+        "1": {
+          "mape": 5.530769104546063,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "2": {
+          "mape": 5.244866254696502,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "3": {
+          "mape": 5.417228149409586,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "4": {
+          "mape": 5.119000495395846,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "5": {
+          "mape": 4.911307900382918,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "6": {
+          "mape": 4.560097742607167,
+          "two_sided_coverage_pct": 80.0,
+          "n": 15
+        },
+        "7": {
+          "mape": 4.3928800129242,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "8": {
+          "mape": 4.267851375156099,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "9": {
+          "mape": 3.938576269458531,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "10": {
+          "mape": 4.046204494975152,
+          "two_sided_coverage_pct": 80.0,
+          "n": 15
+        },
+        "11": {
+          "mape": 4.22118277589277,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "12": {
+          "mape": 4.255935925751918,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        }
+      },
+      "rolling_average": {
+        "mape": 4.658825041766396,
+        "two_sided_coverage_pct": 72.77777777777779
+      },
+      "dm_vs_baseline": {
+        "1": {
+          "n": 15,
+          "dm_statistic": -1.0065790640602397,
+          "p_value": 0.33121856428619756
+        },
+        "6": {
+          "n": 15,
+          "dm_statistic": -1.5824319050188997,
+          "p_value": 0.13587346520553378
+        },
+        "12": {
+          "n": 15,
+          "dm_statistic": "not computable",
+          "p_value": "not computable"
+        }
+      }
+    },
+    "E3 Bayram days": {
+      "test_metrics": {
+        "mae": 1067982.684632586,
+        "rmse": 1279353.9289487957,
+        "mape": 5.037051404889648
+      },
+      "rolling_by_horizon": {
+        "1": {
+          "mape": 5.327547663393882,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "2": {
+          "mape": 4.900889969367489,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "3": {
+          "mape": 5.087416781758706,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "4": {
+          "mape": 4.956623558522358,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "5": {
+          "mape": 4.754216666334547,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "6": {
+          "mape": 4.584981564180249,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "7": {
+          "mape": 4.498437160152777,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "8": {
+          "mape": 5.010433266923976,
+          "two_sided_coverage_pct": 66.66666666666666,
+          "n": 15
+        },
+        "9": {
+          "mape": 4.666414728231522,
+          "two_sided_coverage_pct": 73.33333333333333,
+          "n": 15
+        },
+        "10": {
+          "mape": 5.0447654157365545,
+          "two_sided_coverage_pct": 60.0,
+          "n": 15
+        },
+        "11": {
+          "mape": 5.024664543609223,
+          "two_sided_coverage_pct": 53.333333333333336,
+          "n": 15
+        },
+        "12": {
+          "mape": 4.943452147397003,
+          "two_sided_coverage_pct": 53.333333333333336,
+          "n": 15
+        }
+      },
+      "rolling_average": {
+        "mape": 4.899986955467357,
+        "two_sided_coverage_pct": 66.11111111111111
+      },
+      "dm_vs_baseline": {
+        "1": {
+          "n": 15,
+          "dm_statistic": -0.9203519606207381,
+          "p_value": 0.372975912582179
+        },
+        "6": {
+          "n": 15,
+          "dm_statistic": -1.5352467983715348,
+          "p_value": 0.14700959977919692
+        },
+        "12": {
+          "n": 15,
+          "dm_statistic": "not computable",
+          "p_value": "not computable"
+        }
+      }
+    }
+  },
+  "selection_rule": "An eligible variant WINS only if it beats Prophet (defaults) on BOTH the 26-month test MAPE AND the h12 rolling mean MAPE simultaneously.",
+  "selection_outcomes": {
+    "E2 weather (normals)": {
+      "wins": false,
+      "test_mape_pct": 4.77657854163274,
+      "baseline_test_mape_pct": 4.863698764197311,
+      "test_mape_diff_pp": 0.08712022256457086,
+      "h12_rolling_mape_pct": 4.68504756856316,
+      "baseline_h12_rolling_mape_pct": 4.6153711926997145,
+      "h12_rolling_mape_diff_pp": -0.06967637586344555
+    },
+    "E3 Bayram days": {
+      "wins": false,
+      "test_mape_pct": 5.037051404889648,
+      "baseline_test_mape_pct": 4.863698764197311,
+      "test_mape_diff_pp": -0.1733526406923369,
+      "h12_rolling_mape_pct": 4.943452147397003,
+      "baseline_h12_rolling_mape_pct": 4.6153711926997145,
+      "h12_rolling_mape_diff_pp": -0.32808095469728826
+    }
+  },
+  "overlapping_origins_caveat": "The 15 rolling origins overlap (each forecasts 12 months ahead, one month apart), so they are not independent observations; coverage, MAPE-by-horizon and DM results above are descriptive, not a formal statistical guarantee.",
+  "run_timestamp": "2026-11-10T19:58:04.811057+00:00"
+}
