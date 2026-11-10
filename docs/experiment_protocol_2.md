@@ -236,3 +236,33 @@ committed strictly before `ml/exog_experiments.py` is executed.
 - **The actual-weather "best case" variant is permanently ineligible**
   for selection, for the reason stated above — it is reported for
   context only, never as a candidate to adopt.
+
+## E4 method details (fixed 10 November 2026, before the E4 run)
+
+As with the rest of this document, the evidence that these choices were
+fixed before E4 was ever run is the git commit time of this file —
+committed strictly before `ml/ensemble_experiment.py` is executed.
+
+- **Equal 50/50 weights, no tuning**: the ensemble is a plain average of
+  Prophet (defaults) and the chosen SARIMA setting, `0.5 * prophet + 0.5
+  * sarima`. No weight is fitted, searched, or adjusted in any way.
+- **The rolling ensemble is built from already-stored forecasts, with no
+  new fitting**: both models' 15-origin rolling-origin forecasts already
+  exist in `ml/results/rolling_evaluation_predictions.csv` from Protocol
+  1, so the rolling part of this experiment only reads and averages
+  those stored values — it does not refit either model.
+- **Prophet is refit exactly once, for the 26-month test set only**,
+  because no Protocol 1 script ever stored a Prophet (defaults) forecast
+  over that specific period. Before this refit is used for anything, its
+  resulting MAPE is checked against the already-stored Prophet
+  (defaults) test MAPE in `ml/results/sarima_test_comparison.json`,
+  within 0.001 percentage points — a reproduction check, not part of the
+  ensemble itself.
+- **Point forecasts only**: this round defines no method for combining
+  two prediction intervals, so no ensemble interval is computed or
+  reported anywhere — only point-forecast accuracy (MAPE) is evaluated.
+- **Selection rule**: the same rule as E2/E3 — the ensemble only changes
+  the published model if it beats Prophet (defaults) on BOTH the
+  26-month test MAPE AND the h12 rolling mean MAPE at the same time.
+- **E5 (history length) is not being run in this round**, by deliberate
+  decision, due to time constraints.
