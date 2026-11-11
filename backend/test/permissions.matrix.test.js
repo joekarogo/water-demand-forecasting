@@ -479,6 +479,19 @@ test('permission matrix', async (t) => {
       assert.ok(!Number.isNaN(Date.parse(publishedAt)), `expected a parseable timestamp, got: ${publishedAt}`);
     });
 
+    await t.test('GET /api/model-evaluation: published_model_name is read live from the "forecasts" table, not cached', async () => {
+      // backend/modelEvaluation.js's loadModelEvaluation() output is cached
+      // once at startup, but published_model_name is merged in fresh on
+      // every request (app.js) — seedForecast's fixture row is the only
+      // 'published' forecast in this disposable database, so this proves
+      // the live query actually ran rather than the static cache leaking
+      // some stale or invented value through.
+      const res = await request(baseUrl, { method: 'GET', path: '/api/model-evaluation', cookie: fixtures.admin.cookie });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.published_model_name, 'prophet');
+    });
+
     await t.test('GET /api/overview: each role sees only the sections its own permissions unlock', async () => {
       const adminRes = await request(baseUrl, { method: 'GET', path: '/api/overview', cookie: fixtures.admin.cookie });
       assert.strictEqual(adminRes.status, 200);

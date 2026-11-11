@@ -57,6 +57,19 @@ export function formatDateShort(dateStr) {
   return `${day} ${MONTH_SHORT[month - 1]}`;
 }
 
+// A real timestamp -> "11 Nov 2026" in Nairobi/East Africa Time (UTC+3, no
+// DST), regardless of the viewer's own timezone — unlike formatPublishedDate
+// above, which reads the BROWSER's local time. Used where the evaluation
+// protocol's own clock (Nairobi) matters more than the viewer's local one.
+export function formatDateNairobi(isoString) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Nairobi',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(isoString));
+}
+
 // A real timestamp (e.g. `created_at`) -> "25 Oct 2026, 14:05". Safe to use
 // Date directly here, same reasoning as formatPublishedDate.
 export function formatDateTime(isoString) {

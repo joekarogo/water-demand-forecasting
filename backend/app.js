@@ -313,8 +313,22 @@ if (MODEL_EVALUATION_CACHE.unavailable.length > 0) {
   );
 }
 
-app.get('/api/model-evaluation', authenticateToken, requirePermission('forecast:view'), (req, res) => {
-  res.json(MODEL_EVALUATION_CACHE);
+app.get('/api/model-evaluation', authenticateToken, requirePermission('forecast:view'), async (req, res) => {
+  // The only live (per-request) piece of this response: which model is
+  // CURRENTLY published, so the page's footer never goes stale the way a
+  // cached value would the moment someone runs a new --publish. Everything
+  // else above is read once at startup from committed ml/results/ files,
+  // which never change while the server is running.
+  let publishedModelName = null;
+  try {
+    const result = await pool.query(
+      `SELECT model_name FROM forecasts WHERE kind = 'published' ORDER BY generated_at DESC LIMIT 1`
+    );
+    publishedModelName = result.rows[0]?.model_name ?? null;
+  } catch (err) {
+    console.error('GET /api/model-evaluation: failed to read the published model name:', err);
+  }
+  res.json({ ...MODEL_EVALUATION_CACHE, published_model_name: publishedModelName });
 });
 
 // Permission check — used after authenticateToken. Looks up the caller's

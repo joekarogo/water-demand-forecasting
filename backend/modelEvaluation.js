@@ -366,6 +366,183 @@ function loadErrorAnalysis(resultsDir) {
   return { ok: true, data: { models }, file: 'ml/results/error_analysis.json' };
 }
 
+// --- Section 7: likely-range reliability (split-conformal calibration) --
+// Reads the already-computed conformal calibration results for Prophet's
+// ORIGINAL (raw) interval, Prophet's CALIBRATED interval, and SARIMA's own
+// (never recalibrated) interval -- all three already stored, per-horizon
+// and averaged, in ml/results/conformal_calibration.json. Nothing here is
+// recomputed; this is a reshape of three already-named keys into the
+// shape the "Likely range reliability" table on the Model Evaluation page
+// renders directly.
+function loadConformal(resultsDir) {
+  const file = path.join(resultsDir, 'conformal_calibration.json');
+  const read = readJson(file);
+  if (!read.ok) return { ok: false, reason: read.reason };
+  const { data } = read;
+  const byHorizon = data && data.test_evaluation ? data.test_evaluation.metrics_by_horizon : null;
+  const average = data && data.test_evaluation ? data.test_evaluation.metrics_average : null;
+  if (!byHorizon || !average || !byHorizon.prophet_raw || !byHorizon.prophet_conformal || !byHorizon.sarima) {
+    return { ok: false, reason: `${file}: missing prophet_raw/prophet_conformal/sarima metrics_by_horizon` };
+  }
+  if (!average.prophet_raw || !average.prophet_conformal || !average.sarima) {
+    return { ok: false, reason: `${file}: missing prophet_raw/prophet_conformal/sarima metrics_average` };
+  }
+  return {
+    ok: true,
+    data: {
+      prophet_raw: { by_horizon: byHorizon.prophet_raw, average: average.prophet_raw },
+      prophet_conformal: { by_horizon: byHorizon.prophet_conformal, average: average.prophet_conformal },
+      sarima: { by_horizon: byHorizon.sarima, average: average.sarima },
+    },
+    file: 'ml/results/conformal_calibration.json',
+  };
+}
+
+// --- Section 8: the ensemble's own calibrated likely range --------------
+// Same reshape as loadConformal above, but for the 50/50 ensemble's own
+// split-conformal calibration (E1b), stored separately in
+// ml/results/ensemble_conformal.json because it was computed after E4
+// found the ensemble itself worth calibrating.
+function loadEnsembleConformal(resultsDir) {
+  const file = path.join(resultsDir, 'ensemble_conformal.json');
+  const read = readJson(file);
+  if (!read.ok) return { ok: false, reason: read.reason };
+  const { data } = read;
+  const byHorizon = data && data.test_evaluation && data.test_evaluation.metrics_by_horizon
+    ? data.test_evaluation.metrics_by_horizon.ensemble_conformal
+    : null;
+  const average = data && data.test_evaluation && data.test_evaluation.metrics_average
+    ? data.test_evaluation.metrics_average.ensemble_conformal
+    : null;
+  if (!byHorizon || !average) {
+    return { ok: false, reason: `${file}: missing "ensemble_conformal" metrics_by_horizon/metrics_average` };
+  }
+  if (typeof data.run_timestamp !== 'string') {
+    return { ok: false, reason: `${file}: missing "run_timestamp"` };
+  }
+  return {
+    ok: true,
+    data: {
+      ensemble_conformal: { by_horizon: byHorizon, average },
+      run_timestamp: data.run_timestamp,
+    },
+    file: 'ml/results/ensemble_conformal.json',
+  };
+}
+
+// --- Section 9: the published ensemble's own test/rolling/significance --
+// Reads ml/results/ensemble_experiment.json (E4) for the Ensemble's own
+// 26-month test metrics, its full 1-12 rolling MAPE (alongside Prophet's
+// and the chosen SARIMA's, already stored side-by-side there), and its
+// Diebold-Mariano results against Prophet and against SARIMA. The two
+// non-model baselines (Seasonal-naive, Last-year x growth) are never
+// ensembled, so their own full 1-12 rolling MAPE is read from the older
+// Protocol 1 file (ml/results/rolling_evaluation_summary.json), which is
+// the only place either one is stored at every horizon (not just the 4
+// headline ones) -- the same file loadRollingOrigin above already reads,
+// just for different models and without its 4-horizon filter.
+const ENSEMBLE_LABEL = 'Ensemble (50/50)';
+const PROPHET_LABEL = 'Prophet (defaults)';
+
+function loadEnsemble(resultsDir) {
+  const file = path.join(resultsDir, 'ensemble_experiment.json');
+  const read = readJson(file);
+  if (!read.ok) return { ok: false, reason: read.reason };
+  const { data } = read;
+
+  const sarimaLabel = data ? data.sarima_label : null;
+  const testMetrics = data && data.test_evaluation ? data.test_evaluation.metrics : null;
+  const rollingByHorizon = data && data.rolling ? data.rolling.mape_by_horizon : null;
+  const dmVsProphet = data && data.dm_results ? data.dm_results.vs_prophet : null;
+  const dmVsSarima = data && data.dm_results ? data.dm_results.vs_sarima : null;
+
+  if (typeof sarimaLabel !== 'string' || !testMetrics || !rollingByHorizon || !dmVsProphet || !dmVsSarima) {
+    return {
+      ok: false,
+      reason: `${file}: missing one of sarima_label/test_evaluation.metrics/rolling.mape_by_horizon/dm_results`,
+    };
+  }
+  if (!testMetrics[ENSEMBLE_LABEL] || !testMetrics[PROPHET_LABEL] || !testMetrics[sarimaLabel]) {
+    return { ok: false, reason: `${file}: test_evaluation.metrics is missing one of the three models` };
+  }
+  if (!rollingByHorizon[ENSEMBLE_LABEL] || !rollingByHorizon[PROPHET_LABEL] || !rollingByHorizon[sarimaLabel]) {
+    return { ok: false, reason: `${file}: rolling.mape_by_horizon is missing one of the three models` };
+  }
+  if (typeof data.run_timestamp !== 'string') {
+    return { ok: false, reason: `${file}: missing "run_timestamp"` };
+  }
+
+  const files = ['ml/results/ensemble_experiment.json'];
+  const baselineRolling = {};
+  const summaryFile = path.join(resultsDir, 'rolling_evaluation_summary.json');
+  const summaryRead = readJson(summaryFile);
+  if (summaryRead.ok && summaryRead.data && typeof summaryRead.data.mape_by_horizon === 'object') {
+    for (const name of ['Seasonal-naive', 'Last-year x growth']) {
+      if (summaryRead.data.mape_by_horizon[name]) {
+        baselineRolling[name] = summaryRead.data.mape_by_horizon[name];
+      }
+    }
+    if (Object.keys(baselineRolling).length > 0) files.push('ml/results/rolling_evaluation_summary.json');
+  }
+
+  return {
+    ok: true,
+    data: {
+      sarima_label: sarimaLabel,
+      test_metrics: {
+        [ENSEMBLE_LABEL]: testMetrics[ENSEMBLE_LABEL],
+        [PROPHET_LABEL]: testMetrics[PROPHET_LABEL],
+        [sarimaLabel]: testMetrics[sarimaLabel],
+      },
+      rolling_mape_by_horizon: {
+        [ENSEMBLE_LABEL]: rollingByHorizon[ENSEMBLE_LABEL],
+        [PROPHET_LABEL]: rollingByHorizon[PROPHET_LABEL],
+        [sarimaLabel]: rollingByHorizon[sarimaLabel],
+        ...baselineRolling,
+      },
+      dm_vs_prophet: dmVsProphet,
+      dm_vs_sarima: dmVsSarima,
+      run_timestamp: data.run_timestamp,
+    },
+    file: files.length > 1 ? files : files[0],
+  };
+}
+
+// --- Section 10: other exogenous-regressor inputs evaluated (E2/E3) -----
+// Reads ml/results/exog_experiments.json for the two ELIGIBLE variants
+// only -- the "best case" actual-weather variant is permanently
+// ineligible for selection (see docs/experiment_protocol_2.md) and is
+// deliberately never surfaced on this page. "Not adopted"/"Adopted" is
+// read live from each variant's own selection_outcomes.wins, never
+// assumed, so a future rerun that ever flips one to a win can't be
+// silently misreported here.
+const OTHER_INPUTS_VARIANTS = [
+  { key: 'E2 weather (normals)', label: 'Weather (typical for the month)' },
+  { key: 'E3 Bayram days', label: 'Bayram holiday days' },
+];
+
+function loadOtherInputs(resultsDir) {
+  const file = path.join(resultsDir, 'exog_experiments.json');
+  const read = readJson(file);
+  if (!read.ok) return { ok: false, reason: read.reason };
+  const { data } = read;
+  const variants = data ? data.results_by_variant : null;
+  if (!variants) return { ok: false, reason: `${file}: missing "results_by_variant"` };
+  const outcomes = data.selection_outcomes || {};
+
+  const items = [];
+  for (const { key, label } of OTHER_INPUTS_VARIANTS) {
+    const v = variants[key];
+    const testMape = v && v.test_metrics ? v.test_metrics.mape : null;
+    const h12 = v && v.rolling_by_horizon && v.rolling_by_horizon['12'] ? v.rolling_by_horizon['12'].mape : null;
+    if (typeof testMape !== 'number' || typeof h12 !== 'number') continue;
+    const adopted = Boolean(outcomes[key] && outcomes[key].wins === true);
+    items.push({ name: label, test_mape: testMape, h12_mape: h12, adopted });
+  }
+  if (items.length === 0) return { ok: false, reason: `${file}: neither expected variant was found` };
+  return { ok: true, data: { items }, file: 'ml/results/exog_experiments.json' };
+}
+
 // --- Section 6: protocol facts -------------------------------------------
 function loadProtocol(resultsDir) {
   const file = path.join(resultsDir, 'sarima_test_comparison.json');
@@ -450,6 +627,10 @@ const SECTION_LOADERS = {
   coverage: loadCoverage,
   error_analysis: loadErrorAnalysis,
   protocol: loadProtocol,
+  conformal: loadConformal,
+  ensemble_conformal: loadEnsembleConformal,
+  ensemble: loadEnsemble,
+  other_inputs: loadOtherInputs,
 };
 
 // resultsDir: directory holding the ml/results/*.json|csv files (real
@@ -484,6 +665,10 @@ module.exports = {
   loadCoverage,
   loadErrorAnalysis,
   loadProtocol,
+  loadConformal,
+  loadEnsembleConformal,
+  loadEnsemble,
+  loadOtherInputs,
   ROLLING_HORIZONS,
   aggregateOneSidedCoverage,
   buildVerdict,
