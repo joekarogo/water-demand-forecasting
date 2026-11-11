@@ -263,7 +263,7 @@ function ProductionPlanning() {
     setPanelPlanType(plan ? plan.plan_type : 'normal');
     setPanelCustomAmount(plan && plan.plan_type === 'custom' ? plan.chosen_m3.toLocaleString('en-US') : '');
     setPanelReason(plan && plan.plan_type === 'custom' ? plan.reason || '' : '');
-    setPanelNote(plan && plan.plan_type === 'custom' ? plan.note || '' : '');
+    setPanelNote(plan ? plan.note || '' : '');
   };
 
   const openPanel = useCallback(
@@ -1227,9 +1227,12 @@ function ProductionPlanning() {
                               <div className="meta">
                                 {formatDateTime(v.created_at)} · {v.created_by}
                               </div>
-                              <div className="why">
-                                Reason: {v.reason ? `${REASON_LABELS[v.reason] || v.reason}${v.note ? ' — ' + v.note : ''}` : '—'}
-                              </div>
+                              {(v.plan_type === 'custom' && v.reason) || v.note ? (
+                                <div className="why">
+                                  {v.plan_type === 'custom' && v.reason && <div>Reason: {REASON_LABELS[v.reason] || v.reason}</div>}
+                                  {v.note && <div>Note: {v.note}</div>}
+                                </div>
+                              ) : null}
                             </li>
                           ))}
                         </ol>

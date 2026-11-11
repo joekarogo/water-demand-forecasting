@@ -2364,24 +2364,22 @@ a.alert:focus-visible {
 
 .district-table th,
 .district-table td {
-  padding: 10px 14px;
+  padding: 10px 11px;
 }
 .district-table th:first-child,
 .district-table td:first-child {
-  padding-left: 20px;
+  padding-left: 16px;
 }
 .district-table th:last-child,
 .district-table td:last-child {
-  padding-right: 20px;
+  padding-right: 16px;
 }
 .district-table th.l,
 .district-table td.l {
   text-align: left;
 }
 .district-table thead th {
-  white-space: normal;
-  line-height: 1.3;
-  vertical-align: bottom;
+  white-space: nowrap;
 }
 /* This table is sortable, so "first row" isn't meaningfully "top ranked"
    once sorted differently — cancel .table-wrap's generic first-row
