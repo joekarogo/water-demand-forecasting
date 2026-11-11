@@ -1,0 +1,140 @@
+{
+  "method": "Equal 50/50 average of Prophet (defaults) and SARIMA(1, 0, 0)x(0, 1, 1, 12) (0.5/0.5, no weight tuning). Point forecasts only -- no ensemble prediction interval is produced. The rolling ensemble is built entirely from already-stored forecasts (no new fitting); Prophet (defaults) is refit exactly once for the 26-month test set, with a reproduction check against the stored MAPE before trusting it.",
+  "weights": {
+    "prophet": 0.5,
+    "sarima": 0.5
+  },
+  "sarima_label": "SARIMA(1, 0, 0)x(0, 1, 1, 12)",
+  "rolling": {
+    "mape_by_horizon": {
+      "Prophet (defaults)": {
+        "1": 5.6564143689626025,
+        "2": 5.497086312539309,
+        "3": 5.687545637807906,
+        "4": 5.344996199563398,
+        "5": 5.142720447773614,
+        "6": 5.012984940133278,
+        "7": 4.693686183406484,
+        "8": 5.026257249807738,
+        "9": 4.705807120167921,
+        "10": 4.790708184831105,
+        "11": 4.813844651794962,
+        "12": 4.615371192699715
+      },
+      "SARIMA(1, 0, 0)x(0, 1, 1, 12)": {
+        "1": 4.724686253840084,
+        "2": 4.4270843070670995,
+        "3": 4.176341046868659,
+        "4": 4.147974391834455,
+        "5": 4.391032852813271,
+        "6": 4.654926767589586,
+        "7": 4.530537386585115,
+        "8": 5.214428860487307,
+        "9": 5.668143642056838,
+        "10": 6.123509650260434,
+        "11": 6.048251432597112,
+        "12": 5.911421399875674
+      },
+      "Ensemble (50/50)": {
+        "1": 4.680016064164589,
+        "2": 4.342217561356361,
+        "3": 4.110064724431826,
+        "4": 3.934088495336645,
+        "5": 3.836948637732395,
+        "6": 3.970412392172565,
+        "7": 4.0386578836906875,
+        "8": 4.435575866668342,
+        "9": 4.528037008921676,
+        "10": 4.714361002229364,
+        "11": 4.662683150894236,
+        "12": 4.474008675083468
+      }
+    },
+    "mape_average": {
+      "Prophet (defaults)": 5.0822852074573355,
+      "SARIMA(1, 0, 0)x(0, 1, 1, 12)": 5.001528165989636,
+      "Ensemble (50/50)": 4.310589288556847
+    },
+    "stored_summary_consistency_check": {
+      "tolerance_pp": 0.001,
+      "passed": true
+    }
+  },
+  "test_evaluation": {
+    "prophet_refit_consistency_check": {
+      "stored_mape_pct": 4.863698764197311,
+      "refit_mape_pct": 4.863698764197311,
+      "mape_diff_pp": 0.0,
+      "tolerance_pp": 0.001,
+      "dates_match": true,
+      "actuals_match": true,
+      "passed": true
+    },
+    "metrics": {
+      "Prophet (defaults)": {
+        "mae": 1027290.9644278964,
+        "rmse": 1308929.4821314814,
+        "mape": 4.863698764197311
+      },
+      "SARIMA(1, 0, 0)x(0, 1, 1, 12)": {
+        "mae": 1127919.7391010006,
+        "rmse": 1406425.5441427887,
+        "mape": 5.254544623999597
+      },
+      "Ensemble (50/50)": {
+        "mae": 892175.3160825404,
+        "rmse": 1190331.1543648422,
+        "mape": 4.099310973299191
+      }
+    }
+  },
+  "dm_results": {
+    "vs_prophet": {
+      "1": {
+        "n": 15,
+        "dm_statistic": -1.6231616005036265,
+        "p_value": 0.12684958394841628
+      },
+      "6": {
+        "n": 15,
+        "dm_statistic": -1.5050947275130686,
+        "p_value": 0.1545241296822515
+      },
+      "12": {
+        "n": 15,
+        "dm_statistic": -1.1079203272140703,
+        "p_value": 0.28656812510606544
+      }
+    },
+    "vs_sarima": {
+      "1": {
+        "n": 15,
+        "dm_statistic": -0.008289572784102323,
+        "p_value": 0.9935029205490289
+      },
+      "6": {
+        "n": 15,
+        "dm_statistic": 0.13790019518744842,
+        "p_value": 0.8922830462941196
+      },
+      "12": {
+        "n": 15,
+        "dm_statistic": -0.7366787426923506,
+        "p_value": 0.4734827046569936
+      }
+    }
+  },
+  "selection_rule": "Ensemble (50/50) WINS only if it beats Prophet (defaults) on BOTH the 26-month test MAPE AND the h12 rolling mean MAPE simultaneously.",
+  "selection_outcome": {
+    "wins": true,
+    "test_mape_pct": 4.099310973299191,
+    "baseline_test_mape_pct": 4.863698764197311,
+    "test_mape_diff_pp": 0.7643877908981205,
+    "h12_rolling_mape_pct": 4.474008675083468,
+    "baseline_h12_rolling_mape_pct": 4.615371192699715,
+    "h12_rolling_mape_diff_pp": 0.14136251761624763
+  },
+  "overlapping_origins_caveat": "The 15 rolling origins overlap (each forecasts 12 months ahead, one month apart), so they are not independent observations; MAPE-by-horizon and DM results above are descriptive, not a formal statistical guarantee.",
+  "no_ensemble_interval_note": "This experiment produces point forecasts only. Averaging two point forecasts says nothing about how to correctly combine two prediction intervals, and no method for that is defined in this round -- no ensemble lower/upper bound is reported anywhere.",
+  "run_timestamp": "2026-11-10T22:36:21.990574+00:00"
+}
