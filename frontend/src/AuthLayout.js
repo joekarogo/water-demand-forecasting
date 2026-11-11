@@ -1,10 +1,12 @@
 import { BrandIcon } from './layout/icons';
+import { useAppVersion } from './utils/useAppVersion';
 import './App.css';
 
 // Shared shell for the sign-in and emergency-access pages: a single
 // centred card on the app's plain background, same pattern as the rest
 // of the app's pages (docs/design/sign_in_mockup.html).
 function AuthLayout({ title, subtitle, children }) {
+  const appVersion = useAppVersion();
   return (
     <div className="auth-page">
       <a href="#main-content" className="skip-link">
@@ -23,7 +25,9 @@ function AuthLayout({ title, subtitle, children }) {
           {children}
         </main>
       </div>
-      <footer className="auth-foot">Version 1.0 · Data: İZSU Open Data (İzmir)</footer>
+      <footer className="auth-foot">
+        {appVersion ? `Version ${appVersion} · ` : ''}Data: İZSU Open Data (İzmir)
+      </footer>
     </div>
   );
 }

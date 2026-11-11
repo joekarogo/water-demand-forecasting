@@ -479,6 +479,19 @@ test('permission matrix', async (t) => {
       assert.ok(!Number.isNaN(Date.parse(publishedAt)), `expected a parseable timestamp, got: ${publishedAt}`);
     });
 
+    await t.test('GET /api/model-evaluation: published_model_name is read live from the "forecasts" table, not cached', async () => {
+      // backend/modelEvaluation.js's loadModelEvaluation() output is cached
+      // once at startup, but published_model_name is merged in fresh on
+      // every request (app.js) — seedForecast's fixture row is the only
+      // 'published' forecast in this disposable database, so this proves
+      // the live query actually ran rather than the static cache leaking
+      // some stale or invented value through.
+      const res = await request(baseUrl, { method: 'GET', path: '/api/model-evaluation', cookie: fixtures.admin.cookie });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.published_model_name, 'prophet');
+    });
+
     await t.test('GET /api/overview: each role sees only the sections its own permissions unlock', async () => {
       const adminRes = await request(baseUrl, { method: 'GET', path: '/api/overview', cookie: fixtures.admin.cookie });
       assert.strictEqual(adminRes.status, 200);
@@ -516,6 +529,35 @@ test('permission matrix', async (t) => {
       // Every response also carries the live thresholds, not a second
       // hardcoded copy the frontend would have to keep in sync by hand.
       assert.strictEqual(adminBody.thresholds.not_priced_pct_warning, 5);
+    });
+
+    await t.test('GET /api/overview: a null-user_id audit row (e.g. the publish script) shows "System (setup script)", never "Unknown"', async () => {
+      // 'forecast_published' is the real action ml/publish_ensemble_forecast.py
+      // writes with user_id=NULL (see its audit_log INSERT and
+      // auditLog.ACTION_LABELS). It is not a failed-sign-in action, so
+      // auditLog.getActor must resolve it to 'System (setup script)'
+      // rather than 'Unknown user'. occurred_at is set to now() so this
+      // row is guaranteed to land inside the recent_events ORDER BY
+      // occurred_at DESC LIMIT 5 window. audit_log is append-only (see
+      // trg_audit_log_append_only in 001_foundation.sql), so this row is
+      // deliberately never deleted — harmless here since every other
+      // assertion in this file either filters by a specific user_id (this
+      // row's user_id is NULL, so it never matches) or only checks for the
+      // presence of specific rows/ips, never an exact total row count.
+      await setupClient.query(
+        `INSERT INTO audit_log (user_id, action, occurred_at) VALUES (NULL, 'forecast_published', now())`
+      );
+
+      const adminRes = await request(baseUrl, { method: 'GET', path: '/api/overview', cookie: fixtures.admin.cookie });
+      assert.strictEqual(adminRes.status, 200);
+      const adminBody = await adminRes.json();
+      const publishedEvent = adminBody.sections.users.recent_events.find((e) => e.action === 'forecast_published');
+      assert.ok(publishedEvent, 'expected the forecast_published row to appear in recent_events');
+      assert.strictEqual(publishedEvent.actor, 'System (setup script)');
+      assert.ok(
+        adminBody.sections.users.recent_events.every((e) => !e.actor.includes('Unknown')),
+        'no recent_events actor should ever read "Unknown"'
+      );
     });
 
     await t.test('GET /api/activity-log: audit:view_all sees everything, audit:view_own sees only their own rows', async () => {

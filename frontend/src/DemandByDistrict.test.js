@@ -153,7 +153,28 @@ test('sorting the table by a column reverses the row order', async () => {
   // Default sort is forecast (desc): Alpha (600,000) before Beta (400,000).
   expect(bodyRowName()).toMatch(/^Alpha/);
 
-  const forecastHeaderBtn = within(table).getByRole('button', { name: /Forecast billed/ });
+  const forecastHeaderBtn = within(table).getByRole('button', { name: /Forecast \(m³\)/ });
   fireEvent.click(forecastHeaderBtn); // desc -> asc
   await waitFor(() => expect(bodyRowName()).toMatch(/^Beta/));
+});
+
+test('table headers are short and single-line, and the note explains the renamed columns', async () => {
+  mockFetch(sampleDistribution());
+  renderPage();
+
+  const table = await screen.findByRole('table');
+
+  // Short one-line headers (no "Forecast billed", "Share (%)" or the
+  // dynamic "Share change, <month> <year> vs <month> <year>" wording).
+  ['District', 'Subscribers', 'Share', 'Forecast (m³)', 'Likely range (m³)', 'Plan allocation (m³)', 'Share vs last year'].forEach(
+    (label) => {
+      expect(within(table).getByRole('button', { name: label })).toBeInTheDocument();
+    }
+  );
+
+  expect(
+    screen.getByText(
+      "Share is the district's average share of the same calendar month over the last three years. Plan allocation splits the saved production plan by share. Share vs last year compares the district's share in that month last year with the year before."
+    )
+  ).toBeInTheDocument();
 });

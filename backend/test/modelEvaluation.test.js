@@ -11,6 +11,10 @@ const {
   loadCoverage,
   loadErrorAnalysis,
   loadProtocol,
+  loadConformal,
+  loadEnsembleConformal,
+  loadEnsemble,
+  loadOtherInputs,
 } = require('../modelEvaluation');
 
 function makeFixtureDir() {
@@ -41,6 +45,8 @@ function writeFullFixtures(dir) {
       origins: ['2022-06-01', '2022-07-01'],
       mape_by_horizon: {
         'Prophet (defaults)': { 1: 5.0, 3: 5.2, 6: 5.1, 12: 4.9 },
+        'Seasonal-naive': { 1: 4.78, 3: 4.34, 6: 4.72, 12: 5.91 },
+        'Last-year x growth': { 1: 4.99, 3: 4.28, 6: 4.76, 12: 5.33 },
       },
       coverage_by_horizon: {
         'Prophet (defaults)': { 1: 0.6667, 12: 0.6667 },
@@ -76,6 +82,84 @@ function writeFullFixtures(dir) {
       'Prophet (defaults)': {
         mape_by_season: { winter: 3.0, summer: 6.0, other: 5.0 },
         worst_months: [{ date: '2023-06-01', actual: 100, forecast: 120, pct_error: -20 }],
+      },
+    })
+  );
+
+  const conformalMetric = (atOrBelowUpper1, atOrBelowUpper12) => ({
+    1: { two_sided_coverage_pct: 80, at_or_below_upper_coverage_pct: atOrBelowUpper1, mean_width_pct: 18, n: 15 },
+    12: { two_sided_coverage_pct: 73, at_or_below_upper_coverage_pct: atOrBelowUpper12, mean_width_pct: 16, n: 15 },
+  });
+  write(
+    dir,
+    'conformal_calibration.json',
+    JSON.stringify({
+      test_evaluation: {
+        metrics_by_horizon: {
+          prophet_raw: conformalMetric(100, 80),
+          prophet_conformal: conformalMetric(100, 80),
+          sarima: conformalMetric(93.3, 86.7),
+        },
+        metrics_average: {
+          prophet_raw: { two_sided_coverage_pct: 89.4, at_or_below_upper_coverage_pct: 96.7, mean_width_pct: 18.0 },
+          prophet_conformal: { two_sided_coverage_pct: 89.4, at_or_below_upper_coverage_pct: 96.7, mean_width_pct: 18.0 },
+          sarima: { two_sided_coverage_pct: 87.8, at_or_below_upper_coverage_pct: 95.0, mean_width_pct: 19.7 },
+        },
+      },
+    })
+  );
+
+  write(
+    dir,
+    'ensemble_conformal.json',
+    JSON.stringify({
+      test_evaluation: {
+        metrics_by_horizon: { ensemble_conformal: conformalMetric(93.3, 80.0) },
+        metrics_average: { ensemble_conformal: { two_sided_coverage_pct: 86.1, at_or_below_upper_coverage_pct: 94.4, mean_width_pct: 15.9 } },
+      },
+      run_timestamp: '2026-11-11T07:35:14.003150+00:00',
+    })
+  );
+
+  write(
+    dir,
+    'ensemble_experiment.json',
+    JSON.stringify({
+      sarima_label: 'SARIMA(1, 0, 0)x(0, 1, 1, 12)',
+      rolling: {
+        mape_by_horizon: {
+          'Ensemble (50/50)': { 1: 4.68, 12: 4.47 },
+          'Prophet (defaults)': { 1: 5.66, 12: 4.62 },
+          'SARIMA(1, 0, 0)x(0, 1, 1, 12)': { 1: 4.72, 12: 5.91 },
+        },
+      },
+      test_evaluation: {
+        metrics: {
+          'Ensemble (50/50)': { mae: 892175, rmse: 1190331, mape: 4.1 },
+          'Prophet (defaults)': { mae: 1027291, rmse: 1308929, mape: 4.86 },
+          'SARIMA(1, 0, 0)x(0, 1, 1, 12)': { mae: 1127920, rmse: 1406426, mape: 5.25 },
+        },
+      },
+      dm_results: {
+        vs_prophet: { 1: { n: 15, dm_statistic: -1.6, p_value: 0.13 }, 6: { n: 15, dm_statistic: -1.5, p_value: 0.15 }, 12: { n: 15, dm_statistic: -1.1, p_value: 0.29 } },
+        vs_sarima: { 1: { n: 15, dm_statistic: -0.01, p_value: 0.99 }, 6: { n: 15, dm_statistic: 0.14, p_value: 0.89 }, 12: { n: 15, dm_statistic: -0.74, p_value: 0.47 } },
+      },
+      run_timestamp: '2026-11-10T22:36:21.990574+00:00',
+    })
+  );
+
+  write(
+    dir,
+    'exog_experiments.json',
+    JSON.stringify({
+      results_by_variant: {
+        'E2 weather (normals)': { test_metrics: { mape: 4.78 }, rolling_by_horizon: { 12: { mape: 4.69 } } },
+        'E2 weather (actual, best case)': { test_metrics: { mape: 4.87 }, rolling_by_horizon: { 12: { mape: 4.26 } } },
+        'E3 Bayram days': { test_metrics: { mape: 5.04 }, rolling_by_horizon: { 12: { mape: 4.94 } } },
+      },
+      selection_outcomes: {
+        'E2 weather (normals)': { wins: false },
+        'E3 Bayram days': { wins: false },
       },
     })
   );
@@ -200,11 +284,102 @@ test('loadProtocol: models_compared comes from the stored metrics keys, not inve
   assert.deepStrictEqual(result.data.chosen_sarima_order, [1, 0, 0]);
 });
 
+test('loadConformal: reshapes prophet_raw/prophet_conformal/sarima from the stored E1 file', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  const result = loadConformal(dir);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.data.prophet_conformal.by_horizon[1].at_or_below_upper_coverage_pct, 100);
+  assert.strictEqual(result.data.sarima.average.two_sided_coverage_pct, 87.8);
+});
+
+test('loadConformal: a missing file is reported unavailable, not a crash', () => {
+  const dir = makeFixtureDir();
+  const result = loadConformal(dir);
+  assert.strictEqual(result.ok, false);
+});
+
+test('loadEnsembleConformal: reads the ensemble\'s own calibrated range and run_timestamp', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  const result = loadEnsembleConformal(dir);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.data.ensemble_conformal.average.at_or_below_upper_coverage_pct, 94.4);
+  assert.strictEqual(result.data.run_timestamp, '2026-11-11T07:35:14.003150+00:00');
+});
+
+test('loadEnsembleConformal: a missing file is reported unavailable, not a crash', () => {
+  const dir = makeFixtureDir();
+  const result = loadEnsembleConformal(dir);
+  assert.strictEqual(result.ok, false);
+});
+
+test('loadEnsemble: merges the ensemble\'s own test/rolling/DM results with the two baselines\' full rolling MAPE', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  const result = loadEnsemble(dir);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.data.sarima_label, 'SARIMA(1, 0, 0)x(0, 1, 1, 12)');
+  assert.strictEqual(result.data.test_metrics['Ensemble (50/50)'].mape, 4.1);
+  assert.strictEqual(result.data.rolling_mape_by_horizon['Ensemble (50/50)'][1], 4.68);
+  // The two baselines are never ensembled, so their full rolling MAPE is
+  // merged in from rolling_evaluation_summary.json, not invented here.
+  assert.strictEqual(result.data.rolling_mape_by_horizon['Seasonal-naive'][12], 5.91);
+  assert.strictEqual(result.data.rolling_mape_by_horizon['Last-year x growth'][1], 4.99);
+  assert.strictEqual(result.data.dm_vs_prophet[1].p_value, 0.13);
+  assert.strictEqual(result.data.dm_vs_sarima[12].p_value, 0.47);
+  assert.deepStrictEqual(result.file, ['ml/results/ensemble_experiment.json', 'ml/results/rolling_evaluation_summary.json']);
+});
+
+test('loadEnsemble: a missing file is reported unavailable, not a crash', () => {
+  const dir = makeFixtureDir();
+  const result = loadEnsemble(dir);
+  assert.strictEqual(result.ok, false);
+});
+
+test('loadEnsemble: still works (minus the two baselines) if rolling_evaluation_summary.json is missing', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  fs.unlinkSync(path.join(dir, 'rolling_evaluation_summary.json'));
+  const result = loadEnsemble(dir);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.data.rolling_mape_by_horizon['Seasonal-naive'], undefined);
+  assert.strictEqual(result.file, 'ml/results/ensemble_experiment.json');
+});
+
+test('loadOtherInputs: reads the two eligible variants and excludes the "best case" weather variant', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  const result = loadOtherInputs(dir);
+  assert.strictEqual(result.ok, true);
+  const names = result.data.items.map((i) => i.name);
+  assert.deepStrictEqual(names, ['Weather (typical for the month)', 'Bayram holiday days']);
+  assert.ok(!names.some((n) => /best case/i.test(n)));
+  assert.strictEqual(result.data.items[0].adopted, false);
+});
+
+test('loadOtherInputs: "adopted" is read live from selection_outcomes.wins, never assumed false', () => {
+  const dir = makeFixtureDir();
+  writeFullFixtures(dir);
+  const file = path.join(dir, 'exog_experiments.json');
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  data.selection_outcomes['E2 weather (normals)'].wins = true;
+  fs.writeFileSync(file, JSON.stringify(data));
+  const result = loadOtherInputs(dir);
+  assert.strictEqual(result.data.items[0].adopted, true);
+});
+
+test('loadOtherInputs: a missing file is reported unavailable, not a crash', () => {
+  const dir = makeFixtureDir();
+  const result = loadOtherInputs(dir);
+  assert.strictEqual(result.ok, false);
+});
+
 test('loadModelEvaluation: a totally empty directory marks every section unavailable, never throws', () => {
   const dir = makeFixtureDir();
   const result = loadModelEvaluation(dir);
   assert.strictEqual(Object.keys(result.sections).length, 0);
-  assert.strictEqual(result.unavailable.length, 6);
+  assert.strictEqual(result.unavailable.length, 10);
 });
 
 test('loadModelEvaluation: a partially-populated directory returns the available sections and lists the rest as unavailable', () => {
@@ -223,7 +398,7 @@ test('loadModelEvaluation: the real ml/results directory in this repo loads ever
   const realDir = path.join(__dirname, '..', '..', 'ml', 'results');
   const result = loadModelEvaluation(realDir);
   assert.deepStrictEqual(result.unavailable, []);
-  assert.strictEqual(Object.keys(result.sections).length, 6);
+  assert.strictEqual(Object.keys(result.sections).length, 10);
 });
 
 // rolling_evaluation_predictions.csv quotes the SARIMA model name because

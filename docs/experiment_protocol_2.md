@@ -266,3 +266,45 @@ committed strictly before `ml/ensemble_experiment.py` is executed.
   26-month test MAPE AND the h12 rolling mean MAPE at the same time.
 - **E5 (history length) is not being run in this round**, by deliberate
   decision, due to time constraints.
+
+## E4 outcome and E1b (fixed 11 November 2026, before the E1b run)
+
+As with the rest of this document, the evidence that this section's
+choices were fixed before E1b was ever run is the git commit time of this
+file -- committed strictly before `ml/ensemble_conformal.py` is executed.
+
+- **E4 WINS the selection rule.** Per `ml/results/ensemble_experiment.json`:
+  the Ensemble (50/50)'s 26-month test MAPE is 4.099%, against Prophet
+  (defaults)'s baseline 4.864% (diff +0.764pp, ensemble better); its h12
+  rolling mean MAPE is 4.474%, against Prophet (defaults)'s baseline
+  4.615% (diff +0.141pp, ensemble better). Both required differences are
+  positive, so the selection rule -- "beats Prophet (defaults) on BOTH the
+  26-month test MAPE AND the h12 rolling mean MAPE simultaneously" -- is
+  satisfied.
+- **The published model therefore changes** from Prophet (defaults) to the
+  Ensemble (50/50): Prophet (defaults) + the chosen SARIMA setting,
+  averaged with fixed, untuned 0.5/0.5 weights.
+- **E1b calibrates the Ensemble's 80% range using the E1 method
+  unchanged**: the same 49 calibration origins (2017-06-01..2021-06-01),
+  the same relative-error score definition (`actual / yhat - 1`, now
+  applied to the Ensemble's `yhat` instead of Prophet's alone), the same
+  finite-sample quantile formula (`k_lo = floor((n+1)*alpha/2)`,
+  `k_hi = ceil((n+1)*(1-alpha/2))`, alpha=0.20, n=49 giving k_lo=5,
+  k_hi=45), and the same two success criteria (two-sided average coverage
+  closer to 80% than the 66.7% baseline; at-or-below-upper coverage at h1
+  at least 90%).
+- **E1b was decided after seeing E4's result, not pre-registered alongside
+  E1-E5 above.** This is a different kind of "fixed before the run" than
+  the rest of this document: E1-E4's methods were chosen before any
+  Protocol 2 experiment ran at all, while E1b's method was chosen (by
+  reusing E1's, unchanged) only after E4's outcome was already known, in
+  direct response to that outcome -- because a production plan built on
+  the newly-winning Ensemble needs a calibrated range, and the Ensemble
+  itself defines none (see E4 method details above, "point forecasts
+  only"). What is still true, and still asserted in code, is that E1b's
+  own method -- which origins, which score, which quantile formula, which
+  criteria -- was fixed and committed before `ml/ensemble_conformal.py`
+  was ever run, exactly as for every other experiment in this document.
+  The difference being disclosed here is that the *decision to run a
+  follow-up calibration at all* was itself a response to E4, not a choice
+  made blind before Protocol 2 began.
