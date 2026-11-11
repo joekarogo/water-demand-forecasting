@@ -2559,7 +2559,7 @@ app.get('/api/overview', authenticateToken, async (req, res) => {
         `SELECT MAX(occurred_at) AS last_at FROM audit_log WHERE action = 'emergency.login'`
       );
       const recentEventsResult = await pool.query(
-        `SELECT a.occurred_at, a.action, u.name AS actor_name
+        `SELECT a.occurred_at, a.user_id, u.name AS actor_name, a.action, a.details
          FROM audit_log a
          LEFT JOIN users u ON u.user_id = a.user_id
          ORDER BY a.occurred_at DESC
@@ -2580,7 +2580,13 @@ app.get('/api/overview', authenticateToken, async (req, res) => {
         last_emergency_login_at: lastEmergencyAt,
         recent_events: recentEventsResult.rows.map((row) => ({
           time: row.occurred_at,
-          actor_name: row.actor_name,
+          actor: auditLog.getActor({
+            userId: row.user_id,
+            actorName: row.actor_name,
+            action: row.action,
+            email: (row.details || {}).email,
+            canSeeEmail: permissions.has('audit:view_all'),
+          }),
           action: row.action,
           label: auditLog.ACTION_LABELS[row.action] || row.action,
         })),

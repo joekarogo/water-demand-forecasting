@@ -65,7 +65,7 @@ function Help() {
             Production planning
           </h2>
           <p style={{ margin: 0 }}>
-            The "safe" plan uses the upper bound of the forecast range rather than the central
+            The "safe" plan uses the upper end of the likely range rather than the central
             forecast. In past testing, actual demand stayed below the safe plan in about 9 of 10
             months at a 1-month horizon, and about 8 of 10 months at a 12-month horizon.
           </p>

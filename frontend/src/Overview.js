@@ -93,7 +93,7 @@ function Overview() {
       list.push({
         label: 'Forecast for the first month',
         value: `${fmtMillions(sections.forecast.predicted)}M m³`,
-        help: `${formatMonthLong(sections.forecast.first_month)} · range ${fmtMillions(
+        help: `${formatMonthLong(sections.forecast.first_month)} · likely range ${fmtMillions(
           sections.forecast.lower
         )}–${fmtMillions(sections.forecast.upper)}M m³`,
       });
@@ -129,7 +129,7 @@ function Overview() {
       list.push({
         label: 'Expected revenue',
         value: fmtTRYMillions(sections.revenue.total.mid),
-        help: `low–high ${fmtTRYMillions(sections.revenue.total.low)}–${fmtTRYMillions(sections.revenue.total.high)}`,
+        help: `likely range ${fmtTRYMillions(sections.revenue.total.low)}–${fmtTRYMillions(sections.revenue.total.high)}`,
       });
       list.push({
         label: 'Not priced',
@@ -417,7 +417,7 @@ function Overview() {
                     >
                       <span style={{ fontWeight: 600 }}>{e.label}</span>
                       {' — '}
-                      {e.actor_name || 'Unknown'} · {formatDateTime(e.time)}
+                      {e.actor} · {formatDateTime(e.time)}
                     </li>
                   ))}
                 </ul>

@@ -19,7 +19,6 @@ import {
 } from './utils/format';
 import './App.css';
 
-const SHOW_NEXT_OPTIONS = [3, 6, 12];
 const PLAN_API_URL = '/api/production/plan';
 const STOCK_API_URL = '/api/production/stock';
 
@@ -100,45 +99,6 @@ function niceStepMillions(rangeM) {
   return Math.ceil(rawStep);
 }
 
-function ShowNextControl({ options, value, onChange, label, labelId }) {
-  const refs = useRef({});
-
-  const handleKeyDown = (e, idx) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    e.preventDefault();
-    const nextIdx = (idx + (e.key === 'ArrowRight' ? 1 : -1) + options.length) % options.length;
-    const nextVal = options[nextIdx];
-    onChange(nextVal);
-    refs.current[nextVal]?.focus();
-  };
-
-  return (
-    <div className="ctl-group">
-      <span className="ctl-label" id={labelId}>
-        {label}
-      </span>
-      <div className="segmented" role="radiogroup" aria-labelledby={labelId}>
-        {options.map((opt, idx) => (
-          <button
-            key={opt}
-            type="button"
-            role="radio"
-            aria-checked={value === opt}
-            tabIndex={value === opt ? 0 : -1}
-            ref={(el) => {
-              refs.current[opt] = el;
-            }}
-            onClick={() => onChange(opt)}
-            onKeyDown={(e) => handleKeyDown(e, idx)}
-          >
-            {opt} months
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function StockChangeCell({ changeM3 }) {
   if (changeM3 == null) {
     return <span className="chg-n">—</span>;
@@ -185,8 +145,6 @@ function ProductionPlanning() {
   const [stockData, setStockData] = useState(null);
   const [stockError, setStockError] = useState(false);
   const [newReadingDate, setNewReadingDate] = useState(null);
-
-  const [showNext, setShowNext] = useState(12);
 
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
@@ -292,13 +250,13 @@ function ProductionPlanning() {
     const plannedCount = months.filter((m) => m.plan).length;
     const nextUnplannedIndex = months.findIndex((m) => !m.plan);
     const monthRange = `${formatMonthShort(months[0].month)} – ${formatMonthShort(months[months.length - 1].month)}`;
-    const visibleMonths = months.slice(0, showNext);
+    const visibleMonths = months;
     const forecastValues = months.map((m) => m.forecast_m3);
     const maxForecast = Math.max(...forecastValues);
     const minForecast = Math.min(...forecastValues);
 
     return { months, plannedCount, nextUnplannedIndex, monthRange, visibleMonths, maxForecast, minForecast };
-  }, [planData, showNext]);
+  }, [planData]);
 
   const prefillPanelFromMonth = (monthObj) => {
     const plan = monthObj.plan;
@@ -727,7 +685,7 @@ function ProductionPlanning() {
           <section className="explain" aria-label="How the plans work">
             <InfoIcon />
             <p style={{ margin: 0 }}>
-              <b>Normal plan</b> covers expected demand. <b>Safe plan</b> uses the upper end of the forecast range:
+              <b>Normal plan</b> covers expected demand. <b>Safe plan</b> uses the upper end of the likely range:
               in past testing, demand stayed below it in about 9 of 10 months (about 8 of 10 for months furthest
               ahead). Both include a {(planData.loss_rate * 100).toFixed(1)}% allowance for non-revenue water.
               <InfoTip id="tipCalc" label="How is this calculated?">
@@ -735,7 +693,7 @@ function ProductionPlanning() {
                 <br />
                 Normal = forecast ÷ (1 − {planData.loss_rate.toFixed(3)}).
                 <br />
-                Safe = upper end of the 80% range ÷ (1 − {planData.loss_rate.toFixed(3)}).
+                Safe = upper end of the likely range ÷ (1 − {planData.loss_rate.toFixed(3)}).
                 <br />
                 Source: {planData.loss_rate_source}.
               </InfoTip>
@@ -748,7 +706,7 @@ function ProductionPlanning() {
                 <h2 className="card-title" id="ppGridTitle">
                   Monthly production plan
                 </h2>
-                <p className="card-sub">Next {showNext} months · select a month to plan it</p>
+                <p className="card-sub">Next 12 months · select a month to plan it</p>
               </div>
               <div className="grid-summary" aria-live="polite">
                 <span>
@@ -761,15 +719,6 @@ function ProductionPlanning() {
                 </span>
               </div>
             </div>
-            <div className="controls" role="group" aria-label="Grid options">
-              <ShowNextControl
-                options={SHOW_NEXT_OPTIONS}
-                value={showNext}
-                onChange={setShowNext}
-                label="Show next"
-                labelId="ppHorizonLabel"
-              />
-            </div>
             <div className="spark-wrap">
               <p className="spark-cap">Forecast demand by month · ✓ = planned</p>
               <div className="spark" role="group" aria-label="Forecast demand by month. Select a bar to plan that month.">
@@ -777,18 +726,17 @@ function ProductionPlanning() {
                   const range = computed.maxForecast - computed.minForecast || 1;
                   const pct = 18 + ((m.forecast_m3 - computed.minForecast) / range) * 82;
                   const barHeight = pct * 0.72;
-                  const isOut = i >= showNext;
-                  const cls = `col${m.plan ? ' planned' : ''}${isOut ? ' out' : ''}`;
+                  const cls = `col${m.plan ? ' planned' : ''}`;
                   return (
                     <button
                       key={m.month}
                       type="button"
                       className={cls}
-                      tabIndex={isOut ? -1 : 0}
+                      tabIndex={0}
                       aria-label={`${formatMonthShort(m.month)}: forecast ${fmtMillions(m.forecast_m3)} m³, ${
                         m.plan ? 'planned' : 'not planned'
                       }`}
-                      onClick={(e) => !isOut && openPanel(i, e.currentTarget)}
+                      onClick={(e) => openPanel(i, e.currentTarget)}
                     >
                       <span className="bar" style={{ height: `${barHeight}%` }} />
                       <span className="lbl">{formatMonthShort(m.month).slice(0, 3)}</span>
@@ -1069,7 +1017,7 @@ function ProductionPlanning() {
                         <span className="unit">M m³</span>
                       </div>
                       <div className="rng">
-                        80% range {fmtMillions(month.lower_m3)}M – {fmtMillions(month.upper_m3)}M m³
+                        Likely range {fmtMillions(month.lower_m3)}M – {fmtMillions(month.upper_m3)}M m³
                       </div>
                     </div>
 

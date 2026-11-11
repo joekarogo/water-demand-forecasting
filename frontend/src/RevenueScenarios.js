@@ -507,7 +507,7 @@ function RevenueScenarios() {
               The "May 2025 İzmir change" preset applies May 2025's step increases on top of July 2024 prices. The
               January 2025 increase is excluded because sources disagree on its size (26% vs 30%).
               <br />
-              The low–high range reflects city forecast uncertainty only. The same lower-bound caveat as Revenue
+              The likely range reflects city forecast uncertainty only. The same lower-bound caveat as Revenue
               estimate still applies here.
             </InfoTip>
           </p>

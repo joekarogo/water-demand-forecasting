@@ -74,7 +74,7 @@ function RevenueChartTooltip({ active, payload }) {
       <p className="chart-tooltip-label">{formatMonthLong(point.month)}</p>
       <p>Expected: {fmtTRY(point.total)}</p>
       <p>
-        Range: {fmtTRY(point.range[0])} – {fmtTRY(point.range[1])}
+        Likely range: {fmtTRY(point.range[0])} – {fmtTRY(point.range[1])}
       </p>
     </div>
   );
@@ -215,7 +215,7 @@ function RevenueEstimate() {
     return (
       <>
         In <b>{formatMonthLong(month.month)}</b>, water and wastewater sales are expected to bring in about{' '}
-        <b>{fmtTRY(month.totals.total.mid)}</b> ({fmtTRY(month.totals.total.low)} – {fmtTRY(month.totals.total.high)}),
+        <b>{fmtTRY(month.totals.total.mid)}</b> (likely range {fmtTRY(month.totals.total.low)} – {fmtTRY(month.totals.total.high)}),
         with <b>{groupLabel(topGroup.customer_group)}</b> the largest contributor at {pct}% of the total.
       </>
     );
@@ -379,7 +379,7 @@ function RevenueEstimate() {
               Subscriber counts are assumed to still match {formatDateLong(data.subscribers_month)}, the latest month
               with data. İzmir raised prices in 2025, so actual income will be higher than this estimate.
               <br />
-              The low–high range reflects city forecast uncertainty only — not tariff or subscriber-count
+              The likely range reflects city forecast uncertainty only — not tariff or subscriber-count
               uncertainty.
             </InfoTip>
           </p>
@@ -389,21 +389,21 @@ function RevenueEstimate() {
               <div className="kpi-label">Expected revenue</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.total.mid)}</div>
               <div className="kpi-help">
-                {fmtTRY(month.totals.total.low)} – {fmtTRY(month.totals.total.high)}
+                Likely range: {fmtTRY(month.totals.total.low)} – {fmtTRY(month.totals.total.high)}
               </div>
             </article>
             <article className="card kpi">
               <div className="kpi-label">Water charge</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.water.mid)}</div>
               <div className="kpi-help">
-                {fmtTRY(month.totals.water.low)} – {fmtTRY(month.totals.water.high)}
+                Likely range: {fmtTRY(month.totals.water.low)} – {fmtTRY(month.totals.water.high)}
               </div>
             </article>
             <article className="card kpi">
               <div className="kpi-label">Wastewater charge</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.wastewater.mid)}</div>
               <div className="kpi-help">
-                {fmtTRY(month.totals.wastewater.low)} – {fmtTRY(month.totals.wastewater.high)}
+                Likely range: {fmtTRY(month.totals.wastewater.low)} – {fmtTRY(month.totals.wastewater.high)}
               </div>
             </article>
             <article className="card kpi">
@@ -478,7 +478,7 @@ function RevenueEstimate() {
                     strokeWidth={1}
                     fill="#0d7f80"
                     fillOpacity={0.15}
-                    name="Low–high range"
+                    name="Likely range"
                   />
                   <Bar dataKey="total" name="Expected revenue" radius={[3, 3, 0, 0]}>
                     {chartRows.map((row, i) => (
@@ -499,7 +499,7 @@ function RevenueEstimate() {
               </span>
               <span>
                 <i className="lg-band" />
-                Low–high range
+                Likely range
               </span>
             </div>
           </section>

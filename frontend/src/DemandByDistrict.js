@@ -26,7 +26,7 @@ const COLUMNS = [
   { key: 'subscribers', label: 'Subscribers' },
   { key: 'share_pct', label: 'Share (%)' },
   { key: 'forecast_m3', label: 'Forecast billed (m³)' },
-  { key: 'lower_m3', label: 'Low – high (m³)' },
+  { key: 'lower_m3', label: 'Likely range (m³)' },
   { key: 'allocation_m3', label: 'Plan allocation (m³)' },
   { key: 'share_change_pts', label: 'Share change (pts)' },
 ];
@@ -344,7 +344,7 @@ function DemandByDistrict() {
               District forecast = city forecast for that month × the district's average share of the same calendar
               month over the last 3 years with data.
               <br />
-              The low–high range reflects city forecast uncertainty only; the district split adds further error on
+              The likely range reflects city forecast uncertainty only; the district split adds further error on
               top of that.
               {lossPct != null && (
                 <>
