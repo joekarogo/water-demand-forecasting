@@ -941,16 +941,6 @@ svg {
   align-items: center;
   gap: 7px;
 }
-.lg-line {
-  width: 22px;
-  height: 0;
-  border-top: 2.5px solid var(--blue);
-}
-.lg-dash {
-  width: 22px;
-  height: 0;
-  border-top: 2.5px dashed var(--teal);
-}
 .lg-band {
   width: 18px;
   height: 11px;
@@ -958,13 +948,15 @@ svg {
   border-radius: 2px;
   border: 1px solid rgba(13, 127, 128, 0.3);
 }
-.lg-dot {
+.lg-teal {
   width: 22px;
   height: 0;
-  border-top: 2.5px dotted #64748b;
+  border-top: 3px solid var(--teal);
 }
-.legend .off {
-  opacity: 0.4;
+.lg-grey {
+  width: 22px;
+  height: 0;
+  border-top: 2px solid #64748b;
 }
 
 /* ---------- Table ---------- */

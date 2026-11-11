@@ -1,17 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ComposedChart,
-  Area,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ReferenceArea,
-  ResponsiveContainer,
-} from 'recharts';
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
 import AppLayout from './layout/AppLayout';
@@ -32,7 +21,6 @@ import {
   formatPublishedDate,
   monthsBetweenInclusive,
   shiftMonths,
-  fmtInt,
   fmtMillions,
   fmtPercentChange,
 } from './utils/format';
@@ -40,8 +28,6 @@ import { useViewportWidth } from './utils/useViewportWidth';
 import { downloadTextFile } from './utils/download';
 import './App.css';
 
-const SHOW_NEXT_OPTIONS = [3, 6, 12];
-const HISTORY_MONTHS_SHOWN = 36;
 const API_URL = '/api/forecast/published';
 
 // The model is evaluated on a fixed, 26-month held-out test split (102
@@ -50,93 +36,94 @@ const API_URL = '/api/forecast/published';
 // between publishes of the same model.
 const TEST_MONTHS = 26;
 
-function ShowNextControl({ value, onChange }) {
-  const refs = useRef({});
+// Two-line "Mon / YYYY" tick on wide screens; falls back to the existing
+// single-line "Mon YY" format on narrow screens, where a second line
+// wouldn't leave enough vertical room to stay legible.
+function ForecastXAxisTick({ x, y, payload, narrow }) {
+  if (narrow) {
+    return (
+      <text x={x} y={y + 12} textAnchor="middle" fontSize={11} fill="#475569">
+        {formatMonthShortYY(payload.value)}
+      </text>
+    );
+  }
+  const [monthAbbr, year] = formatMonthShort(payload.value).split(' ');
+  return (
+    <g>
+      <text x={x} y={y + 12} textAnchor="middle" fontSize={11} fill="#475569">
+        {monthAbbr}
+      </text>
+      <text x={x} y={y + 26} textAnchor="middle" fontSize={10} fill="#94a3b8">
+        {year}
+      </text>
+    </g>
+  );
+}
 
-  const handleKeyDown = (e, idx) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    e.preventDefault();
-    const nextIdx = (idx + (e.key === 'ArrowRight' ? 1 : -1) + SHOW_NEXT_OPTIONS.length) % SHOW_NEXT_OPTIONS.length;
-    const nextVal = SHOW_NEXT_OPTIONS[nextIdx];
-    onChange(nextVal);
-    refs.current[nextVal]?.focus();
+// A small end-of-line text label, shown only at the last data point so the
+// chart reads like the mockup's "Forecast" / "Last year" line labels
+// instead of relying solely on the legend below. `dy` is passed per-line so
+// the two labels never collide: the higher line's label sits above its
+// point, the lower line's label sits below it.
+function lastPointLabel(text, color, lastIndex, dy) {
+  return (props) => {
+    if (props.index !== lastIndex || props.value == null) return null;
+    return (
+      <text x={props.x + 8} y={props.y} dy={dy} fontSize={12} fontWeight={700} fill={color} textAnchor="start">
+        {text}
+      </text>
+    );
   };
-
-  return (
-    <div className="ctl-group">
-      <span className="ctl-label" id="horizonLabel">
-        Show next
-      </span>
-      <div className="segmented" role="radiogroup" aria-labelledby="horizonLabel">
-        {SHOW_NEXT_OPTIONS.map((opt, idx) => (
-          <button
-            key={opt}
-            type="button"
-            role="radio"
-            aria-checked={value === opt}
-            tabIndex={value === opt ? 0 : -1}
-            ref={(el) => {
-              refs.current[opt] = el;
-            }}
-            onClick={() => onChange(opt)}
-            onKeyDown={(e) => handleKeyDown(e, idx)}
-          >
-            {opt} months
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
-function ToggleSwitch({ checked, onChange, children }) {
-  return (
-    <button type="button" className="toggle" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}>
-      <span className="switch" aria-hidden="true" />
-      {children}
-    </button>
-  );
-}
-
-function ForecastChartTooltip({ active, payload, label, showBand }) {
+function ForecastChartTooltip({ active, payload, label }) {
   if (!active || !payload || payload.length === 0) {
     return null;
   }
   const point = payload[0].payload;
-  const isForecast = point.yhat !== undefined && point.actual === undefined;
+  const changePct = point.lastYear != null ? ((point.yhat - point.lastYear) / point.lastYear) * 100 : null;
+  const up = changePct !== null && changePct >= 0;
 
   return (
     <div className="chart-tooltip" role="group" aria-label={`${formatMonthLong(label)} details`}>
-      <p className="chart-tooltip-label">
-        {formatMonthLong(label)} {isForecast ? '· Forecast' : point.actual !== undefined ? '· Actual' : ''}
+      <p className="chart-tooltip-label">{formatMonthLong(label)}</p>
+      <p>Forecast: {fmtMillions(point.yhat, 2)}M m³</p>
+      <p>Same month last year: {point.lastYear != null ? `${fmtMillions(point.lastYear, 2)}M m³` : '—'}</p>
+      <p>
+        Change:{' '}
+        {changePct !== null ? (
+          <>
+            <span aria-hidden="true">{up ? '▲' : '▼'}</span> <span className="sr-only">{up ? 'up' : 'down'}</span>
+            {fmtPercentChange(changePct)}%
+          </>
+        ) : (
+          '—'
+        )}
       </p>
-      {point.actual !== undefined && <p>Actual: {fmtInt(point.actual)} m³</p>}
-      {isForecast && point.yhat !== undefined && <p>Forecast: {fmtInt(point.yhat)} m³</p>}
-      {showBand && Array.isArray(point.range) && (
+      {Array.isArray(point.range) && (
         <p>
-          80% range: {fmtInt(point.range[0])} – {fmtInt(point.range[1])} m³
+          Likely range: {fmtMillions(point.range[0], 1)}M – {fmtMillions(point.range[1], 1)}M
         </p>
       )}
-      {point.lastYear !== undefined && <p>Same month last year: {fmtInt(point.lastYear)} m³</p>}
     </div>
   );
 }
 
-function exportCsv(rows, showNext) {
-  const header = ['Month', 'Forecast (m3)', 'Low (m3)', 'High (m3)', 'Same month last year (m3)', 'Change (%)'];
+function exportCsv(rows) {
+  const header = ['month', 'forecast_m3', 'same_month_last_year_m3', 'change_pct', 'likely_low_m3', 'likely_high_m3'];
   const lines = [header.join(',')].concat(
     rows.map((r) =>
       [
         r.monthLabel,
         Math.round(r.yhat),
-        Math.round(r.low),
-        Math.round(r.high),
         r.lastYear != null ? Math.round(r.lastYear) : '',
         r.changePct != null ? r.changePct.toFixed(1) : '',
+        Math.round(r.low),
+        Math.round(r.high),
       ].join(',')
     )
   );
-  downloadTextFile(`izmir-demand-forecast-${showNext}m.csv`, lines.join('\n'));
+  downloadTextFile('izmir-demand-forecast.csv', lines.join('\n'));
 }
 
 function Dashboard() {
@@ -148,9 +135,6 @@ function Dashboard() {
   const [errorReference, setErrorReference] = useState(null);
   const [data, setData] = useState(null);
 
-  const [showNext, setShowNext] = useState(6);
-  const [showBand, setShowBand] = useState(true);
-  const [showLastYear, setShowLastYear] = useState(false);
   const viewportWidth = useViewportWidth();
   const narrowChart = viewportWidth < 600;
 
@@ -203,50 +187,44 @@ function Dashboard() {
     if (!data) return null;
 
     const history = data.history; // ascending, full series
-    const forecastAll = data.forecast; // ascending, 12 months
+    const forecast = data.forecast; // ascending, 12 months
     const historyMap = new Map(history.map((h) => [h.date, h.actual]));
-    const visibleForecast = forecastAll.slice(0, showNext);
 
-    // --- Chart dataset: last 36 actual months + the connector point (the
-    // last actual value, repeated so the forecast/band lines visually
-    // continue from it with no gap) + the visible forecast months. ---
-    const historyShown = history.slice(-HISTORY_MONTHS_SHOWN);
-    const chartRows = historyShown.map((h) => ({ date: h.date, actual: h.actual }));
-    if (chartRows.length > 0) {
-      chartRows[chartRows.length - 1].yhat = chartRows[chartRows.length - 1].actual;
-    }
-    visibleForecast.forEach((f) => {
-      chartRows.push({
-        date: f.date,
-        yhat: f.yhat,
-        // Recharts accepts a 2-element array as an Area's value — this
-        // draws the 80% band as a single ranged area instead of stacking
-        // two separate Area series.
-        range: [f.yhat_lower, f.yhat_upper],
-        lastYear: historyMap.get(shiftMonths(f.date, -12)),
-      });
-    });
+    // --- Chart dataset: the 12 forecast months only, no history. ---
+    const chartRows = forecast.map((f) => ({
+      date: f.date,
+      yhat: f.yhat,
+      // Recharts accepts a 2-element array as an Area's value — this draws
+      // the likely range as a single ranged area instead of stacking two
+      // separate Area series.
+      range: [f.yhat_lower, f.yhat_upper],
+      lastYear: historyMap.get(shiftMonths(f.date, -12)),
+    }));
 
     const allValues = chartRows.flatMap((r) => {
-      const vals = [];
-      if (r.actual !== undefined) vals.push(r.actual);
-      if (r.yhat !== undefined) vals.push(r.yhat);
-      if (showBand && Array.isArray(r.range)) vals.push(r.range[0], r.range[1]);
-      if (showLastYear && r.lastYear !== undefined) vals.push(r.lastYear);
+      const vals = [r.yhat];
+      if (Array.isArray(r.range)) vals.push(r.range[0], r.range[1]);
+      if (r.lastYear != null) vals.push(r.lastYear);
       return vals;
     });
     const minVal = allValues.length > 0 ? Math.min(...allValues) : 0;
     const maxVal = allValues.length > 0 ? Math.max(...allValues) : 0;
-    const yDomainMin = minVal > 0 ? Math.floor((minVal * 0.92) / 1_000_000) * 1_000_000 : 0;
-    const yDomainMax = maxVal > 0 ? Math.ceil((maxVal * 1.05) / 1_000_000) * 1_000_000 : undefined;
-    const xTickInterval = Math.max(1, Math.floor(chartRows.length / 8));
+    // Even 2M-wide domain/ticks, so axis labels read 15M/17M/19M/... instead
+    // of an uneven step.
+    const Y_TICK_STEP = 2_000_000;
+    const yDomainMin = minVal > 0 ? Math.floor(minVal / Y_TICK_STEP) * Y_TICK_STEP : 0;
+    const yDomainMax = maxVal > 0 ? Math.ceil(maxVal / Y_TICK_STEP) * Y_TICK_STEP : undefined;
+    const yTicks = [];
+    if (yDomainMax !== undefined) {
+      for (let t = yDomainMin; t <= yDomainMax; t += Y_TICK_STEP) yTicks.push(t);
+    }
 
-    const forecastStartDate = visibleForecast[0]?.date;
-    const forecastEndDate = visibleForecast[visibleForecast.length - 1]?.date;
+    const lastRow = chartRows[chartRows.length - 1];
+    const forecastIsHigherAtEnd =
+      lastRow && lastRow.lastYear != null ? lastRow.yhat >= lastRow.lastYear : true;
 
-    // --- KPIs: always based on the FIRST forecast month overall, not
-    // affected by the "show next" filter. ---
-    const firstForecast = forecastAll[0];
+    // --- KPIs: always based on the FIRST forecast month. ---
+    const firstForecast = forecast[0];
     const sameMonthLastYearDate = shiftMonths(firstForecast.date, -12);
     const sameMonthLastYearActual = historyMap.get(sameMonthLastYearDate);
     const vsChangePct =
@@ -256,20 +234,20 @@ function Dashboard() {
     const lossRate = data.loss_rate;
     const recommendedProduction = lossRate != null ? firstForecast.yhat / (1 - lossRate) : null;
 
-    // --- Insight: lowest/highest month within the CURRENTLY SHOWN window. ---
+    // --- Insight: lowest/highest month across all 12 forecast months. ---
     let lowIdx = 0;
     let highIdx = 0;
-    visibleForecast.forEach((f, i) => {
-      if (f.yhat < visibleForecast[lowIdx].yhat) lowIdx = i;
-      if (f.yhat > visibleForecast[highIdx].yhat) highIdx = i;
+    forecast.forEach((f, i) => {
+      if (f.yhat < forecast[lowIdx].yhat) lowIdx = i;
+      if (f.yhat > forecast[highIdx].yhat) highIdx = i;
     });
-    const lowMonth = visibleForecast[lowIdx];
-    const highMonth = visibleForecast[highIdx];
+    const lowMonth = forecast[lowIdx];
+    const highMonth = forecast[highIdx];
     const insightPct = Math.round(((highMonth.yhat - lowMonth.yhat) / lowMonth.yhat) * 100);
     const insightRising = highIdx > lowIdx;
 
-    // --- Table rows: exactly the visible window. ---
-    const tableRows = visibleForecast.map((f) => {
+    // --- Table rows: all 12 forecast months. ---
+    const tableRows = forecast.map((f) => {
       const lastYearVal = historyMap.get(shiftMonths(f.date, -12));
       const changePct = lastYearVal != null ? ((f.yhat - lastYearVal) / lastYearVal) * 100 : null;
       return {
@@ -289,9 +267,8 @@ function Dashboard() {
       chartRows,
       yDomainMin,
       yDomainMax,
-      xTickInterval,
-      forecastStartDate,
-      forecastEndDate,
+      yTicks,
+      forecastIsHigherAtEnd,
       firstForecast,
       sameMonthLastYearDate,
       sameMonthLastYearActual,
@@ -304,9 +281,9 @@ function Dashboard() {
       tableRows,
       trainedMonths,
     };
-  }, [data, showNext, showBand, showLastYear]);
+  }, [data]);
 
-  const subtitle = 'Monthly billed water demand, İzmir';
+  const subtitle = 'Monthly billed water demand for all metered İZSU customers in İzmir (m³)';
   const extraLines =
     status === 'ready' && data && computed ? (
       <>
@@ -320,7 +297,8 @@ function Dashboard() {
         <p className="published data-line">
           <span className="dot" aria-hidden="true" />
           <span>
-            Latest available data: <b>{formatMonthLong(data.data_up_to)}</b> · forecasting from there
+            Latest available data: <b>{formatMonthLong(data.data_up_to)}</b> · forecasting the next 12 months from
+            there
           </span>
         </p>
       </>
@@ -400,7 +378,8 @@ function Dashboard() {
                 <span className="unit">M m³</span>
               </div>
               <div className="kpi-help">
-                80% range {fmtMillions(computed.firstForecast.yhat_lower)}M – {fmtMillions(computed.firstForecast.yhat_upper)}M m³
+                Likely range {fmtMillions(computed.firstForecast.yhat_lower)}M –{' '}
+                {fmtMillions(computed.firstForecast.yhat_upper)}M m³
               </div>
             </article>
 
@@ -430,16 +409,16 @@ function Dashboard() {
 
             <article className="card kpi">
               <div className="kpi-label">
-                Forecast accuracy
+                Average error
                 <InfoTip id="tipAcc" label="How is accuracy measured?" align="right">
-                  Measured as MAPE (mean absolute percentage error) on the test period Jul 2022 – Aug 2024.
+                  Mean absolute percentage error on the {TEST_MONTHS} test months (Jul 2022 – Aug 2024).
                 </InfoTip>
               </div>
               <div className="kpi-value">
-                ±{Number(data.metrics.mape).toFixed(1)}
+                {Number(data.metrics.mape).toFixed(1)}
                 <span className="unit">%</span>
               </div>
-              <div className="kpi-help">average error on {TEST_MONTHS} months the model never saw</div>
+              <div className="kpi-help">on {TEST_MONTHS} months the model never saw</div>
             </article>
 
             <article className="card kpi">
@@ -508,44 +487,29 @@ function Dashboard() {
             <div className="card-head">
               <div>
                 <h2 className="card-title" id="chartTitle">
-                  Actual and forecast demand
+                  Next 12 months vs the same months last year
                 </h2>
-                <p className="card-sub">
-                  Last {HISTORY_MONTHS_SHOWN} months actual · next {showNext} months forecast · millions of m³
-                </p>
-              </div>
-            </div>
-            <div className="controls" role="group" aria-label="Chart options">
-              <ShowNextControl value={showNext} onChange={setShowNext} />
-              <div className="ctl-group">
-                <ToggleSwitch checked={showBand} onChange={setShowBand}>
-                  Show 80% range
-                </ToggleSwitch>
-                <InfoTip id="tipBand" label="What is the 80% range?">
-                  8 out of 10 times, actual demand should fall inside this band
-                </InfoTip>
-              </div>
-              <div className="ctl-group">
-                <ToggleSwitch checked={showLastYear} onChange={setShowLastYear}>
-                  Show same months last year
-                </ToggleSwitch>
+                <p className="card-sub">Million m³ · hover or tap a month for the figures</p>
               </div>
             </div>
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={computed.chartRows} margin={{ top: 30, right: 20, bottom: 10, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
+                <ComposedChart
+                  data={computed.chartRows}
+                  margin={{ top: 30, right: 72, bottom: narrowChart ? 10 : 20, left: 10 }}
+                >
+                  <CartesianGrid horizontal vertical={false} stroke="#eef2f6" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={narrowChart ? formatMonthShortYY : formatMonthShort}
-                    tick={{ fontSize: 11, fill: '#475569' }}
-                    interval={narrowChart ? 'preserveStartEnd' : computed.xTickInterval}
-                    minTickGap={narrowChart ? 30 : 20}
+                    tick={(props) => <ForecastXAxisTick {...props} narrow={narrowChart} />}
+                    interval={0}
+                    height={narrowChart ? 30 : 40}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: '#475569' }}
                     tickFormatter={(value) => `${(value / 1_000_000).toFixed(0)}M`}
                     domain={[computed.yDomainMin, computed.yDomainMax]}
+                    ticks={computed.yTicks}
                     allowDataOverflow
                     label={{
                       value: 'Demand (million m³)',
@@ -554,87 +518,62 @@ function Dashboard() {
                       style: { fontSize: 11, textAnchor: 'middle', fill: '#475569' },
                     }}
                   />
-                  <Tooltip content={<ForecastChartTooltip showBand={showBand} />} />
-                  {computed.forecastStartDate && computed.forecastEndDate && (
-                    <ReferenceArea
-                      x1={computed.forecastStartDate}
-                      x2={computed.forecastEndDate}
-                      fill="#0d7f80"
-                      fillOpacity={0.045}
-                      stroke="none"
-                    />
-                  )}
-                  {computed.forecastStartDate && (
-                    <ReferenceLine
-                      x={computed.forecastStartDate}
-                      stroke="#475569"
-                      strokeDasharray="4 4"
-                      label={{ value: 'Forecast starts', position: 'insideTopRight', fontSize: 11, fill: '#0f2537' }}
-                    />
-                  )}
-                  {showBand && (
-                    <Area
-                      type="monotone"
-                      dataKey="range"
-                      stroke="#0d7f80"
-                      strokeOpacity={0.3}
-                      strokeWidth={1}
-                      fill="#0d7f80"
-                      fillOpacity={0.15}
-                      connectNulls
-                      name="80% range"
-                    />
-                  )}
+                  <Tooltip content={<ForecastChartTooltip />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="range"
+                    stroke="none"
+                    fill="#0d7f80"
+                    fillOpacity={0.15}
+                    connectNulls
+                    activeDot={false}
+                    name="Likely range"
+                  />
                   <Line
                     type="monotone"
-                    dataKey="actual"
-                    stroke="#0b5c8f"
-                    strokeWidth={2.5}
-                    dot={false}
-                    name="Actual"
+                    dataKey="lastYear"
+                    stroke="#64748b"
+                    strokeWidth={2}
+                    dot={{ r: 2, fill: '#64748b' }}
+                    name="Same month last year (actual)"
                     connectNulls
+                    label={lastPointLabel(
+                      'Last year',
+                      '#64748b',
+                      computed.chartRows.length - 1,
+                      computed.forecastIsHigherAtEnd ? 16 : -12
+                    )}
                   />
                   <Line
                     type="monotone"
                     dataKey="yhat"
                     stroke="#0d7f80"
-                    strokeWidth={2.5}
-                    strokeDasharray="7 5"
+                    strokeWidth={3}
                     dot={{ r: 3, fill: '#fff', stroke: '#0d7f80', strokeWidth: 2 }}
                     name="Forecast"
                     connectNulls
+                    label={lastPointLabel(
+                      'Forecast',
+                      '#0d7f80',
+                      computed.chartRows.length - 1,
+                      computed.forecastIsHigherAtEnd ? -12 : 16
+                    )}
                   />
-                  {showLastYear && (
-                    <Line
-                      type="monotone"
-                      dataKey="lastYear"
-                      stroke="#64748b"
-                      strokeWidth={2}
-                      strokeDasharray="2 4"
-                      dot={{ r: 2.5 }}
-                      name="Same month last year"
-                      connectNulls
-                    />
-                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="legend" aria-hidden="true">
               <span>
-                <i className="lg-line" />
-                Actual
-              </span>
-              <span>
-                <i className="lg-dash" />
+                <i className="lg-teal" />
                 Forecast
               </span>
-              <span className={showBand ? '' : 'off'}>
-                <i className="lg-band" />
-                80% range
+              <span>
+                <i className="lg-grey" />
+                Same month last year (actual)
               </span>
-              <span className={showLastYear ? '' : 'off'}>
-                <i className="lg-dot" />
-                Same months last year
+              <span>
+                <i className="lg-band" />
+                Likely range
               </span>
             </div>
           </section>
@@ -645,9 +584,9 @@ function Dashboard() {
                 <h2 className="card-title" id="tableTitle">
                   Monthly forecast
                 </h2>
-                <p className="card-sub">Next {showNext} months · values in m³</p>
+                <p className="card-sub">Next 12 months · million m³</p>
               </div>
-              <button className="btn" type="button" onClick={() => exportCsv(computed.tableRows, showNext)}>
+              <button className="btn" type="button" onClick={() => exportCsv(computed.tableRows)}>
                 <DownloadIcon />
                 Export CSV
               </button>
@@ -655,16 +594,15 @@ function Dashboard() {
             <div className="table-wrap">
               <table>
                 <caption className="sr-only">
-                  Monthly forecast with 80% range and comparison to the same month last year
+                  Monthly forecast with likely range and comparison to the same month last year
                 </caption>
                 <thead>
                   <tr>
                     <th scope="col">Month</th>
-                    <th scope="col">Forecast (m³)</th>
-                    <th scope="col">Low (m³)</th>
-                    <th scope="col">High (m³)</th>
-                    <th scope="col">Same month last year (m³)</th>
-                    <th scope="col">Change (%)</th>
+                    <th scope="col">Forecast</th>
+                    <th scope="col">Same month last year</th>
+                    <th scope="col">Change</th>
+                    <th scope="col">Likely range</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -674,11 +612,9 @@ function Dashboard() {
                       <tr key={r.date}>
                         <td className="month">{r.monthLabel}</td>
                         <td>
-                          <b>{fmtInt(r.yhat)}</b>
+                          <b>{fmtMillions(r.yhat, 2)}M</b>
                         </td>
-                        <td className="muted">{fmtInt(r.low)}</td>
-                        <td className="muted">{fmtInt(r.high)}</td>
-                        <td>{r.lastYear != null ? fmtInt(r.lastYear) : '—'}</td>
+                        <td>{r.lastYear != null ? `${fmtMillions(r.lastYear, 2)}M` : '—'}</td>
                         <td className={r.changePct === null ? 'muted' : up ? 'chg-up' : 'chg-down'}>
                           {r.changePct !== null ? (
                             <>
@@ -689,6 +625,9 @@ function Dashboard() {
                             '—'
                           )}
                         </td>
+                        <td className="muted">
+                          {fmtMillions(r.low, 1)}M – {fmtMillions(r.high, 1)}M
+                        </td>
                       </tr>
                     );
                   })}
@@ -696,8 +635,9 @@ function Dashboard() {
               </table>
             </div>
             <div className="table-note">
-              Low and High are the 80% range. Change compares the forecast with actual billed demand in the same
-              month one year earlier.
+              Likely range: in past testing, actual demand landed inside it about 8–9 months in 10. The safe
+              production plan uses the top of the range. Change compares the forecast with actual billed demand in
+              the same month one year earlier.
             </div>
           </section>
 
@@ -708,8 +648,9 @@ function Dashboard() {
                 {formatMonthShort(data.train_end)} ({computed.trainedMonths} months)
               </span>
               <InfoTip id="tipModel" label="About the model">
-                Prophet learns the long-term trend and the yearly summer/winter pattern from past billed demand.
-                Accuracy was checked on {TEST_MONTHS} months the model did not see during training.
+                {data.model_name.includes('Ensemble')
+                  ? 'Two models, Prophet and SARIMA, learn the trend and the summer/winter pattern from 10 years of billing data. The system averages them because, in testing, the average was more accurate than either model alone.'
+                  : 'The model learns the trend and the summer/winter pattern from past billed demand.'}
               </InfoTip>
             </div>
           </footer>

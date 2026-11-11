@@ -37,10 +37,10 @@ function Help() {
             Forecast
           </h2>
           <p style={{ margin: 0 }}>
-            The shaded band is the model's 80% range. In past testing, actual demand fell inside it
-            about 2 months in 3, and it fell below the range more often than above it, so treat the
-            low end as optimistic. The upper end held about 9 months in 10, which is why the safe
-            production plan uses it.
+            The forecast covers the next 12 months. The shaded band is the likely range: in past
+            testing, actual demand landed inside it about 8–9 months in 10, and the safe production
+            plan uses its top. The grey line shows the same month last year, so you can see whether
+            demand is expected to be higher or lower.
           </p>
         </section>
       )}
