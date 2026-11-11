@@ -39,6 +39,20 @@ function groupLabel(group) {
   return gloss ? `${group} — ${gloss}` : group;
 }
 
+// Table-cell version of groupLabel: wraps onto two lines ("Tarım Hayvan —"
+// / "Agriculture and livestock") instead of forcing the column wide enough
+// to hold the longest name-plus-gloss string on one line.
+function GroupLabelCell({ group }) {
+  const gloss = GROUP_GLOSS[group];
+  if (!gloss) return group;
+  return (
+    <>
+      {group} —<br />
+      {gloss}
+    </>
+  );
+}
+
 const NOT_PRICED_REASON_LABELS = {
   unmapped: 'no tariff mapping for this subscriber type',
   ambiguous: 'ambiguous tariff in the source data',
@@ -55,11 +69,11 @@ const GROUP_COLUMNS = [
   { key: 'subscribers', label: 'Subscribers' },
   { key: 'volume_m3', label: 'Volume (m³)' },
   { key: 'not_priced_volume_m3', label: 'Not priced (m³)' },
-  { key: 'avg_use_m3', label: 'Avg use (m³/subscriber)' },
-  { key: 'water_try', label: 'Water (₺)' },
-  { key: 'wastewater_try', label: 'Wastewater (₺)' },
-  { key: 'total_try', label: 'Total (₺)' },
-  { key: 'average_price_per_m3', label: 'Average price (₺/m³)' },
+  { key: 'avg_use_m3', label: 'Avg use (m³)' },
+  { key: 'water_try', label: 'Water' },
+  { key: 'wastewater_try', label: 'Wastewater' },
+  { key: 'total_try', label: 'Total' },
+  { key: 'average_price_per_m3', label: 'Avg price (₺/m³)' },
 ];
 
 function bandLabel(band) {
@@ -389,21 +403,21 @@ function RevenueEstimate() {
               <div className="kpi-label">Expected revenue</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.total.mid)}</div>
               <div className="kpi-help">
-                Likely range: {fmtTRY(month.totals.total.low)} – {fmtTRY(month.totals.total.high)}
+                Likely range: {fmtTRYMillions(month.totals.total.low)} – {fmtTRYMillions(month.totals.total.high)}
               </div>
             </article>
             <article className="card kpi">
               <div className="kpi-label">Water charge</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.water.mid)}</div>
               <div className="kpi-help">
-                Likely range: {fmtTRY(month.totals.water.low)} – {fmtTRY(month.totals.water.high)}
+                Likely range: {fmtTRYMillions(month.totals.water.low)} – {fmtTRYMillions(month.totals.water.high)}
               </div>
             </article>
             <article className="card kpi">
               <div className="kpi-label">Wastewater charge</div>
               <div className="kpi-value">{fmtTRYMillions(month.totals.wastewater.mid)}</div>
               <div className="kpi-help">
-                Likely range: {fmtTRY(month.totals.wastewater.low)} – {fmtTRY(month.totals.wastewater.high)}
+                Likely range: {fmtTRYMillions(month.totals.wastewater.low)} – {fmtTRYMillions(month.totals.wastewater.high)}
               </div>
             </article>
             <article className="card kpi">
@@ -518,7 +532,7 @@ function RevenueEstimate() {
               </button>
             </div>
             <div className="table-wrap">
-              <table className="district-table">
+              <table className="district-table revenue-group-table">
                 <caption className="sr-only">
                   Revenue by customer group for the selected month. Column headers are buttons that sort the table.
                 </caption>
@@ -545,16 +559,16 @@ function RevenueEstimate() {
                   {sortedGroups.map((g) => (
                     <tr key={g.customer_group}>
                       <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                        {groupLabel(g.customer_group)}
+                        <GroupLabelCell group={g.customer_group} />
                       </th>
                       <td>{fmtInt(g.subscribers)}</td>
                       <td>{fmtInt(g.volume_m3)}</td>
                       <td>{fmtInt(g.not_priced_volume_m3 || 0)}</td>
                       <td>{g.avg_use_m3 != null ? g.avg_use_m3.toFixed(1) : '—'}</td>
-                      <td>{fmtTRY(g.water_try)}</td>
-                      <td>{fmtTRY(g.wastewater_try)}</td>
+                      <td>{fmtTRYMillions(g.water_try)}</td>
+                      <td>{fmtTRYMillions(g.wastewater_try)}</td>
                       <td>
-                        <b>{fmtTRY(g.total_try)}</b>
+                        <b>{fmtTRYMillions(g.total_try)}</b>
                       </td>
                       <td>{g.average_price_per_m3 != null ? fmtTRYPerM3(g.average_price_per_m3) : '—'}</td>
                     </tr>
@@ -570,9 +584,9 @@ function RevenueEstimate() {
                       <td>{fmtInt(groupTotals.volume_m3)}</td>
                       <td>{fmtInt(groupTotals.not_priced_volume_m3 || 0)}</td>
                       <td>{groupTotals.avg_use_m3 != null ? groupTotals.avg_use_m3.toFixed(1) : '—'}</td>
-                      <td>{fmtTRY(groupTotals.water_try)}</td>
-                      <td>{fmtTRY(groupTotals.wastewater_try)}</td>
-                      <td>{fmtTRY(groupTotals.total_try)}</td>
+                      <td>{fmtTRYMillions(groupTotals.water_try)}</td>
+                      <td>{fmtTRYMillions(groupTotals.wastewater_try)}</td>
+                      <td>{fmtTRYMillions(groupTotals.total_try)}</td>
                       <td>{groupTotals.average_price_per_m3 != null ? fmtTRYPerM3(groupTotals.average_price_per_m3) : '—'}</td>
                     </tr>
                   </tfoot>

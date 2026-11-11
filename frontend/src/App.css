@@ -2430,6 +2430,29 @@ a.alert:focus-visible {
   color: var(--blue);
 }
 
+/* Revenue by customer group table: nine columns, so the row header (a
+   Turkish name plus an English gloss) wraps onto two lines instead of
+   forcing every other, narrow numeric column wider to fit it on one line;
+   padding is trimmed a little further than other district-table uses. */
+.revenue-group-table th,
+.revenue-group-table td {
+  padding: 9px 9px;
+}
+.revenue-group-table th:first-child,
+.revenue-group-table td:first-child {
+  padding-left: 13px;
+}
+.revenue-group-table th:last-child,
+.revenue-group-table td:last-child {
+  padding-right: 13px;
+}
+.revenue-group-table tbody th[scope='row'],
+.revenue-group-table tfoot th[scope='row'] {
+  white-space: normal;
+  max-width: 150px;
+  line-height: 1.3;
+}
+
 .no-plan {
   display: flex;
   align-items: center;

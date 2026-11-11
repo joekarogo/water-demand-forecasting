@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from './session';
 import RevenueEstimate from './RevenueEstimate';
@@ -132,19 +132,73 @@ test('renders the first forecast month with its KPIs', async () => {
 
   expect(screen.getByText('Water charge')).toBeInTheDocument();
   expect(screen.getByText('Wastewater charge')).toBeInTheDocument();
-  expect(screen.getByText('₺9.0M')).toBeInTheDocument();
+  const expectedRevenueCard = screen.getByText('Expected revenue').closest('.kpi');
+  expect(within(expectedRevenueCard).getByText('₺9.0M')).toBeInTheDocument();
 });
 
 test('changing the month updates the KPI cards', async () => {
   mockFetch(sampleRevenue());
   renderPage();
 
-  await waitFor(() => expect(screen.getByText('₺9.0M')).toBeInTheDocument());
+  const expectedRevenueCard = (await screen.findByText('Expected revenue')).closest('.kpi');
+  await waitFor(() => expect(within(expectedRevenueCard).getByText('₺9.0M')).toBeInTheDocument());
 
   const monthSelect = screen.getByLabelText('Month');
   fireEvent.change(monthSelect, { target: { value: '1' } });
 
-  await waitFor(() => expect(screen.getByText('₺6.0M')).toBeInTheDocument());
+  await waitFor(() => expect(within(expectedRevenueCard).getByText('₺6.0M')).toBeInTheDocument());
+});
+
+test('KPI "Likely range" sub-lines use compact millions/billions formatting', async () => {
+  const body = sampleRevenue();
+  body.months[0].totals.total = { mid: 1_000_000_000, low: 955_300_000, high: 1_190_000_000 };
+  mockFetch(body);
+  renderPage();
+
+  await waitFor(() => expect(screen.getByText('Expected revenue')).toBeInTheDocument());
+  expect(screen.getByText('Likely range: ₺955.3M – ₺1.19B')).toBeInTheDocument();
+});
+
+test('customer-group table shows Water, Wastewater and Total in millions with one decimal', async () => {
+  mockFetch(sampleRevenue());
+  renderPage();
+
+  const section = (await screen.findByText('Revenue by customer group')).closest('section');
+  expect(within(section).getAllByText('₺6.0M').length).toBeGreaterThan(0);
+  expect(within(section).getAllByText('₺3.0M').length).toBeGreaterThan(0);
+  expect(within(section).getAllByText('₺9.0M').length).toBeGreaterThan(0);
+});
+
+test('group names with a gloss wrap onto two lines, and headers stay short and single-line', async () => {
+  const body = sampleRevenue();
+  body.months[0].by_group[0].customer_group = 'Tarım Hayvan';
+  body.months[0].detail[0].customer_group = 'Tarım Hayvan';
+  mockFetch(body);
+  renderPage();
+
+  const section = (await screen.findByText('Revenue by customer group')).closest('section');
+  const table = within(section).getByRole('table');
+
+  [
+    'Customer group',
+    'Subscribers',
+    'Volume (m³)',
+    'Not priced (m³)',
+    'Avg use (m³)',
+    'Water',
+    'Wastewater',
+    'Total',
+    'Avg price (₺/m³)',
+  ].forEach((label) => {
+    expect(within(table).getByRole('button', { name: label })).toBeInTheDocument();
+  });
+
+  // The group name + English gloss wraps onto two lines (a <br>) instead of
+  // forcing the column wide enough to fit both on one line.
+  const groupCell = within(table).getAllByRole('rowheader')[0];
+  expect(groupCell.querySelector('br')).toBeInTheDocument();
+  expect(groupCell.textContent).toContain('Tarım Hayvan');
+  expect(groupCell.textContent).toContain('Agriculture and livestock');
 });
 
 test('the not-priced card shows its percentage and reasons', async () => {
