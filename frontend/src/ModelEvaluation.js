@@ -1,108 +1,205 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, ResponsiveContainer } from 'recharts';
 import { apiFetch } from './apiClient';
 import { useSession } from './session';
 import AppLayout from './layout/AppLayout';
 import InfoTip from './components/InfoTip';
 import { RetryIcon, ErrorTriangleIcon, InfoIcon, EmptyForecastIcon } from './layout/icons';
+import { formatDateNairobi } from './utils/format';
 import './App.css';
 
 const API_URL = '/api/model-evaluation';
+const TEST_MONTHS = 26;
 
-// Stable colour per model name (alphabetical), reused across every chart
-// on this page so the same model always reads the same colour.
-const MODEL_COLORS = ['#0b5c8f', '#2f9e68', '#b5542e', '#7fa9c7', '#8a5fbd', '#c98a2b'];
-function colorFor(modelName, allModelNames) {
-  const sorted = [...allModelNames].sort();
-  const i = sorted.indexOf(modelName);
-  return MODEL_COLORS[i % MODEL_COLORS.length];
-}
+const ENSEMBLE_KEY = 'Ensemble (50/50)';
+const PROPHET_KEY = 'Prophet (defaults)';
+const NAIVE_KEY = 'Seasonal-naive';
+const GROWTH_KEY = 'Last-year x growth';
 
-const ROLLING_HORIZONS = [1, 3, 6, 12];
-const SEASON_ORDER = ['winter', 'summer', 'other'];
-const SEASON_LABELS = { winter: 'Winter', summer: 'Summer', other: 'Other months' };
+const TEAL = '#0d7f80';
+const MUTED_BAR = '#7fa9c7';
+
+const ROLLING_HORIZONS_FULL = Array.from({ length: 12 }, (_, i) => i + 1);
+
+const TECHNICAL_DETAILS_HASH = '#technical-details';
 
 function pct(value, digits = 2) {
   return value == null ? '—' : `${Number(value).toFixed(digits)}%`;
 }
-// "about 9 in 10" phrasing for a 0-1 share, rounded to the nearest tenth.
-function wholeOutOfTen(share) {
-  if (share == null) return '—';
-  return `${Math.round(share * 10)} in 10`;
-}
-function num(value, digits = 0) {
-  return value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
-}
-function pValueText(value) {
-  if (value === 'not computable' || value == null) return 'not computable';
-  if (value < 0.001) return '< 0.001';
-  return value.toFixed(3);
-}
 function isSignificant(pValue) {
   return typeof pValue === 'number' && pValue < 0.05;
 }
-// Oxford-joins a list of names, e.g. ["A"] -> "A", ["A","B"] -> "A and B",
-// ["A","B","C"] -> "A, B and C".
-function formatList(items) {
-  if (!items || items.length === 0) return '';
-  if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+function dmStatisticCell(value) {
+  return value === 'not computable' || value == null ? '—' : Number(value).toFixed(3);
+}
+function pValueCell(value) {
+  if (value === 'not computable' || value == null) return '—';
+  if (value < 0.001) return '< 0.001';
+  return Number(value).toFixed(3);
+}
+function verdictCell(value) {
+  if (value === 'not computable' || value == null) return '—';
+  return isSignificant(value) ? 'Significant' : 'Not significant';
 }
 
-const TECHNICAL_DETAILS_HASH = '#technical-details';
+// Plain, jargon-free display names for every chart/table on this page.
+// The SARIMA label is matched dynamically (via sarima_label, resolved
+// server-side from ml/results/sarima_select_chosen.json) rather than
+// hard-coded, so this never silently breaks if the chosen SARIMA order
+// ever changes.
+function buildNameMap(sarimaLabel) {
+  const map = {
+    [ENSEMBLE_KEY]: 'Ensemble (Prophet + SARIMA) — published',
+    [PROPHET_KEY]: 'Prophet',
+    [NAIVE_KEY]: 'Same as last year',
+    [GROWTH_KEY]: 'Last year × growth',
+  };
+  if (sarimaLabel) map[sarimaLabel] = 'SARIMA';
+  return map;
+}
+function displayName(map, key) {
+  return (map && map[key]) || key;
+}
 
-// Four plain-language, jargon-free facts for the "In short" card, each
-// built strictly from the same stored sections the six sections below
-// already use — never a separate, independently-invented claim. A fact
-// whose precondition data isn't available is simply left out rather than
-// guessed, so this card degrades the same way the rest of the page does.
-function buildShortFacts(data) {
-  const testSet = data?.sections?.test_set_metrics;
-  const rolling = data?.sections?.rolling_origin;
-  const coverage = data?.sections?.coverage;
-  const verdict = data?.verdict;
-  const facts = [];
+// Exactly 3 plain-language facts, each built strictly from the already-
+// loaded sections below — never a separate, independently-invented claim.
+// A fact whose precondition data isn't available is simply left out
+// rather than guessed, so this card degrades the same way the rest of the
+// page does.
+function buildSummaryBullets(sections) {
+  const ensemble = sections.ensemble;
+  const testSet = sections.test_set_metrics;
+  const ensembleConformal = sections.ensemble_conformal;
+  const bullets = [];
 
-  if (verdict && testSet) {
-    facts.push(`Forecasts are typically within about ${Math.round(verdict.best_mape)}% of actual demand.`);
-  }
-
-  const bestCoverage = verdict && coverage?.one_sided_by_model ? coverage.one_sided_by_model[verdict.best] : null;
-  if (bestCoverage?.has_interval) {
-    const h1 = bestCoverage.by_horizon[1]?.at_or_below_upper;
-    const h12 = bestCoverage.by_horizon[12]?.at_or_below_upper;
-    if (h1 != null && h12 != null) {
-      facts.push(
-        `The upper end of the range held about ${wholeOutOfTen(h1)} months (about ${wholeOutOfTen(
-          h12
-        )} at a 12-month horizon), which is why the safe production plan uses it.`
+  if (ensemble?.test_metrics && testSet?.models) {
+    const sarimaLabel = ensemble.sarima_label;
+    const ensembleMape = ensemble.test_metrics[ENSEMBLE_KEY]?.mape;
+    const prophetMape = ensemble.test_metrics[PROPHET_KEY]?.mape;
+    const sarimaMape = sarimaLabel ? ensemble.test_metrics[sarimaLabel]?.mape : null;
+    const naiveMape = testSet.models[NAIVE_KEY]?.mape;
+    if (ensembleMape != null && prophetMape != null && sarimaMape != null) {
+      const betterThanAll = naiveMape != null && ensembleMape < prophetMape && ensembleMape < sarimaMape && ensembleMape < naiveMape;
+      bullets.push(
+        `The published forecast averages two models, Prophet and SARIMA. On ${TEST_MONTHS} months it had never seen, ` +
+          `it was off by ${ensembleMape.toFixed(1)}% on average` +
+          (betterThanAll ? ' — better than either model alone and better than simply repeating last year.' : '.')
       );
     }
   }
 
-  if (rolling?.models && verdict?.baseline_name) {
-    const bestR = rolling.models[verdict.best];
-    const baseR = rolling.models[verdict.baseline_name];
-    const closeAt = (h) => bestR?.[h] && baseR?.[h] && Math.abs(bestR[h].mean_mape - baseR[h].mean_mape) < 1.5;
-    const clearlyBetterAt12 = bestR?.[12] && baseR?.[12] && bestR[12].mean_mape < baseR[12].mean_mape - 0.5;
-    if (closeAt(1) && closeAt(3) && clearlyBetterAt12) {
-      facts.push(
-        `For 1–3 months ahead, a simple "same as last year" guess is as accurate or slightly more accurate; the model's advantage shows at 12 months.`
-      );
+  const ensembleByHorizon = ensemble?.rolling_mape_by_horizon?.[ENSEMBLE_KEY];
+  if (ensembleByHorizon) {
+    const values = Object.values(ensembleByHorizon).filter((v) => typeof v === 'number');
+    if (values.length > 0) {
+      const lo = Math.round(Math.min(...values));
+      const hi = Math.round(Math.max(...values));
+      const range = lo === hi ? `${lo}` : `${Math.min(lo, hi)}–${Math.max(lo, hi)}`;
+      bullets.push(`It stays about as accurate whether you look 1 month or 12 months ahead: roughly ${range}% average error at every distance.`);
     }
   }
 
-  if (bestCoverage?.has_interval) {
-    const avgUpper = bestCoverage.average?.at_or_below_upper;
-    const avgLower = bestCoverage.average?.at_or_above_lower;
-    if (avgUpper != null && avgLower != null && 1 - avgLower > 1 - avgUpper) {
-      facts.push('Treat the lower end of the range as optimistic — in past testing, actual demand fell below it more often than it fell above the upper end.');
-    }
+  const ensembleCoverage = ensembleConformal?.ensemble_conformal;
+  const avgUpper = ensembleCoverage?.average?.at_or_below_upper_coverage_pct;
+  const h12Upper = ensembleCoverage?.by_horizon?.[12]?.at_or_below_upper_coverage_pct;
+  if (avgUpper != null && h12Upper != null) {
+    const x = Math.round(avgUpper / 10);
+    const y = Math.round(h12Upper / 10);
+    bullets.push(
+      `The top of the likely range held in about ${x} in 10 months (${y} in 10 when looking 12 months ahead), which is why the safe production plan uses it.`
+    );
   }
 
-  return facts;
+  return bullets;
+}
+
+// "How the methods compared" bar data — sorted best (lowest 26-month test
+// MAPE) first, live every time, never a fixed order.
+function buildComparisonBars(sections, nameMap) {
+  const ensemble = sections.ensemble;
+  const testSet = sections.test_set_metrics;
+  if (!ensemble?.test_metrics || !testSet?.models) return null;
+  const sarimaLabel = ensemble.sarima_label;
+  const rows = [];
+  const add = (key, mape) => {
+    if (typeof mape === 'number' && key) rows.push({ key, name: displayName(nameMap, key), mape });
+  };
+  add(ENSEMBLE_KEY, ensemble.test_metrics[ENSEMBLE_KEY]?.mape);
+  add(PROPHET_KEY, ensemble.test_metrics[PROPHET_KEY]?.mape);
+  add(sarimaLabel, sarimaLabel ? ensemble.test_metrics[sarimaLabel]?.mape : null);
+  add(NAIVE_KEY, testSet.models[NAIVE_KEY]?.mape);
+  add(GROWTH_KEY, testSet.models[GROWTH_KEY]?.mape);
+  if (rows.length === 0) return null;
+  return rows.sort((a, b) => a.mape - b.mape);
+}
+
+// "Error by months ahead" — h1-h12 for exactly 5 models (CV-tuned Prophet
+// is deliberately left off this page; it's a tuning variant, not part of
+// the published-model story).
+function buildErrorByHorizonRows(sections) {
+  const ensemble = sections.ensemble;
+  if (!ensemble?.rolling_mape_by_horizon) return null;
+  const order = [ENSEMBLE_KEY, PROPHET_KEY, ensemble.sarima_label, NAIVE_KEY, GROWTH_KEY];
+  const rows = order.filter((key) => key && ensemble.rolling_mape_by_horizon[key]).map((key) => ({ key, byHorizon: ensemble.rolling_mape_by_horizon[key] }));
+  return rows.length ? rows : null;
+}
+
+// "Likely range reliability" — 4 rows, each sourced from an already-
+// computed split-conformal (or raw) interval; nothing recomputed here.
+function buildLikelyRangeRows(sections) {
+  const conformal = sections.conformal;
+  const ensembleConformal = sections.ensemble_conformal;
+  if (!conformal && !ensembleConformal) return null;
+  const rows = [];
+  const add = (label, entry) => {
+    if (!entry) return;
+    rows.push({
+      label,
+      inside_avg: entry.average?.two_sided_coverage_pct,
+      under_top_avg: entry.average?.at_or_below_upper_coverage_pct,
+      under_top_1: entry.by_horizon?.[1]?.at_or_below_upper_coverage_pct,
+      under_top_12: entry.by_horizon?.[12]?.at_or_below_upper_coverage_pct,
+      width_avg: entry.average?.mean_width_pct,
+    });
+  };
+  add('Ensemble (calibrated)', ensembleConformal?.ensemble_conformal);
+  add('Prophet (calibrated)', conformal?.prophet_conformal);
+  add('Prophet (original range)', conformal?.prophet_raw);
+  add('SARIMA', conformal?.sarima);
+  return rows.length ? rows : null;
+}
+
+// "Are the differences significant?" — the pre-existing Protocol 1 pairs
+// plus the two new Ensemble-vs-Prophet/Ensemble-vs-SARIMA pairs, merged
+// for display only (no new statistic is computed here).
+function buildSignificanceRows(sections) {
+  const dm = sections.diebold_mariano;
+  const ensemble = sections.ensemble;
+  const rows = [];
+  if (ensemble?.dm_vs_prophet) {
+    Object.keys(ensemble.dm_vs_prophet).forEach((h) => {
+      const v = ensemble.dm_vs_prophet[h];
+      rows.push({ model_a: ENSEMBLE_KEY, model_b: PROPHET_KEY, horizon: Number(h), n: v.n, dm_statistic: v.dm_statistic, p_value: v.p_value });
+    });
+  }
+  if (ensemble?.dm_vs_sarima && ensemble.sarima_label) {
+    Object.keys(ensemble.dm_vs_sarima).forEach((h) => {
+      const v = ensemble.dm_vs_sarima[h];
+      rows.push({ model_a: ENSEMBLE_KEY, model_b: ensemble.sarima_label, horizon: Number(h), n: v.n, dm_statistic: v.dm_statistic, p_value: v.p_value });
+    });
+  }
+  if (dm?.pairs) rows.push(...dm.pairs);
+  return rows.length ? rows : null;
+}
+
+// Later of the two "fixed" result files' own run_timestamp — never
+// assumed, compared live every time this renders.
+function latestRunTimestamp(sections) {
+  const a = sections.ensemble?.run_timestamp;
+  const b = sections.ensemble_conformal?.run_timestamp;
+  if (a && b) return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+  return a || b || null;
 }
 
 // A calm, non-alarming notice for a section the stored files didn't
@@ -184,63 +281,17 @@ function ModelEvaluation() {
   }, [sessionLoading, session, fetchData]);
 
   const sections = data?.sections || {};
-  const unavailableReasons = {};
-  (data?.unavailable || []).forEach((u) => {
-    unavailableReasons[u.section] = u.reason;
-  });
 
-  const testSet = sections.test_set_metrics;
-  const rolling = sections.rolling_origin;
-  const dm = sections.diebold_mariano;
-  const coverage = sections.coverage;
-  const errorAnalysis = sections.error_analysis;
+  const nameMap = buildNameMap(sections.ensemble?.sarima_label);
+  const summaryBullets = data ? buildSummaryBullets(sections) : [];
+  const comparisonBars = buildComparisonBars(sections, nameMap);
+  const errorByHorizonRows = buildErrorByHorizonRows(sections);
+  const likelyRangeRows = buildLikelyRangeRows(sections);
+  const significanceRows = buildSignificanceRows(sections);
+  const otherInputs = sections.other_inputs?.items || null;
   const protocol = sections.protocol;
-
-  const noRangeModels = coverage?.one_sided_by_model
-    ? Object.entries(coverage.one_sided_by_model)
-        .filter(([, d]) => !d.has_interval)
-        .map(([model]) => model)
-    : [];
-
-  // The verdict is computed server-side (backend/modelEvaluation.js),
-  // from the actual stored test-set MAPE and Diebold-Mariano p-values —
-  // never re-derived here, so this page can't drift from the one place
-  // that checks significance against the 0.05 threshold.
-  const verdict = data?.verdict || null;
-
-  // --- "Does it hold up over time?" chart + spread table -----------------
-  let rollingChartRows = null;
-  let rollingModelNames = [];
-  if (rolling) {
-    rollingModelNames = Object.keys(rolling.models);
-    rollingChartRows = ROLLING_HORIZONS.map((h) => {
-      const row = { horizon: `${h} mo` };
-      rollingModelNames.forEach((m) => {
-        const cell = rolling.models[m][h];
-        if (cell) row[m] = cell.mean_mape;
-      });
-      return row;
-    });
-  }
-
-  // --- "Where does it go wrong?" chart -----------------------------------
-  let seasonChartRows = null;
-  let seasonModelNames = [];
-  if (errorAnalysis) {
-    seasonModelNames = Object.keys(errorAnalysis.models);
-    const seasonsPresent = SEASON_ORDER.filter((s) => seasonModelNames.some((m) => s in errorAnalysis.models[m].mape_by_season));
-    seasonChartRows = seasonsPresent.map((s) => {
-      const row = { season: SEASON_LABELS[s] || s };
-      seasonModelNames.forEach((m) => {
-        const v = errorAnalysis.models[m].mape_by_season[s];
-        if (v != null) row[m] = v;
-      });
-      return row;
-    });
-  }
-
-  const provenanceFiles = [...new Set((data?.provenance || []).map((p) => p.file))];
-  const shortFacts = data ? buildShortFacts(data) : [];
+  const originsCount = sections.rolling_origin?.n_origins_total ?? null;
+  const lastEvaluated = latestRunTimestamp(sections);
 
   return (
     <AppLayout title="Model evaluation" subtitle="How good is the forecast, really?" requiredPermission="forecast:view">
@@ -291,18 +342,18 @@ function ModelEvaluation() {
             </section>
           )}
 
-          {shortFacts.length > 0 && (
-            <section className="card" aria-labelledby="inShortTitle">
+          {summaryBullets.length > 0 && (
+            <section className="card" aria-labelledby="summaryTitle">
               <div className="card-head">
                 <div>
-                  <h2 className="card-title" id="inShortTitle">
-                    In short
+                  <h2 className="card-title" id="summaryTitle">
+                    Performance summary
                   </h2>
                 </div>
               </div>
               <ul style={{ margin: '0 20px 18px', paddingLeft: 20, fontSize: 14 }}>
-                {shortFacts.map((fact, i) => (
-                  <li key={i} style={{ marginBottom: i < shortFacts.length - 1 ? 8 : 0 }}>
+                {summaryBullets.map((fact, i) => (
+                  <li key={i} style={{ marginBottom: i < summaryBullets.length - 1 ? 8 : 0 }}>
                     {fact}
                   </li>
                 ))}
@@ -310,464 +361,319 @@ function ModelEvaluation() {
             </section>
           )}
 
-          <details className="disclosure" open={detailsOpen} onToggle={handleDetailsToggle}>
-            <summary className="disclosure-summary">Technical details</summary>
-            <div className="disclosure-content">
-          {/* ---------- How accurate is it? ---------- */}
-          <section className="card" aria-labelledby="accuracyTitle">
+          <section className="card" aria-labelledby="comparisonTitle">
             <div className="card-head">
               <div>
-                <h2 className="card-title" id="accuracyTitle">
-                  How accurate is it?
+                <h2 className="card-title" id="comparisonTitle">
+                  How the methods compared
                 </h2>
+                <p className="card-sub">Average error on the {TEST_MONTHS} test months (Jul 2022 – Aug 2024) · lower is better</p>
               </div>
-              <InfoTip id="accuracyTip" label="How these numbers are calculated">
-                <p>
-                  <b>MAE</b> (mean absolute error) is the average size of the miss, in m³. <b>RMSE</b> (root mean
-                  squared error) is similar but weights large misses more heavily. <b>MAPE</b> (mean absolute
-                  percentage error) expresses the same miss as a percentage of actual demand, which is why it's the
-                  easiest of the three to compare across models.
-                </p>
-              </InfoTip>
             </div>
-            {testSet ? (
-              <>
-                <div className="table-wrap" style={{ margin: '12px 20px' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">Model</th>
-                        <th scope="col">MAE (m³)</th>
-                        <th scope="col">RMSE (m³)</th>
-                        <th scope="col">MAPE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(testSet.models).map(([model, m]) => (
-                        <tr key={model}>
-                          <td>{model}</td>
-                          <td>{num(m.mae)}</td>
-                          <td>{num(m.rmse)}</td>
-                          <td>{pct(m.mape)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {verdict && (
-                  <div style={{ margin: '0 20px 18px', fontSize: 14 }}>
-                    <p style={{ margin: '0 0 8px' }}>
-                      On the 26-month held-out test set, <b>{verdict.best}</b> had the lowest MAPE ({pct(verdict.best_mape)}
-                      ){verdict.baseline_name && (
-                        <>
-                          , ahead of <b>{verdict.baseline_name}</b> ({pct(verdict.baseline_mape)})
-                        </>
-                      )}
-                      .
-                    </p>
-                    {verdict.baseline_models_tested.length > 0 && (
-                      <p style={{ margin: '0 0 8px' }}>
-                        {verdict.significant_against_baseline.length === 0 ? (
-                          <>
-                            In rolling-origin testing, this advantage over {formatList(verdict.baseline_models_tested)} was{' '}
-                            <b>not statistically significant</b> at any of the tested horizons (
-                            {verdict.baseline_horizons_tested.join(', ')} months) — see "Is the difference real?" below
-                            before treating it as a clear win.
-                          </>
-                        ) : (
-                          <>
-                            In rolling-origin testing, this advantage was statistically significant against{' '}
-                            {formatList(verdict.significant_against_baseline.map((p) => p.other))} — see "Is the
-                            difference real?" below.
-                          </>
-                        )}
-                      </p>
-                    )}
-                    {verdict.significant_variant_differences.length > 0 && (
-                      <p style={{ margin: 0 }}>
-                        The only significant difference found anywhere in this evaluation was{' '}
-                        {verdict.significant_variant_differences.map((p, i) => (
-                          <span key={i}>
-                            between <b>{verdict.best}</b> and <b>{p.other}</b> at the {p.horizon}-month horizon, where{' '}
-                            <b>{p.winner}</b> performed better (p = {pValueText(p.p_value)})
-                            {i < verdict.significant_variant_differences.length - 1 ? '; ' : '.'}
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Test-set metrics" />
-              </div>
-            )}
-          </section>
-
-          {/* ---------- Does it hold up over time? ---------- */}
-          <section className="card" aria-labelledby="horizonTitle">
-            <div className="card-head">
-              <div>
-                <h2 className="card-title" id="horizonTitle">
-                  Does it hold up over time?
-                </h2>
-              </div>
-              <InfoTip id="rollingTip" label="What rolling-origin evaluation means">
-                <p>
-                  Rolling-origin evaluation repeats the forecast from many different starting points ("origins") in
-                  the past, each time checking how accurate it was 1, 3, 6 and 12 months ahead. This shows whether
-                  accuracy holds up further into the future, not just in one lucky test period.
-                </p>
-              </InfoTip>
-            </div>
-            {rolling ? (
+            {comparisonBars ? (
               <>
                 <div className="chart-wrap">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={rollingChartRows} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
-                      <XAxis dataKey="horizon" />
-                      <YAxis unit="%" />
-                      <Tooltip formatter={(v) => (typeof v === 'number' ? `${v.toFixed(2)}%` : v)} />
-                      <Legend />
-                      {rollingModelNames.map((m) => (
-                        <Line key={m} type="monotone" dataKey={m} stroke={colorFor(m, rollingModelNames)} strokeWidth={2} dot />
-                      ))}
-                    </LineChart>
+                    <BarChart data={comparisonBars} layout="vertical" margin={{ top: 10, right: 60, bottom: 10, left: 10 }}>
+                      <CartesianGrid horizontal={false} stroke="#eef2f6" />
+                      <XAxis type="number" unit="%" />
+                      <YAxis type="category" dataKey="name" width={230} tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                      <Bar dataKey="mape">
+                        <LabelList dataKey="mape" position="right" formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                        {comparisonBars.map((b) => (
+                          <Cell key={b.key} fill={b.key === ENSEMBLE_KEY ? TEAL : MUTED_BAR} />
+                        ))}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="table-wrap" style={{ margin: '12px 20px 18px' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">Model</th>
-                        <th scope="col">Horizon</th>
-                        <th scope="col">Mean MAPE</th>
-                        <th scope="col">Min</th>
-                        <th scope="col">Median</th>
-                        <th scope="col">Max</th>
-                        <th scope="col">Origins</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rollingModelNames.flatMap((m) =>
-                        ROLLING_HORIZONS.filter((h) => rolling.models[m][h]).map((h) => {
-                          const c = rolling.models[m][h];
-                          return (
-                            <tr key={`${m}-${h}`}>
-                              <td>{m}</td>
-                              <td>{h} mo</td>
-                              <td>{pct(c.mean_mape)}</td>
-                              <td>{pct(c.min_abs_pct_error)}</td>
-                              <td>{pct(c.median_abs_pct_error)}</td>
-                              <td>{pct(c.max_abs_pct_error)}</td>
-                              <td>{c.n_origins}</td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="table-note" style={{ margin: '0 20px 18px' }}>
-                  Min/median/max show the spread of the absolute percentage error across {rolling.n_origins_total ?? '—'}{' '}
-                  origins at each horizon — the mean alone can hide how much worse the worst origin was.
-                  {rolling.coverage_caveat ? ` ${rolling.coverage_caveat}` : ''}
-                </p>
-              </>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Rolling-origin results" />
-              </div>
-            )}
-          </section>
-
-          {/* ---------- Is the difference real? ---------- */}
-          <section className="card" aria-labelledby="dmTitle">
-            <div className="card-head">
-              <div>
-                <h2 className="card-title" id="dmTitle">
-                  Is the difference real?
-                </h2>
-              </div>
-              <InfoTip id="pValueTip" label="What a p-value means here">
-                <p>
-                  The Diebold-Mariano test checks whether one model's forecast errors are genuinely smaller than
-                  another's, or whether the gap could plausibly be chance. A <b>p-value</b> below 0.05 means the
-                  difference is unlikely to be chance (conventionally "statistically significant"); above 0.05 means
-                  it isn't — the two models can't be told apart with confidence from this data.
-                </p>
-              </InfoTip>
-            </div>
-            {dm ? (
-              <>
-                <div className="table-wrap" style={{ margin: '12px 20px' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th scope="col">Model A</th>
-                        <th scope="col">Model B</th>
-                        <th scope="col">Horizon</th>
-                        <th scope="col">DM statistic</th>
-                        <th scope="col">p-value</th>
-                        <th scope="col">Verdict</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dm.pairs.map((p, i) => (
-                        <tr key={i}>
-                          <td>{p.model_a}</td>
-                          <td>{p.model_b}</td>
-                          <td>{p.horizon} mo</td>
-                          <td>{typeof p.dm_statistic === 'number' ? p.dm_statistic.toFixed(3) : p.dm_statistic}</td>
-                          <td>{pValueText(p.p_value)}</td>
-                          <td>{isSignificant(p.p_value) ? 'Significant' : 'Not significant'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {dm.caveats.length > 0 && (
-                  <ul style={{ margin: '0 20px 18px', fontSize: 13, color: 'var(--text-3)' }}>
-                    {dm.caveats.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Diebold-Mariano results" />
-              </div>
-            )}
-          </section>
-
-          {/* ---------- Can you trust the range? ---------- */}
-          <section className="card" aria-labelledby="coverageTitle">
-            <div className="card-head">
-              <div>
-                <h2 className="card-title" id="coverageTitle">
-                  Can you trust the range?
-                </h2>
-              </div>
-              <InfoTip id="coverageTip" label="What coverage means">
-                <p>
-                  Every forecast comes with an 80% range (a low and a high estimate). <b>Coverage</b> is how often
-                  the actual outcome really did fall inside that range when tested on past data — close to 80% means
-                  the range is trustworthy; well below it means the range is too narrow. <b>One-sided</b> coverage
-                  asks the narrower, more operational question: how often did the actual outcome stay at or below
-                  the upper bound (or at or above the lower bound) on its own, regardless of the other side.
-                </p>
-              </InfoTip>
-            </div>
-            {coverage ? (
-              <>
-                <section className="kpis" aria-label="Coverage">
-                  {Object.entries(coverage.two_sided_by_model_horizon).map(([model, byHorizon]) => (
-                    <div className="card kpi" key={model}>
-                      <div className="kpi-label">{model} — two-sided</div>
-                      <div className="kpi-value">
-                        {pct((byHorizon['1'] ?? byHorizon[1]) * 100, 1)}
-                        <span className="unit">at 1 mo</span>
-                      </div>
-                      <div className="kpi-help">
-                        {byHorizon['12'] != null || byHorizon[12] != null
-                          ? `${pct((byHorizon['12'] ?? byHorizon[12]) * 100, 1)} at 12 mo`
-                          : 'No 12-month figure stored'}
-                      </div>
-                    </div>
+                {/* Accessible, test-friendly text equivalent of the bar chart above, same sorted order. */}
+                <ul className="sr-only">
+                  {comparisonBars.map((b) => (
+                    <li key={b.key}>
+                      {b.name}: {b.mape.toFixed(1)}%
+                    </li>
                   ))}
-                </section>
-                {coverage.one_sided_available && coverage.one_sided_by_model ? (
+                </ul>
+              </>
+            ) : (
+              <div style={{ margin: '0 20px 18px' }}>
+                <NotAvailable what="Method comparison" />
+              </div>
+            )}
+          </section>
+
+          <details className="disclosure" open={detailsOpen} onToggle={handleDetailsToggle}>
+            <summary className="disclosure-summary">Technical details</summary>
+            <p className="card-sub" style={{ margin: '4px 20px 12px' }}>
+              For reviewers and analysts
+            </p>
+            <div className="disclosure-content">
+              {/* ---------- Error by months ahead ---------- */}
+              <section className="card" aria-labelledby="errorByHorizonTitle">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="errorByHorizonTitle">
+                      Error by months ahead
+                    </h2>
+                  </div>
+                  <InfoTip id="errorByHorizonTip" label="What this table shows">
+                    <p>
+                      Rolling-origin evaluation repeats the forecast from many different starting points ("origins") in
+                      the past, each time checking how accurate it was 1 through 12 months ahead.
+                    </p>
+                  </InfoTip>
+                </div>
+                {errorByHorizonRows ? (
                   <>
-                    <div style={{ margin: '0 20px 10px', fontSize: 14 }}>
-                      The safe production plan uses the upper bound as a buffer against under-production: counted
-                      directly from the stored test predictions (n = 15 origins per model and horizon), the actual
-                      outcome stayed <b>at or below</b> the upper bound about{' '}
-                      <b>
-                        {Object.entries(coverage.one_sided_by_model).find(([m]) => /prophet \(defaults\)/i.test(m))
-                          ? wholeOutOfTen(
-                              coverage.one_sided_by_model[
-                                Object.keys(coverage.one_sided_by_model).find((m) => /prophet \(defaults\)/i.test(m))
-                              ].by_horizon[1]?.at_or_below_upper
-                            )
-                          : '—'}
-                      </b>{' '}
-                      months at a 1-month horizon, and about{' '}
-                      <b>
-                        {Object.keys(coverage.one_sided_by_model).find((m) => /prophet \(defaults\)/i.test(m))
-                          ? wholeOutOfTen(
-                              coverage.one_sided_by_model[
-                                Object.keys(coverage.one_sided_by_model).find((m) => /prophet \(defaults\)/i.test(m))
-                              ].by_horizon[12]?.at_or_below_upper
-                            )
-                          : '—'}
-                      </b>{' '}
-                      months at a 12-month horizon, for the deployed model (Prophet, defaults).
-                    </div>
-                    <div className="table-wrap" style={{ margin: '0 20px 10px' }}>
+                    <div className="table-wrap" style={{ margin: '12px 20px' }}>
                       <table>
                         <thead>
                           <tr>
                             <th scope="col">Model</th>
-                            <th scope="col">At/below upper (1 mo)</th>
-                            <th scope="col">At/below upper (12 mo)</th>
-                            <th scope="col">At/below upper (avg, all horizons)</th>
-                            <th scope="col">Two-sided (avg, all horizons)</th>
+                            {ROLLING_HORIZONS_FULL.map((h) => (
+                              <th scope="col" key={h}>
+                                {h} mo
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.entries(coverage.one_sided_by_model).map(([model, d]) =>
-                            d.has_interval ? (
-                              <tr key={model}>
-                                <td>{model}</td>
-                                <td>{d.by_horizon[1] ? pct(d.by_horizon[1].at_or_below_upper * 100, 1) : '—'}</td>
-                                <td>{d.by_horizon[12] ? pct(d.by_horizon[12].at_or_below_upper * 100, 1) : '—'}</td>
-                                <td>{pct(d.average.at_or_below_upper * 100, 1)}</td>
-                                <td>{pct(d.average.two_sided * 100, 1)}</td>
-                              </tr>
-                            ) : (
-                              <tr key={model}>
-                                <td>{model}</td>
-                                <td colSpan={4}>— (no range)</td>
-                              </tr>
-                            )
-                          )}
+                          {errorByHorizonRows.map((r) => (
+                            <tr key={r.key}>
+                              <td>{displayName(nameMap, r.key)}</td>
+                              {ROLLING_HORIZONS_FULL.map((h) => (
+                                <td key={h}>{pct(r.byHorizon[h])}</td>
+                              ))}
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
-                    <p style={{ margin: '0 20px 10px', fontSize: 13, color: 'var(--muted)' }}>
-                      {noRangeModels.length > 0 && (
-                        <>
-                          {formatList(noRangeModels)} {noRangeModels.length === 1 ? "doesn't" : "don't"} produce a
-                          prediction range, so coverage doesn't apply to {noRangeModels.length === 1 ? 'it' : 'them'} —
-                          excluded from every average above.{' '}
-                        </>
-                      )}
-                      SARIMA's ranges are better calibrated than Prophet's on this stored data — both its one-sided
-                      and two-sided coverage run closer to their intended rates.
+                    <p className="table-note" style={{ margin: '0 20px 18px' }}>
+                      {originsCount != null ? `${originsCount} forecast start points, Jun 2022 – Aug 2023.` : ''}
                     </p>
                   </>
                 ) : (
-                  <div style={{ margin: '0 20px 10px' }}>
-                    <NotAvailable what="One-sided coverage" />
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <NotAvailable what="Error-by-horizon results" />
                   </div>
                 )}
-                <p style={{ margin: '0 20px 18px', fontSize: 14 }}>
-                  The intended interval width for these figures is {coverage.interval_width != null ? `${coverage.interval_width * 100}%` : '—'}.
-                  {coverage.coverage_caveat ? ` ${coverage.coverage_caveat}` : ''}
-                </p>
-              </>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Coverage results" />
-              </div>
-            )}
-          </section>
+              </section>
 
-          {/* ---------- Where does it go wrong? ---------- */}
-          <section className="card" aria-labelledby="seasonTitle">
-            <div className="card-head">
-              <div>
-                <h2 className="card-title" id="seasonTitle">
-                  Where does it go wrong?
-                </h2>
-              </div>
-            </div>
-            {errorAnalysis ? (
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={seasonChartRows} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" />
-                    <XAxis dataKey="season" />
-                    <YAxis unit="%" />
-                    <Tooltip formatter={(v) => (typeof v === 'number' ? `${v.toFixed(2)}%` : v)} />
-                    <Legend />
-                    {seasonModelNames.map((m) => (
-                      <Bar key={m} dataKey={m} fill={colorFor(m, seasonModelNames)} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Error-by-season results" />
-              </div>
-            )}
-          </section>
-
-          {/* ---------- Was the test fair? ---------- */}
-          <section className="card" aria-labelledby="protocolTitle">
-            <div className="card-head">
-              <div>
-                <h2 className="card-title" id="protocolTitle">
-                  Was the test fair?
-                </h2>
-              </div>
-            </div>
-            {protocol ? (
-              <div style={{ margin: '0 20px 18px' }}>
-                <p style={{ fontSize: 14 }}>
-                  The evaluation protocol below was fixed on <b>{protocol.protocol_date}</b>, before any of these runs —
-                  the train/test split, the models compared and the outlier rule were all decided in advance, and the
-                  26-month test set was never used to choose or tune any model (hyperparameter tuning used only
-                  cross-validation within the training period).
-                </p>
-                <div className="table-wrap">
-                  <table>
-                    <tbody>
-                      <tr>
-                        <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                          Training period
-                        </th>
-                        <td>{protocol.train_period}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                          Test period
-                        </th>
-                        <td>{protocol.test_period}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                          Outlier rule
-                        </th>
-                        <td>{protocol.outlier_rule}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                          Models compared
-                        </th>
-                        <td>{protocol.models_compared.join(', ')}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
-                          Chosen SARIMA order
-                        </th>
-                        <td>
-                          {protocol.chosen_sarima_order ? `(${protocol.chosen_sarima_order.join(', ')})` : '—'}
-                          {protocol.chosen_sarima_seasonal_order ? ` x (${protocol.chosen_sarima_seasonal_order.join(', ')})` : ''}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+              {/* ---------- Likely range reliability ---------- */}
+              <section className="card" aria-labelledby="likelyRangeTitle">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="likelyRangeTitle">
+                      Likely range reliability
+                    </h2>
+                  </div>
+                  <InfoTip id="likelyRangeTip" label="What these columns mean">
+                    <p>
+                      <b>Share inside the range</b> is how often actual demand fell inside the band on past data.{' '}
+                      <b>Share under its top</b> is the narrower, more operational question the safe production plan
+                      actually relies on: how often the actual outcome stayed at or below the top of the range alone.{' '}
+                      <b>Width</b> is the band's size as a percentage of the forecast.
+                    </p>
+                  </InfoTip>
                 </div>
-              </div>
-            ) : (
-              <div style={{ margin: '0 20px 18px' }}>
-                <NotAvailable what="Protocol facts" />
-              </div>
-            )}
-          </section>
+                {likelyRangeRows ? (
+                  <div className="table-wrap" style={{ margin: '12px 20px 18px' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Model</th>
+                          <th scope="col">Inside the range (avg)</th>
+                          <th scope="col">Under the top (1 mo)</th>
+                          <th scope="col">Under the top (12 mo)</th>
+                          <th scope="col">Under the top (avg)</th>
+                          <th scope="col">Width (avg, % of forecast)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {likelyRangeRows.map((r) => (
+                          <tr key={r.label}>
+                            <td>{r.label}</td>
+                            <td>{pct(r.inside_avg, 1)}</td>
+                            <td>{pct(r.under_top_1, 1)}</td>
+                            <td>{pct(r.under_top_12, 1)}</td>
+                            <td>{pct(r.under_top_avg, 1)}</td>
+                            <td>{pct(r.width_avg, 1)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <NotAvailable what="Likely range reliability results" />
+                  </div>
+                )}
+              </section>
+
+              {/* ---------- Are the differences significant? ---------- */}
+              <section className="card" aria-labelledby="dmTitle">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="dmTitle">
+                      Are the differences significant?
+                    </h2>
+                  </div>
+                  <InfoTip id="pValueTip" label="What a p-value means here">
+                    <p>
+                      The Diebold-Mariano test checks whether one model's forecast errors are genuinely smaller than
+                      another's, or whether the gap could plausibly be chance. A <b>p-value</b> below 0.05 means the
+                      difference is unlikely to be chance (conventionally "statistically significant"); above 0.05 means
+                      it isn't — the two models can't be told apart with confidence from this data.
+                    </p>
+                  </InfoTip>
+                </div>
+                {significanceRows ? (
+                  <>
+                    <div className="table-wrap" style={{ margin: '12px 20px' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th scope="col">Model A</th>
+                            <th scope="col">Model B</th>
+                            <th scope="col">Horizon</th>
+                            <th scope="col">DM statistic</th>
+                            <th scope="col">p-value</th>
+                            <th scope="col">Verdict</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {significanceRows.map((p, i) => (
+                            <tr key={i}>
+                              <td>{displayName(nameMap, p.model_a)}</td>
+                              <td>{displayName(nameMap, p.model_b)}</td>
+                              <td>{p.horizon} mo</td>
+                              <td>{dmStatisticCell(p.dm_statistic)}</td>
+                              <td>{pValueCell(p.p_value)}</td>
+                              <td>{verdictCell(p.p_value)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p style={{ margin: '0 20px 8px', fontSize: 14 }}>
+                      With {TEST_MONTHS} test months, the differences are consistent but not statistically proven.
+                    </p>
+                    <p className="table-note" style={{ margin: '0 20px 18px' }}>
+                      — = not computable (too few non-overlapping pairs at that horizon).
+                    </p>
+                  </>
+                ) : (
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <NotAvailable what="Significance results" />
+                  </div>
+                )}
+              </section>
+
+              {/* ---------- Other inputs evaluated ---------- */}
+              <section className="card" aria-labelledby="otherInputsTitle">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="otherInputsTitle">
+                      Other inputs evaluated
+                    </h2>
+                  </div>
+                </div>
+                {otherInputs ? (
+                  <div className="table-wrap" style={{ margin: '12px 20px 18px' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Input</th>
+                          <th scope="col">Test average error</th>
+                          <th scope="col">12-months-ahead error</th>
+                          <th scope="col">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {otherInputs.map((v) => (
+                          <tr key={v.name}>
+                            <td>{v.name}</td>
+                            <td>{pct(v.test_mape)}</td>
+                            <td>{pct(v.h12_mape)}</td>
+                            <td>{v.adopted ? 'Adopted' : 'Not adopted'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <NotAvailable what="Other-inputs results" />
+                  </div>
+                )}
+              </section>
+
+              {/* ---------- Evaluation protocol ---------- */}
+              <section className="card" aria-labelledby="protocolTitle">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="protocolTitle">
+                      Evaluation protocol
+                    </h2>
+                  </div>
+                </div>
+                {protocol ? (
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <p style={{ fontSize: 14 }}>
+                      The evaluation protocol below was fixed on <b>{protocol.protocol_date}</b>, before any of these
+                      runs — the train/test split and the outlier rule were decided in advance, and the 26-month test
+                      period was never used to choose or tune any model (hyperparameter tuning used only
+                      cross-validation within the training period).
+                    </p>
+                    <p style={{ fontSize: 14 }}>
+                      A second round of experiments (calibrated ranges, weather, holiday days and the ensemble) was
+                      fixed in writing on 8 November 2026, before any of them were run; the same training and test
+                      periods were used.
+                    </p>
+                    <div className="table-wrap">
+                      <table>
+                        <tbody>
+                          <tr>
+                            <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
+                              Training period
+                            </th>
+                            <td>{protocol.train_period}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
+                              Test period
+                            </th>
+                            <td>{protocol.test_period}</td>
+                          </tr>
+                          <tr>
+                            <th scope="row" style={{ textAlign: 'left', fontWeight: 600 }}>
+                              Outlier rule
+                            </th>
+                            <td>{protocol.outlier_rule}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ margin: '0 20px 18px' }}>
+                    <NotAvailable what="Protocol facts" />
+                  </div>
+                )}
+              </section>
             </div>
           </details>
 
-          {provenanceFiles.length > 0 && (
-            <footer className="foot">
-              <p className="prov">Results read from: {provenanceFiles.join(' · ')}</p>
-            </footer>
-          )}
+          <footer className="foot">
+            <p className="prov">
+              Model: {data.published_model_name || 'not available'} · Last evaluated:{' '}
+              {lastEvaluated ? formatDateNairobi(lastEvaluated) : '—'} · Test period: Jul 2022 – Aug 2024 ({TEST_MONTHS}{' '}
+              months)
+            </p>
+          </footer>
         </>
       )}
     </AppLayout>

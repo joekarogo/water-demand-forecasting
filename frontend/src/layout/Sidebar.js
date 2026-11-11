@@ -2,11 +2,13 @@ import { Link, NavLink } from 'react-router-dom';
 import { useSession } from '../session';
 import { MENU_ITEMS, hasMenuAccess } from './menuConfig';
 import { BrandIcon } from './icons';
+import { useAppVersion } from '../utils/useAppVersion';
 
 function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
   const { session } = useSession();
   const permissions = session?.permissions || [];
   const visibleItems = MENU_ITEMS.filter((item) => hasMenuAccess(item.permission, permissions));
+  const appVersion = useAppVersion();
 
   return (
     <nav className={`sidebar${open ? ' open' : ''}`} id="sidebar" aria-label="Main navigation">
@@ -44,7 +46,7 @@ function Sidebar({ open, onNavigate, onClose, closeBtnRef }) {
       </ul>
       <div className="sidebar-foot">
         <div className="ver">
-          <Link to="/about">Version 1.0</Link>
+          <Link to="/about">{appVersion ? `Version ${appVersion}` : 'Version'}</Link>
         </div>
         <div className="src">Data: İZSU Open Data (İzmir)</div>
       </div>

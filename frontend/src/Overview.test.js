@@ -64,7 +64,7 @@ function adminOverview() {
         failed_attempts_last_7_days: 1,
         permission_denied_last_7_days: 0,
         last_emergency_login_at: null,
-        recent_events: [{ time: '2026-10-30T09:00:00.000Z', actor_name: 'Ada Lovelace', action: 'login.success', label: 'Signed in' }],
+        recent_events: [{ time: '2026-10-30T09:00:00.000Z', actor: 'Ada Lovelace', action: 'login.success', label: 'Signed in' }],
       },
     },
   };
