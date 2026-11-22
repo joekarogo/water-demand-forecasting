@@ -12,6 +12,14 @@ One Heroku app, one HTTPS domain (`https://<app-name>.herokuapp.com`):
   `index.html`.
 - A **Heroku Postgres Essential-0** add-on provides the database.
 
+The app is also served at the custom domain `https://waterdemand.me`
+(and `https://www.waterdemand.me`), registered through Namecheap
+(GitHub Student Developer Pack, free for one year from 22 Nov 2026) and
+pointed at the Heroku app with an `ALIAS` record for `@` and a `CNAME`
+for `www`. HTTPS on both is handled by Heroku Automated Certificate
+Management. Both origins were added to the Google OAuth client's
+Authorized JavaScript origins alongside the `herokuapp.com` one.
+
 Combined cost is approximately **$12/month** (Basic dyno + Essential-0
 Postgres), which fits inside the **$13/month GitHub Student Developer
 Pack Heroku credit**, which lasts until approximately **October 2028**.
@@ -143,6 +151,7 @@ this file or a linked log:
 | Date | URL | Git commit | Heroku release | Model/forecast version | Verified by | Result |
 |---|---|---|---|---|---|---|
 | 1 Nov 2026 | https://water-demand-forecast-e93cc52b790c.herokuapp.com | `4f2e277` | v7 | forecast #23 | (pending) | (pending) |
+| 22 Nov 2026 | https://waterdemand.me | (fill after merge to main) | (fill after deploy) | unchanged (ensemble) | (pending) | (pending) |
 | | | | | | | |
 
 ## After the GitHub Students credit runs out (~October 2028)
