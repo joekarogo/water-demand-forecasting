@@ -41,14 +41,14 @@ function productionAlerts({ unplannedMonths, daysOfCover, daysSinceStock }) {
     if (daysOfCover < OVERVIEW_THRESHOLDS.days_of_cover_alert_days) {
       alerts.push({
         level: 'alert',
-        message: `Only ${daysOfCover} days of stock remain at the planned production rate.`,
+        message: `Only ${daysOfCover} days of supply remain at the planned production rate.`,
         link: '/production-planning',
         linkText: 'Open Production Planning',
       });
     } else if (daysOfCover < OVERVIEW_THRESHOLDS.days_of_cover_warning_days) {
       alerts.push({
         level: 'warning',
-        message: `Only ${daysOfCover} days of stock remain at the planned production rate.`,
+        message: `Only ${daysOfCover} days of supply remain at the planned production rate.`,
         link: '/production-planning',
         linkText: 'Open Production Planning',
       });
@@ -58,7 +58,7 @@ function productionAlerts({ unplannedMonths, daysOfCover, daysSinceStock }) {
   if (daysSinceStock == null || daysSinceStock > OVERVIEW_THRESHOLDS.stock_stale_days) {
     alerts.push({
       level: 'info',
-      message: 'No stock has been recorded in the last 30 days.',
+      message: 'No storage reading has been recorded in the last 30 days.',
       link: '/production-planning',
       linkText: 'Open Production Planning',
     });

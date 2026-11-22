@@ -557,3 +557,86 @@ design, the one role holding `audit:view_all` (Admin) also always holds
 `user:manage`, but the frontend treats this defensively (the filter is
 simply not offered if that request fails) rather than assuming it will
 always succeed.
+
+## Part Q — Stored water readings
+
+Backend only (no frontend changes in this part). Stored water is a
+**snapshot** — usable raw water held in storage on a date — not a
+cumulative log, so a new reading for a date must never silently
+overwrite the old one. `database/schema/010_stock_reading_versions.sql`
+gives `stock_entries` the same versioning `003_production_planning.sql`
+already gave `production_plans`: a `state` column
+(`active`/`replaced`/`removed`, default `active`), `change_reason`,
+`changed_by`, `changed_at`, a CHECK that a non-active row always has a
+reason, and a partial unique index allowing only one `active` row per
+`recorded_on`. Existing duplicate-date rows (today's silent-overwrite
+bug) are backfilled on migration: the highest `entry_id` per date stays
+active, the rest become `replaced`. The migration also seeds a new
+`storage_capacity_m3` setting (776,422,000 m³ — usable lake volume of
+İZSU's five reservoirs) that the new "amount above capacity" validation
+reads live, rather than a hardcoded constant. Every query that reads
+`stock_entries` (the plan endpoint's latest stock, the stock list, and
+Overview's latest stock) now filters `state = 'active'`; the stock
+list's `change_m3` (a `LAG` window function) is computed over active
+readings only, same as before but narrowed to the active set first.
+
+Automated: `backend/test/planning.test.js` covers the three new/changed
+pure functions in `backend/planning.js` — `validateStockAmount`'s new
+capacity-based message (at, above and below a real capacity; the
+`MAX_STOCK_M3` fallback when no capacity is given), `validateChangeReason`'s
+5-300 character boundary, and `largeChangePct`'s sign and the exact 25%
+boundary (not flagged at exactly 25%, flagged just over it).
+`backend/test/auditLog.test.js` covers the two new audit actions
+(`stock.correct`, `stock.remove`): present in `ACTION_LABELS` and the
+`stock` category (the existing completeness tests cover this
+automatically once added to `KNOWN_ACTIONS`), plus dedicated
+`summarizeDetails` cases for each. `backend/test/permissions.matrix.test.js`
+exercises the real endpoints against a real (throwaway) database: the
+new `POST /api/production/stock/:id/remove` route in the permission
+table, plus five dedicated tests covering `reading_exists`, a correction
+that leaves the old row `replaced`, `large_change` with its confirmed
+save, `remove` (success, 404, and 409 on a non-active reading), and that
+`GET /api/production/plan`'s `latest_stock` and `GET /api/production/stock`'s
+list both skip removed/replaced rows entirely rather than just taking
+the most recent row regardless of state. 370/370 pass, 0 skipped
+(`TEST_DATABASE_URL` configured).
+
+| Endpoint | What it checks |
+|---|---|
+| `POST /api/production/stock` | `stock:create`; validates the amount against the live `storage_capacity_m3` setting (falling back to `MAX_STOCK_M3` if it's missing); 409 `reading_exists` (with the existing reading's amount/date/recorded_by) if the date already has an active reading and no `correction_reason` was sent; with a valid `correction_reason`, marks the old row `replaced` and inserts the new one as a `stock.correct` audit event, in one transaction; compares the new amount with the nearest earlier *active* reading on a different date — a change of more than 25% is a 409 `large_change` (with the previous reading and `change_pct`) unless `confirm_large_change: true`, in which case it saves and records `confirmed_large_change: true` in the audit details; a unique-index race is reported the same way as `reading_exists` instead of a raw 500 |
+| `POST /api/production/stock/:id/remove` | `stock:create`; 404 if the id doesn't exist; 409 if the reading is no longer active; otherwise marks it `removed` with the given reason (`validateChangeReason`, 5-300 characters) and writes a `stock.remove` audit row, in one transaction |
+| `GET /api/production/stock` | now also returns `storage_capacity_m3`/`storage_capacity_source`, and each row gets `corrected: true` if its date has a `replaced` version |
+| `GET /api/production/plan` | now also returns `storage_capacity_m3`/`storage_capacity_source`; `latest_stock` is the most recent *active* reading, not just the most recent row |
+
+**Manual checks to run after applying `database/schema/010_stock_reading_versions.sql`:**
+
+| # | Check | Expected |
+|---|---|---|
+| Q1 | `POST /api/production/stock` with `stock_m3` above 776,422,000 (the seeded capacity) | 400 naming `stock_m3`: "This is more than the total usable storage capacity (776.4M m³). Check the number." |
+| Q2 | `POST /api/production/stock` for a date that already has a reading, with no `correction_reason` | 409 `reading_exists`, showing the existing reading; resubmitting with a `correction_reason` (5-300 characters) saves the new reading and the old one shows as superseded, not deleted |
+| Q3 | `POST /api/production/stock` with an amount more than 25% different from the previous active reading | 409 `large_change`, showing the previous reading and the percentage change; resubmitting with `confirm_large_change: true` saves it |
+| Q4 | `POST /api/production/stock/:id/remove` with a reason on an active reading | 200; the reading disappears from the stock list and chart, and a `stock.remove` row appears in the Activity log |
+| Q5 | Days of supply on Production Planning / Overview, after correcting or removing the most recent reading | Recalculates from the next most recent *active* reading, never a replaced or removed one |
+| Q6 | Activity log after Q2 and Q4 | Shows "Corrected a storage reading" and "Removed a storage reading" with the amounts, date and reason in the details |
+
+**Note:** Q1-Q6 need the migration actually applied against a real
+database and a running backend + frontend to verify visually — not run
+in this session (no `.env` touched, no migration or SQL run against any
+database, nothing committed). The endpoint and pure-function behaviour
+above was verified automatically against a real throwaway test database
+via `permissions.matrix.test.js`, which is the closest substitute
+available without touching the real one.
+
+**Judgment calls, not in the original brief:**
+- `validateChangeReason`'s error message ("Enter a reason (5-300
+  characters).") wasn't specified, so it was worded to match the existing
+  `validatePlanRequest`/`validateStockAmount` style (short, imperative,
+  no restating of the field name).
+- `change_pct` is returned unrounded (e.g. `42.857142857142854`) rather
+  than pre-rounded for display, so the frontend (a later, separate task)
+  can choose its own rounding without the 25% boundary check and the
+  displayed number ever disagreeing with each other.
+- A `correction_reason` sent on a date that does *not* already have an
+  active reading is accepted and silently ignored (treated as a normal
+  new reading) rather than rejected as an error, since the brief only
+  defines what it does when a reading already exists.

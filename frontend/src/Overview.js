@@ -101,7 +101,7 @@ function Overview() {
 
     if (sections.production) {
       list.push({
-        label: 'Days of stock remaining',
+        label: 'Days of supply',
         value: sections.production.days_of_cover != null ? `${fmtInt(sections.production.days_of_cover)} days` : '—',
         help: sections.production.latest_stock
           ? `at the planned rate, as of ${formatDateLong(sections.production.latest_stock.recorded_on)}`
@@ -238,10 +238,10 @@ function Overview() {
               <InfoTip id="tipAlerts" label="How alerts work">
                 <b>How alerts work</b>
                 <br />
-                A production month warns once fewer than {data.thresholds.days_of_cover_warning_days} days of stock
+                A production month warns once fewer than {data.thresholds.days_of_cover_warning_days} days of supply
                 remain at the planned rate, and alerts below {data.thresholds.days_of_cover_alert_days} days.
                 <br />
-                Stock gets a reminder if nothing's been recorded in the last {data.thresholds.stock_stale_days} days.
+                Storage readings get a reminder if none has been recorded in the last {data.thresholds.stock_stale_days} days.
                 <br />
                 Revenue warns once more than {data.thresholds.not_priced_pct_warning}% of a month's volume isn't
                 priced.
