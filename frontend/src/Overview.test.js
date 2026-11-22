@@ -165,7 +165,7 @@ test('a Production Planner session shows only production sections', async () => 
   renderPage();
 
   await waitFor(() => expect(screen.getByText('12-month forecast')).toBeInTheDocument());
-  expect(screen.getByText('Days of stock remaining')).toBeInTheDocument();
+  expect(screen.getByText('Days of supply')).toBeInTheDocument();
   expect(screen.getByText('Largest district')).toBeInTheDocument();
   expect(screen.queryByText('Recent activity')).not.toBeInTheDocument();
   expect(screen.queryByText('12-month revenue')).not.toBeInTheDocument();

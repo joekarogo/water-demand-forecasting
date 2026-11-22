@@ -65,14 +65,26 @@ there is no automated migration runner in this project yet.
     so the conversion uses `AT TIME ZONE 'Africa/Nairobi'`. Safe to
     re-run — each column is only converted if it's still timestamp
     without time zone. Runs as a single transaction.
+11. `010_stock_reading_versions.sql` — stored water readings get the same
+    versioning `003_production_planning.sql` gave production plans: adds
+    `state`/`change_reason`/`changed_by`/`changed_at` to `stock_entries`
+    (a reading is corrected or removed by marking the old row
+    `replaced`/`removed`, never by overwriting or deleting it), backfills
+    any date that already has more than one row (today's silent-overwrite
+    bug) by keeping the highest `entry_id` active and marking the rest
+    replaced, adds a CHECK that a non-active row always has a
+    `change_reason`, a partial unique index enforcing one active reading
+    per date, and seeds the `storage_capacity_m3` setting. Runs as a
+    single transaction.
 
 To roll back **in development only**, run `001_foundation_down.sql`,
 `002_published_forecast_down.sql`, `003_production_planning_down.sql`,
 `004_accounts_down.sql`, `005_sessions_down.sql`,
 `006_remove_password_login_down.sql`, `007_role_names_job_title_down.sql`,
-`008_tariff_wastewater_down.sql` and/or `009_timestamptz_down.sql`. None
-of these are a safe production rollback — see the comment at the top of
-each file for what it does and does not undo.
+`008_tariff_wastewater_down.sql`, `009_timestamptz_down.sql` and/or
+`010_stock_reading_versions_down.sql`. None of these are a safe
+production rollback — see the comment at the top of each file for what
+it does and does not undo.
 
 ## Running a file
 
@@ -87,6 +99,7 @@ psql -U <your_db_user> -d <your_db_name> -f database/schema/006_remove_password_
 psql -U <your_db_user> -d <your_db_name> -f database/schema/007_role_names_job_title.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/008_tariff_wastewater.sql
 psql -U <your_db_user> -d <your_db_name> -f database/schema/009_timestamptz.sql
+psql -U <your_db_user> -d <your_db_name> -f database/schema/010_stock_reading_versions.sql
 ```
 
 Or open each file in pgAdmin's Query Tool against the target database and

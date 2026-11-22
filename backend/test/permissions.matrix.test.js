@@ -95,6 +95,7 @@ const MIGRATIONS = [
   '007_role_names_job_title.sql',
   '008_tariff_wastewater.sql',
   '009_timestamptz.sql',
+  '010_stock_reading_versions.sql',
 ];
 
 // The role -> permission table as of migrations 001, 003 and 004 (003
@@ -260,6 +261,18 @@ test('permission matrix', async (t) => {
     });
     fixtures.jobTitleTargetId = await createUser(setupClient, { roleName: 'commercial_officer', status: 'active' });
 
+    // A dedicated, otherwise-untouched active stock reading for the
+    // POST /api/production/stock/:id/remove route table entry below — a
+    // date far from any date the dedicated stock-reading-versions tests
+    // use, so the one real removal it triggers (only production_manager
+    // holds stock:create; admin/commercial_officer are rejected by
+    // requirePermission before the handler runs) can't collide with them.
+    const removableStockEntryResult = await setupClient.query(
+      `INSERT INTO stock_entries (recorded_on, stock_m3, created_by) VALUES ($1, $2, $3) RETURNING entry_id`,
+      ['2020-01-01', 50_000_000, fixtures.production_manager.userId]
+    );
+    fixtures.removableStockEntryId = removableStockEntryResult.rows[0].entry_id;
+
     // Two distinct sign-in audit rows, on two different users, so the
     // "own rows only" check below can tell them apart.
     await setupClient.query(
@@ -326,7 +339,19 @@ test('permission matrix', async (t) => {
         path: '/api/production/stock',
         permission: 'stock:create',
         csrf: true,
-        body: () => ({ recorded_on: todayDateString(), stock_m3: 1000 }),
+        // confirm_large_change bypasses the >25%-change gate regardless of
+        // whatever other stock fixtures exist by this point — this route
+        // table entry is only testing permission gating, not that rule
+        // (covered by dedicated tests further below).
+        body: () => ({ recorded_on: todayDateString(), stock_m3: 1000, confirm_large_change: true }),
+      },
+      {
+        name: 'POST /api/production/stock/:id/remove',
+        method: 'POST',
+        path: `/api/production/stock/${fixtures.removableStockEntryId}/remove`,
+        permission: 'stock:create',
+        csrf: true,
+        body: () => ({ reason: 'Matrix test removal reason.' }),
       },
       { name: 'GET /api/roles', method: 'GET', path: '/api/roles', permission: 'user:manage' },
       { name: 'GET /api/users', method: 'GET', path: '/api/users', permission: 'user:manage' },
@@ -657,6 +682,185 @@ test('permission matrix', async (t) => {
         followUpBody.rows.some((r) => r.action === 'audit.exported'),
         'exporting the log should itself write an audit.exported row'
       );
+    });
+
+    await t.test('POST /api/production/stock: a second reading for the same date needs a correction_reason (409 reading_exists)', async () => {
+      const firstRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { recorded_on: '2022-03-01', stock_m3: 40_000_000 },
+      });
+      assert.strictEqual(firstRes.status, 200);
+
+      const secondRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { recorded_on: '2022-03-01', stock_m3: 41_000_000 },
+      });
+      assert.strictEqual(secondRes.status, 409);
+      const secondBody = await secondRes.json();
+      assert.strictEqual(secondBody.code, 'reading_exists');
+      assert.strictEqual(secondBody.existing.stock_m3, 40_000_000);
+      assert.strictEqual(secondBody.existing.recorded_on, '2022-03-01');
+      assert.strictEqual(typeof secondBody.existing.recorded_by, 'string');
+      assert.ok(secondBody.existing.recorded_by.length > 0);
+    });
+
+    await t.test('POST /api/production/stock: a correction keeps the old row, marked replaced', async () => {
+      const correctRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: {
+          recorded_on: '2022-03-01',
+          stock_m3: 42_000_000,
+          correction_reason: 'First entry had a typo — corrected after double-checking the gauge reading.',
+        },
+      });
+      assert.strictEqual(correctRes.status, 200);
+      const correctBody = await correctRes.json();
+      assert.strictEqual(correctBody.corrected, true);
+      assert.strictEqual(correctBody.stock_m3, 42_000_000);
+
+      const rows = await setupClient.query(
+        `SELECT entry_id, stock_m3::double precision AS stock_m3, state, change_reason
+         FROM stock_entries WHERE recorded_on = '2022-03-01' ORDER BY entry_id`
+      );
+      assert.strictEqual(rows.rows.length, 2);
+      assert.strictEqual(rows.rows[0].stock_m3, 40_000_000);
+      assert.strictEqual(rows.rows[0].state, 'replaced');
+      assert.ok(rows.rows[0].change_reason && rows.rows[0].change_reason.includes('typo'));
+      assert.strictEqual(rows.rows[1].stock_m3, 42_000_000);
+      assert.strictEqual(rows.rows[1].state, 'active');
+    });
+
+    await t.test('POST /api/production/stock: a change of more than 25% needs confirm_large_change (409 large_change)', async () => {
+      const unconfirmedRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { recorded_on: '2022-04-01', stock_m3: 60_000_000 },
+      });
+      assert.strictEqual(unconfirmedRes.status, 409);
+      const unconfirmedBody = await unconfirmedRes.json();
+      assert.strictEqual(unconfirmedBody.code, 'large_change');
+      assert.strictEqual(unconfirmedBody.previous.recorded_on, '2022-03-01');
+      assert.strictEqual(unconfirmedBody.previous.stock_m3, 42_000_000);
+      assert.ok(unconfirmedBody.change_pct > 25);
+
+      const confirmedRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { recorded_on: '2022-04-01', stock_m3: 60_000_000, confirm_large_change: true },
+      });
+      assert.strictEqual(confirmedRes.status, 200);
+      const confirmedBody = await confirmedRes.json();
+      fixtures.largeChangeEntryId = confirmedBody.entry_id;
+
+      const auditRow = await setupClient.query(
+        `SELECT details FROM audit_log WHERE action = 'stock.record' AND entity_id = $1`,
+        [String(confirmedBody.entry_id)]
+      );
+      assert.strictEqual(auditRow.rows[0].details.confirmed_large_change, true);
+    });
+
+    await t.test('POST /api/production/stock/:id/remove: removes an active reading, and rejects a non-active one', async () => {
+      const removeRes = await request(baseUrl, {
+        method: 'POST',
+        path: `/api/production/stock/${fixtures.largeChangeEntryId}/remove`,
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { reason: 'Entered for the wrong reservoir — resubmitting separately.' },
+      });
+      assert.strictEqual(removeRes.status, 200);
+
+      const removedRow = await setupClient.query(
+        `SELECT state, change_reason, changed_by FROM stock_entries WHERE entry_id = $1`,
+        [fixtures.largeChangeEntryId]
+      );
+      assert.strictEqual(removedRow.rows[0].state, 'removed');
+      assert.ok(removedRow.rows[0].change_reason);
+      assert.strictEqual(removedRow.rows[0].changed_by, fixtures.production_manager.userId);
+
+      const notFoundRes = await request(baseUrl, {
+        method: 'POST',
+        path: '/api/production/stock/999999999/remove',
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { reason: 'Does not matter — this entry_id does not exist.' },
+      });
+      assert.strictEqual(notFoundRes.status, 404);
+
+      const alreadyReplacedRow = await setupClient.query(
+        `SELECT entry_id FROM stock_entries WHERE recorded_on = '2022-03-01' AND state = 'replaced'`
+      );
+      const notActiveRes = await request(baseUrl, {
+        method: 'POST',
+        path: `/api/production/stock/${alreadyReplacedRow.rows[0].entry_id}/remove`,
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { reason: 'This one is already replaced, not active.' },
+      });
+      assert.strictEqual(notActiveRes.status, 409);
+      const notActiveBody = await notActiveRes.json();
+      assert.strictEqual(notActiveBody.error, 'This reading is no longer active.');
+    });
+
+    await t.test('GET /api/production/plan and GET /api/production/stock: latest_stock/data reflect only active readings', async () => {
+      // The route table's own POST /api/production/stock/:id/remove test
+      // (above) leaves today's fixture reading (from the route table's
+      // POST /api/production/stock entry) still active — remove it too, so
+      // the *only* active reading left is 2022-03-01's corrected 42M one,
+      // proving latest_stock skips the removed/replaced rows entirely
+      // rather than just taking the most recent row regardless of state.
+      const todayRow = await setupClient.query(
+        `SELECT entry_id FROM stock_entries WHERE recorded_on = CURRENT_DATE AND state = 'active'`
+      );
+      assert.strictEqual(todayRow.rows.length, 1);
+      const removeTodayRes = await request(baseUrl, {
+        method: 'POST',
+        path: `/api/production/stock/${todayRow.rows[0].entry_id}/remove`,
+        cookie: fixtures.production_manager.cookie,
+        csrfToken: fixtures.production_manager.csrfToken,
+        body: { reason: 'Removing the route-table fixture reading for this isolation test.' },
+      });
+      assert.strictEqual(removeTodayRes.status, 200);
+
+      const planRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/production/plan',
+        cookie: fixtures.production_manager.cookie,
+      });
+      assert.strictEqual(planRes.status, 200);
+      const planBody = await planRes.json();
+      assert.ok(planBody.latest_stock, 'expected the 2022-03-01 active reading to still be found');
+      assert.strictEqual(planBody.latest_stock.recorded_on, '2022-03-01');
+      assert.strictEqual(planBody.latest_stock.stock_m3, 42_000_000);
+      assert.strictEqual(planBody.storage_capacity_m3, 776_422_000);
+
+      const stockRes = await request(baseUrl, {
+        method: 'GET',
+        path: '/api/production/stock',
+        cookie: fixtures.production_manager.cookie,
+      });
+      assert.strictEqual(stockRes.status, 200);
+      const stockBody = await stockRes.json();
+      assert.ok(stockBody.data.every((row) => row.recorded_on !== '2022-04-01'), 'the removed 2022-04-01 reading must not appear');
+      const marchRow = stockBody.data.find((row) => row.recorded_on === '2022-03-01');
+      assert.ok(marchRow, 'expected the corrected 2022-03-01 reading in the list');
+      assert.strictEqual(marchRow.stock_m3, 42_000_000);
+      assert.strictEqual(marchRow.corrected, true);
+      // entry_id is what the frontend's Remove action calls
+      // POST /api/production/stock/:id/remove with.
+      assert.strictEqual(typeof marchRow.entry_id, 'number');
     });
 
     await t.test('unmatched /api route returns a JSON 404', async () => {

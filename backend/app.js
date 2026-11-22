@@ -198,6 +198,8 @@ function requireRecentAuth(req, res, next) {
 //   POST /api/production/plan            authenticateToken, csrfProtection, requirePermission('plan:create')
 //   GET  /api/production/stock           authenticateToken, requirePermission('plan:view')
 //   POST /api/production/stock           authenticateToken, csrfProtection, requirePermission('stock:create')
+//   POST /api/production/stock/:id/remove
+//                                         authenticateToken, csrfProtection, requirePermission('stock:create')
 //   GET  /api/distribution               authenticateToken, requirePermission('distribution:view')
 //   GET  /api/revenue                    authenticateToken, requirePermission('revenue:view')
 //   POST /api/revenue/scenario           authenticateToken, csrfProtection, requirePermission('revenue:view')
@@ -836,6 +838,12 @@ async function getLossRate(queryable) {
   return row ? { value: Number(row.value), source: row.source } : null;
 }
 
+async function getStorageCapacity(queryable) {
+  const result = await queryable.query(`SELECT value, source FROM settings WHERE key = 'storage_capacity_m3'`);
+  const row = result.rows[0];
+  return row ? { value: Number(row.value), source: row.source } : null;
+}
+
 async function getForecastMonths(queryable, forecastId) {
   const result = await queryable.query(
     `SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, predicted_value, yhat_lower, yhat_upper
@@ -881,6 +889,7 @@ app.get('/api/production/plan', authenticateToken, requirePermission('plan:view'
     }
 
     const lossRate = await getLossRate(pool);
+    const storageCapacity = await getStorageCapacity(pool);
     const forecastMonths = await getForecastMonths(pool, forecast.forecast_id);
     const activePlansByMonth = await getActivePlansByMonth(pool, forecast.forecast_id);
 
@@ -916,6 +925,7 @@ app.get('/api/production/plan', authenticateToken, requirePermission('plan:view'
       `SELECT TO_CHAR(recorded_on, 'YYYY-MM-DD') AS recorded_on,
               stock_m3::double precision AS stock_m3, note
        FROM stock_entries
+       WHERE state = 'active'
        ORDER BY recorded_on DESC, entry_id DESC
        LIMIT 1`
     );
@@ -938,6 +948,8 @@ app.get('/api/production/plan', authenticateToken, requirePermission('plan:view'
       data_up_to: forecast.data_up_to,
       loss_rate: lossRate ? lossRate.value : null,
       loss_rate_source: lossRate ? lossRate.source : null,
+      storage_capacity_m3: storageCapacity ? storageCapacity.value : null,
+      storage_capacity_source: storageCapacity ? storageCapacity.source : null,
       months,
       latest_stock: latestStock,
       days_of_cover,
@@ -1174,33 +1186,50 @@ const STOCK_TREND_MAX_ROWS = 200;
 
 app.get('/api/production/stock', authenticateToken, requirePermission('plan:view'), async (req, res) => {
   try {
-    // change_m3 (LAG) is computed over EVERY entry, ordered chronologically
-    // (same-date ties broken by entry_id) — only AFTER that is the result
-    // narrowed to the trailing window, so the oldest entry kept still
-    // compares against the real reading before it, not against nothing.
+    const storageCapacity = await getStorageCapacity(pool);
+
+    // change_m3 (LAG) is computed over active entries only, ordered
+    // chronologically (same-date ties broken by entry_id) — only AFTER
+    // that is the result narrowed to the trailing window, so the oldest
+    // entry kept still compares against the real active reading before
+    // it, not against a replaced/removed one or nothing. "corrected" is
+    // date-level (did this date ever have a replaced version), not
+    // row-level, since only one row per date can be active at a time.
     const result = await pool.query(
-      `WITH all_entries AS (
+      `WITH active_entries AS (
          SELECT se.entry_id, se.recorded_on, se.stock_m3, se.note, se.created_by,
                 se.stock_m3 - LAG(se.stock_m3) OVER (ORDER BY se.recorded_on, se.entry_id) AS change_m3
          FROM stock_entries se
+         WHERE se.state = 'active'
+       ),
+       replaced_dates AS (
+         SELECT DISTINCT recorded_on FROM stock_entries WHERE state = 'replaced'
        ),
        latest AS (
-         SELECT MAX(recorded_on) AS max_date FROM stock_entries
+         SELECT MAX(recorded_on) AS max_date FROM active_entries
        )
-       SELECT TO_CHAR(ae.recorded_on, 'YYYY-MM-DD') AS recorded_on,
+       SELECT ae.entry_id,
+              TO_CHAR(ae.recorded_on, 'YYYY-MM-DD') AS recorded_on,
               ae.stock_m3::double precision AS stock_m3,
               ae.note,
               u.name AS recorded_by,
-              ae.change_m3::double precision AS change_m3
-       FROM all_entries ae
+              ae.change_m3::double precision AS change_m3,
+              (rd.recorded_on IS NOT NULL) AS corrected
+       FROM active_entries ae
        JOIN users u ON u.user_id = ae.created_by
        CROSS JOIN latest
-       WHERE ae.recorded_on >= latest.max_date - $1::integer
+       LEFT JOIN replaced_dates rd ON rd.recorded_on = ae.recorded_on
+       WHERE latest.max_date IS NOT NULL AND ae.recorded_on >= latest.max_date - $1::integer
        ORDER BY ae.recorded_on DESC, ae.entry_id DESC
        LIMIT $2`,
       [STOCK_TREND_WINDOW_DAYS, STOCK_TREND_MAX_ROWS]
     );
-    res.json({ data: result.rows, window_days: STOCK_TREND_WINDOW_DAYS });
+    res.json({
+      data: result.rows,
+      window_days: STOCK_TREND_WINDOW_DAYS,
+      storage_capacity_m3: storageCapacity ? storageCapacity.value : null,
+      storage_capacity_source: storageCapacity ? storageCapacity.source : null,
+    });
   } catch (err) {
     const reference = generateErrorReference();
     console.error(`[${reference}] /api/production/stock failed:`, err);
@@ -1214,13 +1243,22 @@ app.post(
   csrfProtection,
   requirePermission('stock:create'),
   async (req, res) => {
-  const { recorded_on, stock_m3, note } = req.body;
+  const { recorded_on, stock_m3, note, correction_reason, confirm_large_change } = req.body;
   const errors = {};
 
   if (!isValidDateString(recorded_on)) {
     errors.recorded_on = 'Choose a valid date';
   }
-  const stockAmountError = planning.validateStockAmount(stock_m3);
+
+  let storageCapacity;
+  try {
+    storageCapacity = await getStorageCapacity(pool);
+  } catch (err) {
+    const reference = generateErrorReference();
+    console.error(`[${reference}] POST /api/production/stock failed:`, err);
+    return res.status(500).json({ error: 'Unable to save the stock entry right now.', reference });
+  }
+  const stockAmountError = planning.validateStockAmount(stock_m3, storageCapacity ? storageCapacity.value : null);
   if (stockAmountError) {
     errors.stock_m3 = stockAmountError;
   }
@@ -1235,9 +1273,25 @@ app.post(
     }
   }
 
+  // correction_reason is only required when a reading already exists for
+  // this date (checked below, inside the transaction) — but if one was
+  // sent at all, it must be well-formed.
+  let trimmedCorrectionReason = null;
+  const correctionReasonSent = typeof correction_reason === 'string' && correction_reason.trim().length > 0;
+  if (correctionReasonSent) {
+    const reasonError = planning.validateChangeReason(correction_reason);
+    if (reasonError) {
+      errors.correction_reason = reasonError;
+    } else {
+      trimmedCorrectionReason = correction_reason.trim();
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ error: 'Validation failed.', fields: errors });
   }
+
+  const confirmLargeChange = confirm_large_change === true;
 
   const client = await pool.connect();
   try {
@@ -1254,19 +1308,101 @@ app.post(
       });
     }
 
-    const insertResult = await client.query(
-      `INSERT INTO stock_entries (recorded_on, stock_m3, note, created_by)
-       VALUES ($1, $2, $3, $4)
-       RETURNING entry_id, created_at`,
-      [recorded_on, stock_m3, trimmedNote, req.user.user_id]
+    const existingResult = await client.query(
+      `SELECT se.entry_id, se.stock_m3::double precision AS stock_m3, u.name AS recorded_by
+       FROM stock_entries se
+       JOIN users u ON u.user_id = se.created_by
+       WHERE se.recorded_on = $1 AND se.state = 'active'`,
+      [recorded_on]
     );
-    const savedEntry = insertResult.rows[0];
+    const existingActive = existingResult.rows[0] || null;
 
-    await client.query(
-      `INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip_address)
-       VALUES ($1, 'stock.record', 'stock_entry', $2, $3, $4)`,
-      [req.user.user_id, String(savedEntry.entry_id), { recorded_on, stock_m3 }, req.ip]
+    if (existingActive && !trimmedCorrectionReason) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        code: 'reading_exists',
+        error: 'There is already a reading for this date.',
+        existing: { stock_m3: existingActive.stock_m3, recorded_on, recorded_by: existingActive.recorded_by },
+      });
+    }
+
+    // The nearest earlier ACTIVE reading on a different date — never the
+    // row being replaced above, since that's the same date, and never a
+    // replaced/removed row, since those no longer reflect reality.
+    const previousResult = await client.query(
+      `SELECT TO_CHAR(recorded_on, 'YYYY-MM-DD') AS recorded_on, stock_m3::double precision AS stock_m3
+       FROM stock_entries
+       WHERE state = 'active' AND recorded_on < $1
+       ORDER BY recorded_on DESC
+       LIMIT 1`,
+      [recorded_on]
     );
+    const previousActive = previousResult.rows[0] || null;
+
+    const changePct = previousActive ? planning.largeChangePct(stock_m3, previousActive.stock_m3) : null;
+    const isLargeChange = changePct != null && Math.abs(changePct) > 25;
+
+    if (isLargeChange && !confirmLargeChange) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        code: 'large_change',
+        error: 'This is very different from the previous reading.',
+        previous: { recorded_on: previousActive.recorded_on, stock_m3: previousActive.stock_m3 },
+        change_pct: changePct,
+      });
+    }
+
+    const auditDetailsExtra = isLargeChange ? { confirmed_large_change: true } : {};
+    let savedEntry;
+
+    if (existingActive) {
+      await client.query(
+        `UPDATE stock_entries
+         SET state = 'replaced', change_reason = $1, changed_by = $2, changed_at = now()
+         WHERE entry_id = $3`,
+        [trimmedCorrectionReason, req.user.user_id, existingActive.entry_id]
+      );
+
+      const insertResult = await client.query(
+        `INSERT INTO stock_entries (recorded_on, stock_m3, note, created_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING entry_id, created_at`,
+        [recorded_on, stock_m3, trimmedNote, req.user.user_id]
+      );
+      savedEntry = insertResult.rows[0];
+
+      await insertAuditLog(client, {
+        userId: req.user.user_id,
+        action: 'stock.correct',
+        entity: 'stock_entry',
+        entityId: String(savedEntry.entry_id),
+        details: {
+          recorded_on,
+          old_stock_m3: existingActive.stock_m3,
+          new_stock_m3: stock_m3,
+          reason: trimmedCorrectionReason,
+          ...auditDetailsExtra,
+        },
+        ip: req.ip,
+      });
+    } else {
+      const insertResult = await client.query(
+        `INSERT INTO stock_entries (recorded_on, stock_m3, note, created_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING entry_id, created_at`,
+        [recorded_on, stock_m3, trimmedNote, req.user.user_id]
+      );
+      savedEntry = insertResult.rows[0];
+
+      await insertAuditLog(client, {
+        userId: req.user.user_id,
+        action: 'stock.record',
+        entity: 'stock_entry',
+        entityId: String(savedEntry.entry_id),
+        details: { recorded_on, stock_m3, ...auditDetailsExtra },
+        ip: req.ip,
+      });
+    }
 
     await client.query('COMMIT');
 
@@ -1277,12 +1413,20 @@ app.post(
       note: trimmedNote,
       recorded_by: req.user.name,
       created_at: savedEntry.created_at,
+      corrected: Boolean(existingActive),
     });
   } catch (err) {
     try {
       await client.query('ROLLBACK');
     } catch (rollbackErr) {
       console.error('Rollback failed:', rollbackErr);
+    }
+    if (err.code === '23505') {
+      // Two simultaneous saves for the same date both passed the active-
+      // reading check above, then raced on the partial unique index —
+      // same outcome as finding the existing row directly, so report it
+      // the same way instead of a raw 500.
+      return res.status(409).json({ code: 'reading_exists', error: 'There is already a reading for this date.' });
     }
     const reference = generateErrorReference();
     console.error(`[${reference}] POST /api/production/stock failed:`, err);
@@ -1291,6 +1435,79 @@ app.post(
     client.release();
   }
 });
+
+app.post(
+  '/api/production/stock/:id/remove',
+  authenticateToken,
+  csrfProtection,
+  requirePermission('stock:create'),
+  async (req, res) => {
+    const entryId = Number(req.params.id);
+    if (!Number.isInteger(entryId)) {
+      return res.status(404).json({ error: 'Stock reading not found.' });
+    }
+
+    const reasonError = planning.validateChangeReason(req.body && req.body.reason);
+    if (reasonError) {
+      return res.status(400).json({ error: 'Validation failed.', fields: { reason: reasonError } });
+    }
+    const reason = req.body.reason.trim();
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const existingResult = await client.query(
+        `SELECT entry_id, TO_CHAR(recorded_on, 'YYYY-MM-DD') AS recorded_on,
+                stock_m3::double precision AS stock_m3, state
+         FROM stock_entries
+         WHERE entry_id = $1
+         FOR UPDATE`,
+        [entryId]
+      );
+      const existing = existingResult.rows[0];
+      if (!existing) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Stock reading not found.' });
+      }
+      if (existing.state !== 'active') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'This reading is no longer active.' });
+      }
+
+      await client.query(
+        `UPDATE stock_entries
+         SET state = 'removed', change_reason = $1, changed_by = $2, changed_at = now()
+         WHERE entry_id = $3`,
+        [reason, req.user.user_id, entryId]
+      );
+
+      await insertAuditLog(client, {
+        userId: req.user.user_id,
+        action: 'stock.remove',
+        entity: 'stock_entry',
+        entityId: String(entryId),
+        details: { recorded_on: existing.recorded_on, stock_m3: existing.stock_m3, reason },
+        ip: req.ip,
+      });
+
+      await client.query('COMMIT');
+
+      res.json({ entry_id: entryId, recorded_on: existing.recorded_on, state: 'removed' });
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Rollback failed:', rollbackErr);
+      }
+      const reference = generateErrorReference();
+      console.error(`[${reference}] POST /api/production/stock/:id/remove failed:`, err);
+      res.status(500).json({ error: 'Unable to remove this stock reading right now.', reference });
+    } finally {
+      client.release();
+    }
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Demand by District (Module 4) — district-level split of the published
@@ -2337,6 +2554,7 @@ app.get('/api/overview', authenticateToken, async (req, res) => {
       const stockResult = await pool.query(
         `SELECT TO_CHAR(recorded_on, 'YYYY-MM-DD') AS recorded_on, stock_m3::double precision AS stock_m3
          FROM stock_entries
+         WHERE state = 'active'
          ORDER BY recorded_on DESC, entry_id DESC
          LIMIT 1`
       );

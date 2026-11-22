@@ -87,6 +87,17 @@ function parseFormattedAmount(value) {
   return Number(value.replace(/,/g, ''));
 }
 
+// Same 5-300 character rule backend/planning.js's validateChangeReason
+// enforces for a correction/removal reason — checked client-side too, so
+// a trip to the server isn't needed just to catch an empty/too-long one.
+function validateReasonLength(text) {
+  const trimmed = (text || '').trim();
+  if (trimmed.length < 5 || trimmed.length > 300) {
+    return 'Enter a reason (5-300 characters).';
+  }
+  return null;
+}
+
 // The smallest "nice" step (in millions) that keeps a chart axis spanning
 // `rangeM` million m³ to roughly 5-7 ticks — e.g. a ~5M range gets a 1M
 // step, a ~10M range gets a 2M step.
@@ -153,6 +164,20 @@ function ProductionPlanning() {
   const [stockAmount, setStockAmount] = useState('');
   const [stockFieldErrors, setStockFieldErrors] = useState({});
   const [stockSubmitting, setStockSubmitting] = useState(false);
+  const stockAmountInputRef = useRef(null);
+
+  // One shared confirmation for all three stock flows — only one of these
+  // is ever open at a time:
+  //   { kind: 'correction', pending: {recorded_on, stock_m3}, existing: {stock_m3, recorded_on, recorded_by} }
+  //   { kind: 'large_change', pending: {recorded_on, stock_m3, correction_reason?}, previous: {recorded_on, stock_m3}, changePct }
+  //   { kind: 'remove', entry: {entry_id, recorded_on, stock_m3} }
+  const [stockConfirm, setStockConfirm] = useState(null);
+  const [confirmReason, setConfirmReason] = useState('');
+  const [confirmReasonError, setConfirmReasonError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const confirmRef = useRef(null);
+  const confirmOpenerRef = useRef(null);
 
   const [panelMonthIndex, setPanelMonthIndex] = useState(null);
   const [panelHistory, setPanelHistory] = useState([]);
@@ -350,6 +375,54 @@ function ProductionPlanning() {
     (checkedRadio || panelRef.current.querySelector('.icon-btn'))?.focus();
   }, [panelMonthIndex]);
 
+  // Generic close for all three stock confirmations: clears the shared
+  // confirm state and returns focus to whatever triggered it ("Save",
+  // a row's "Remove" button). "Check again" on the large-change
+  // confirmation is the one exception — it focuses the amount field
+  // instead, handled separately where that button is defined.
+  const closeStockConfirm = useCallback(() => {
+    setStockConfirm(null);
+    setConfirmReason('');
+    setConfirmReasonError('');
+    setConfirmError('');
+    if (confirmOpenerRef.current && document.body.contains(confirmOpenerRef.current)) {
+      confirmOpenerRef.current.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!stockConfirm) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeStockConfirm();
+        return;
+      }
+      if (e.key === 'Tab' && confirmRef.current) {
+        const focusable = [...confirmRef.current.querySelectorAll('button, input, textarea')].filter(
+          (el) => !el.disabled && el.offsetParent !== null
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [stockConfirm, closeStockConfirm]);
+
+  useEffect(() => {
+    if (!stockConfirm || !confirmRef.current) return;
+    const textarea = confirmRef.current.querySelector('textarea');
+    (textarea || confirmRef.current.querySelector('button'))?.focus();
+  }, [stockConfirm]);
+
   const customAmountWarning = useMemo(() => {
     if (panelPlanType !== 'custom' || panelMonthIndex === null || !computed) return null;
     const v = parseFormattedAmount(panelCustomAmount);
@@ -441,32 +514,63 @@ function ProductionPlanning() {
     }
   };
 
-  const handleSaveStock = async (e) => {
-    e.preventDefault();
-    setStockSubmitting(true);
-    setStockFieldErrors({});
-    const amount = parseFormattedAmount(stockAmount);
+  // Shared by the initial save, "Replace reading" and "Yes, save it" — the
+  // only difference between them is the payload (correction_reason and/or
+  // confirm_large_change added) and whether a confirmation is already open
+  // (isRetry: true keeps the original opener/focus-return target instead of
+  // re-capturing document.activeElement as whatever confirm button was just
+  // clicked).
+  const submitStockPayload = async (payload, { isRetry = false } = {}) => {
     try {
       const response = await apiFetch(STOCK_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recorded_on: stockDate, stock_m3: amount }),
+        body: JSON.stringify(payload),
       });
       if (handleAuthError(response)) return;
       const body = await response.json().catch(() => ({}));
 
+      if (response.status === 409 && body.code === 'reading_exists') {
+        if (!isRetry) confirmOpenerRef.current = document.activeElement;
+        setStockConfirm({ kind: 'correction', pending: payload, existing: body.existing });
+        setConfirmReason('');
+        setConfirmReasonError('');
+        setConfirmError('');
+        return;
+      }
+      if (response.status === 409 && body.code === 'large_change') {
+        if (!isRetry) confirmOpenerRef.current = document.activeElement;
+        setStockConfirm({ kind: 'large_change', pending: payload, previous: body.previous, changePct: body.change_pct });
+        setConfirmError('');
+        return;
+      }
       if (response.status === 400) {
+        if (isRetry && body.fields && body.fields.correction_reason) {
+          setConfirmReasonError(body.fields.correction_reason);
+          return;
+        }
         setStockFieldErrors(body.fields || {});
+        setStockConfirm(null);
         return;
       }
       if (!response.ok) {
-        setStockFieldErrors({ stock_m3: body.error || 'Unable to save this reading right now.' });
+        const message = body.error || 'Unable to save this reading right now.';
+        if (isRetry) {
+          setConfirmError(message);
+        } else {
+          setStockFieldErrors({ stock_m3: message });
+        }
         return;
       }
 
-      setNewReadingDate(stockDate);
-      showToast(`Reading of ${fmtMillions(amount)}M m³ saved for ${formatDateLong(stockDate)}`);
+      setNewReadingDate(payload.recorded_on);
+      showToast(
+        body.corrected
+          ? `Storage reading for ${formatDateLong(payload.recorded_on)} corrected`
+          : `Storage reading of ${fmtMillions(payload.stock_m3)}M m³ saved for ${formatDateLong(payload.recorded_on)}`
+      );
       setStockAmount('');
+      if (stockConfirm) closeStockConfirm();
       // The "Stored water" and "Days of supply" KPIs come from
       // GET /api/production/plan (latest_stock, days_of_cover), not from
       // the stock list — both must be refetched, silently (no full-page
@@ -474,9 +578,94 @@ function ProductionPlanning() {
       fetchStock();
       fetchPlan({ silent: true });
     } catch (err) {
-      setStockFieldErrors({ stock_m3: 'Unable to reach the server. Please try again.' });
+      if (isRetry) {
+        setConfirmError('Unable to reach the server. Please try again.');
+      } else {
+        setStockFieldErrors({ stock_m3: 'Unable to reach the server. Please try again.' });
+      }
+    }
+  };
+
+  const handleSaveStock = async (e) => {
+    e.preventDefault();
+    setStockSubmitting(true);
+    setStockFieldErrors({});
+    const amount = parseFormattedAmount(stockAmount);
+    await submitStockPayload({ recorded_on: stockDate, stock_m3: amount });
+    setStockSubmitting(false);
+  };
+
+  const handleReplaceReading = async (e) => {
+    e.preventDefault();
+    const reasonMsg = validateReasonLength(confirmReason);
+    if (reasonMsg) {
+      setConfirmReasonError(reasonMsg);
+      return;
+    }
+    setConfirmSubmitting(true);
+    await submitStockPayload({ ...stockConfirm.pending, correction_reason: confirmReason.trim() }, { isRetry: true });
+    setConfirmSubmitting(false);
+  };
+
+  const handleConfirmLargeChange = async () => {
+    setConfirmSubmitting(true);
+    await submitStockPayload({ ...stockConfirm.pending, confirm_large_change: true }, { isRetry: true });
+    setConfirmSubmitting(false);
+  };
+
+  // The one confirm action that doesn't return focus to the opener —
+  // the user is being sent back to re-check the amount they typed.
+  const handleCheckAgain = () => {
+    setStockConfirm(null);
+    setConfirmReason('');
+    setConfirmReasonError('');
+    setConfirmError('');
+    stockAmountInputRef.current?.focus();
+  };
+
+  const openRemoveConfirm = (entry, openerEl) => {
+    confirmOpenerRef.current = openerEl || document.activeElement;
+    setStockConfirm({ kind: 'remove', entry });
+    setConfirmReason('');
+    setConfirmReasonError('');
+    setConfirmError('');
+  };
+
+  const handleConfirmRemove = async (e) => {
+    e.preventDefault();
+    const reasonMsg = validateReasonLength(confirmReason);
+    if (reasonMsg) {
+      setConfirmReasonError(reasonMsg);
+      return;
+    }
+    setConfirmSubmitting(true);
+    setConfirmError('');
+    try {
+      const response = await apiFetch(`${STOCK_API_URL}/${stockConfirm.entry.entry_id}/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: confirmReason.trim() }),
+      });
+      if (handleAuthError(response)) return;
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 400) {
+        setConfirmReasonError((body.fields && body.fields.reason) || 'Enter a reason.');
+        return;
+      }
+      if (!response.ok) {
+        setConfirmError(body.error || 'Unable to remove this reading right now.');
+        return;
+      }
+
+      showToast('Storage reading removed');
+      closeStockConfirm();
+      fetchStock();
+      fetchPlan({ silent: true });
+    } catch (err) {
+      setConfirmError('Unable to reach the server. Please try again.');
     } finally {
-      setStockSubmitting(false);
+      setConfirmSubmitting(false);
     }
   };
 
@@ -633,8 +822,8 @@ function ProductionPlanning() {
               <div className="kpi-label">
                 Stored water
                 <InfoTip id="tipStock" label="What is stored water?">
-                  Usable water in the dams (raw water available for production), as last recorded by the production
-                  team. In a live deployment this would come from dam telemetry or İZSU's published dam levels.
+                  Usable raw water held in dams and reservoirs, as recorded by the production team. In a live
+                  deployment this would come from storage telemetry or published reservoir levels.
                 </InfoTip>
               </div>
               {planData.latest_stock ? (
@@ -643,7 +832,13 @@ function ProductionPlanning() {
                     {fmtMillions(planData.latest_stock.stock_m3)}
                     <span className="unit">M m³</span>
                   </div>
-                  <div className="kpi-help">recorded {formatDateLong(planData.latest_stock.recorded_on)}</div>
+                  <div className="kpi-help">
+                    recorded {formatDateLong(planData.latest_stock.recorded_on)}
+                    {planData.storage_capacity_m3 != null &&
+                      ` · ${((planData.latest_stock.stock_m3 / planData.storage_capacity_m3) * 100).toFixed(1)}% of ${fmtMillions(
+                        planData.storage_capacity_m3
+                      )}M m³ capacity`}
+                  </div>
                 </>
               ) : (
                 <>
@@ -832,14 +1027,14 @@ function ProductionPlanning() {
               <h2 className="card-title" id="stockTitle">
                 Stored water
               </h2>
-              <p className="card-sub">Usable water in the dams</p>
+              <p className="card-sub">Usable water in storage</p>
             </div>
           </div>
           <div className="stock-top">
-            <h3 className="mini-title">Record a reading</h3>
+            <h3 className="mini-title">Record storage reading</h3>
             <form className="stock-form" onSubmit={handleSaveStock}>
               <div className="field">
-                <label htmlFor="stockDate">Date</label>
+                <label htmlFor="stockDate">Reading date</label>
                 <input
                   className="input"
                   type="date"
@@ -855,7 +1050,7 @@ function ProductionPlanning() {
                 {stockFieldErrors.recorded_on && <span className="field-err">{stockFieldErrors.recorded_on}</span>}
               </div>
               <div className="field">
-                <label htmlFor="stockAmt">Amount (m³)</label>
+                <label htmlFor="stockAmt">Usable water in storage (m³)</label>
                 <div className="input-suffix">
                   <input
                     className="input"
@@ -865,6 +1060,7 @@ function ProductionPlanning() {
                     placeholder="e.g. 61,500,000"
                     value={stockAmount}
                     aria-invalid={stockFieldErrors.stock_m3 ? 'true' : 'false'}
+                    ref={stockAmountInputRef}
                     onChange={(e) => handleFormattedAmountChange(e, setStockAmount, setStockFieldErrors, 'stock_m3')}
                   />
                   <span aria-hidden="true">m³</span>
@@ -875,7 +1071,7 @@ function ProductionPlanning() {
                 {stockFieldErrors.stock_m3 ? (
                   <span className="field-err">{stockFieldErrors.stock_m3}</span>
                 ) : (
-                  <span className="field-hint">Whole cubic metres</span>
+                  <span className="field-hint">The amount held in dams and reservoirs on this date, not the amount produced.</span>
                 )}
               </div>
               <div className="field">
@@ -926,28 +1122,31 @@ function ProductionPlanning() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <p className="chart-empty">Record at least two readings to see the trend</p>
+                <p className="chart-empty">Record at least two storage readings to see the trend</p>
               )}
             </div>
             <div>
-              <h3 className="mini-title">Recent readings</h3>
-              <p className="mini-sub">Latest 5 · change is from the previous reading</p>
+              <h3 className="mini-title">Recent storage readings</h3>
+              <p className="mini-sub">Latest 5 · change is from the previous storage reading</p>
               <div className="table-wrap" style={{ padding: 0 }}>
                 <table className="readings">
-                  <caption className="sr-only">Latest 5 stored water readings</caption>
+                  <caption className="sr-only">Latest 5 storage readings</caption>
                   <thead>
                     <tr>
                       <th scope="col">Date</th>
                       <th scope="col">Amount (m³)</th>
                       <th scope="col">Change</th>
                       <th scope="col">Recorded by</th>
+                      <th scope="col" className="l">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {(stockData?.data || []).length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="dash">
-                          No readings recorded yet
+                        <td colSpan={5} className="dash">
+                          No storage readings recorded yet
                         </td>
                       </tr>
                     ) : (
@@ -956,6 +1155,7 @@ function ProductionPlanning() {
                           <td>
                             <span className="d-date">{formatDateLong(r.recorded_on)}</span>
                             {r.recorded_on === newReadingDate && <span className="new-tag">New</span>}
+                            {r.corrected && <span className="corrected-tag">Corrected</span>}
                           </td>
                           <td>
                             {fmtInt(r.stock_m3)}
@@ -973,13 +1173,23 @@ function ProductionPlanning() {
                             </span>
                             {r.recorded_by}
                           </td>
+                          <td className="l">
+                            <button
+                              type="button"
+                              className="kpi-link"
+                              onClick={(e) => openRemoveConfirm(r, e.currentTarget)}
+                            >
+                              Remove
+                              <span className="sr-only"> the {formatDateLong(r.recorded_on)} storage reading</span>
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
-              {stockError && <p className="chart-empty" style={{ marginTop: 10 }}>Unable to load stock readings right now.</p>}
+              {stockError && <p className="chart-empty" style={{ marginTop: 10 }}>Unable to load storage readings right now.</p>}
             </div>
           </div>
         </section>
@@ -1251,6 +1461,136 @@ function ProductionPlanning() {
               );
             })()}
           </aside>
+        </>
+      )}
+
+      {stockConfirm && (
+        <>
+          <div className="panel-scrim" onClick={closeStockConfirm} />
+          <div className="confirm-box" role="dialog" aria-modal="true" aria-labelledby="stockConfirmTitle" ref={confirmRef}>
+            {stockConfirm.kind === 'correction' && (
+              <form onSubmit={handleReplaceReading}>
+                <div className="panel-head">
+                  <h2 id="stockConfirmTitle">Replace this reading?</h2>
+                </div>
+                <div className="panel-body">
+                  <p style={{ margin: 0 }}>
+                    There is already a reading of {fmtMillions(stockConfirm.existing.stock_m3)}M m³ for{' '}
+                    {formatDateLong(stockConfirm.existing.recorded_on)}, recorded by{' '}
+                    {stockConfirm.existing.recorded_by}. Replace it?
+                  </p>
+                  <div className="field">
+                    <label htmlFor="correctionReason">Reason for the correction</label>
+                    <textarea
+                      className="input"
+                      id="correctionReason"
+                      rows={3}
+                      value={confirmReason}
+                      aria-invalid={confirmReasonError ? 'true' : 'false'}
+                      onChange={(e) => {
+                        setConfirmReason(e.target.value);
+                        setConfirmReasonError('');
+                      }}
+                    />
+                    {confirmReasonError && <span className="field-err">{confirmReasonError}</span>}
+                  </div>
+                  {confirmError && (
+                    <div className="alert danger" aria-live="polite">
+                      <span aria-hidden="true">⚠</span>
+                      <span>{confirmError}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="panel-foot">
+                  <button type="button" className="btn" onClick={closeStockConfirm} disabled={confirmSubmitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={confirmSubmitting}>
+                    {confirmSubmitting ? 'Replacing…' : 'Replace reading'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {stockConfirm.kind === 'large_change' && (
+              <div>
+                <div className="panel-head">
+                  <h2 id="stockConfirmTitle">Check this amount</h2>
+                </div>
+                <div className="panel-body">
+                  <p style={{ margin: 0 }}>
+                    This is {Math.abs(stockConfirm.changePct).toFixed(1)}%{' '}
+                    {stockConfirm.changePct < 0 ? 'lower' : 'higher'} than the last reading (
+                    {fmtMillions(stockConfirm.previous.stock_m3)}M m³ on{' '}
+                    {formatDateLong(stockConfirm.previous.recorded_on)}). Is the amount correct?
+                  </p>
+                  {confirmError && (
+                    <div className="alert danger" aria-live="polite">
+                      <span aria-hidden="true">⚠</span>
+                      <span>{confirmError}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="panel-foot">
+                  <button type="button" className="btn" onClick={handleCheckAgain} disabled={confirmSubmitting}>
+                    Check again
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleConfirmLargeChange}
+                    disabled={confirmSubmitting}
+                  >
+                    {confirmSubmitting ? 'Saving…' : 'Yes, save it'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {stockConfirm.kind === 'remove' && (
+              <form onSubmit={handleConfirmRemove}>
+                <div className="panel-head">
+                  <h2 id="stockConfirmTitle">Remove this reading?</h2>
+                </div>
+                <div className="panel-body">
+                  <p style={{ margin: 0 }}>
+                    Remove the reading of {fmtMillions(stockConfirm.entry.stock_m3)}M m³ for{' '}
+                    {formatDateLong(stockConfirm.entry.recorded_on)}? It will be kept in the activity log but no
+                    longer used for days of supply.
+                  </p>
+                  <div className="field">
+                    <label htmlFor="removeReason">Reason</label>
+                    <textarea
+                      className="input"
+                      id="removeReason"
+                      rows={3}
+                      value={confirmReason}
+                      aria-invalid={confirmReasonError ? 'true' : 'false'}
+                      onChange={(e) => {
+                        setConfirmReason(e.target.value);
+                        setConfirmReasonError('');
+                      }}
+                    />
+                    {confirmReasonError && <span className="field-err">{confirmReasonError}</span>}
+                  </div>
+                  {confirmError && (
+                    <div className="alert danger" aria-live="polite">
+                      <span aria-hidden="true">⚠</span>
+                      <span>{confirmError}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="panel-foot">
+                  <button type="button" className="btn" onClick={closeStockConfirm} disabled={confirmSubmitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={confirmSubmitting}>
+                    {confirmSubmitting ? 'Removing…' : 'Remove reading'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </>
       )}
 
