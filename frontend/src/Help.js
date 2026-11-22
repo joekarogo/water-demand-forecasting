@@ -64,10 +64,17 @@ function Help() {
           <h2 className="card-title" id="helpPlanningTitle" style={{ marginBottom: 10 }}>
             Production planning
           </h2>
-          <p style={{ margin: 0 }}>
+          <p style={{ margin: '0 0 10px' }}>
             The "safe" plan uses the upper end of the likely range rather than the central
             forecast. In past testing, actual demand stayed below the safe plan in about 9 of 10
             months at a 1-month horizon, and about 8 of 10 months at a 12-month horizon.
+          </p>
+          <p style={{ margin: 0 }}>
+            A stored water reading is a daily snapshot of usable water held in storage, not a
+            production figure — only one reading is kept per date. Correcting or removing a reading
+            needs a reason and is kept in the activity log, never just overwritten or deleted. A
+            reading above the total usable storage capacity is rejected, and a reading more than 25%
+            different from the previous one asks you to confirm it's correct before saving.
           </p>
         </section>
       )}

@@ -18,7 +18,7 @@ const CATEGORY_OPTIONS = [
   { value: 'emergency', label: 'Emergency sign-in' },
   { value: 'user_management', label: 'User management' },
   { value: 'planning', label: 'Production planning' },
-  { value: 'stock', label: 'Stock' },
+  { value: 'stock', label: 'Storage readings' },
   { value: 'access_denied', label: 'Access denied' },
   { value: 'system', label: 'System' },
 ];

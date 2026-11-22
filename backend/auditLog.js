@@ -21,7 +21,9 @@ const ACTION_LABELS = {
   'user.reactivated': 'Reactivated a user',
   'user.job_title_changed': 'Changed a job title',
   'plan.save': 'Saved a production plan',
-  'stock.record': 'Recorded stock',
+  'stock.record': 'Recorded a storage reading',
+  'stock.correct': 'Corrected a storage reading',
+  'stock.remove': 'Removed a storage reading',
   'audit.exported': 'Exported the activity log',
   // Written with no signed-in actor at all (user_id is NULL): an offline
   // setup script (database/create_emergency_admin.py) and the publish job
@@ -48,7 +50,7 @@ const CATEGORY_ACTIONS = {
     'emergency_admin.set',
   ],
   planning: ['plan.save'],
-  stock: ['stock.record'],
+  stock: ['stock.record', 'stock.correct', 'stock.remove'],
   access_denied: ['permission.denied'],
   // Actions about the system/audit infrastructure itself, not about any
   // one user's account: an offline job publishing a forecast, and an
@@ -240,6 +242,16 @@ function summarizeDetails(action, details) {
         : null;
     case 'stock.record':
       return d.recorded_on != null ? `${Number(d.stock_m3).toLocaleString('en-US')} m³ on ${d.recorded_on}` : null;
+    case 'stock.correct':
+      return d.recorded_on != null
+        ? `${Number(d.old_stock_m3).toLocaleString('en-US')} m³ → ${Number(d.new_stock_m3).toLocaleString(
+            'en-US'
+          )} m³ on ${d.recorded_on}${d.reason ? `: ${d.reason}` : ''}`
+        : null;
+    case 'stock.remove':
+      return d.recorded_on != null
+        ? `${Number(d.stock_m3).toLocaleString('en-US')} m³ on ${d.recorded_on}${d.reason ? `: ${d.reason}` : ''}`
+        : null;
     case 'audit.exported': {
       const entries = Object.entries(d.filters || {}).filter(([, v]) => v !== undefined && v !== null && v !== '');
       return entries.length > 0 ? `Filters: ${entries.map(([k, v]) => `${k}=${v}`).join(', ')}` : 'No filters applied';

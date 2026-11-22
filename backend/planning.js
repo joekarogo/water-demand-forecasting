@@ -23,14 +23,39 @@ function isPositiveWholeNumber(value) {
 }
 
 // Field-level message for a stock amount, or null if it's valid.
-function validateStockAmount(value) {
+// capacityM3 should be the live storage_capacity_m3 setting; when it's
+// null (setting missing) this falls back to the old MAX_STOCK_M3
+// data-entry-mistake cap instead.
+function validateStockAmount(value, capacityM3) {
   if (!isPositiveWholeNumber(value)) {
     return 'Enter a positive amount in m³';
   }
-  if (value > MAX_STOCK_M3) {
-    return 'That amount is too large. Check the number.';
+  const cap = typeof capacityM3 === 'number' && capacityM3 > 0 ? capacityM3 : MAX_STOCK_M3;
+  if (value > cap) {
+    const capLabel = (cap / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return `This is more than the total usable storage capacity (${capLabel}M m³). Check the number.`;
   }
   return null;
+}
+
+// Field-level message for a change/removal reason, or null if it's valid
+// — 5-300 characters once trimmed, same shape as a custom plan's note.
+function validateChangeReason(text) {
+  const trimmed = typeof text === 'string' ? text.trim() : '';
+  if (trimmed.length < 5 || trimmed.length > 300) {
+    return 'Enter a reason (5-300 characters).';
+  }
+  return null;
+}
+
+// Percentage change from previousM3 to newM3 (e.g. 30 means 30% higher,
+// -30 means 30% lower); null when there's nothing to compare against. A
+// caller flags this as a "large change" when Math.abs(result) > 25.
+function largeChangePct(newM3, previousM3) {
+  if (!isPositiveWholeNumber(previousM3)) {
+    return null;
+  }
+  return ((newM3 - previousM3) / previousM3) * 100;
 }
 
 // Normal plan: covers expected demand, scaled up for non-revenue water.
@@ -110,6 +135,8 @@ module.exports = {
   MAX_STOCK_M3,
   isPositiveWholeNumber,
   validateStockAmount,
+  validateChangeReason,
+  largeChangePct,
   calculateNormalM3,
   calculateSafeM3,
   daysInMonth,

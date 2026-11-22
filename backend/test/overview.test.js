@@ -24,42 +24,42 @@ test('productionAlerts: days of cover exactly at the warning threshold (30) is n
 
 test('productionAlerts: 29 days of cover is a warning, not an alert', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: 29, daysSinceStock: 0 });
-  const cover = alerts.find((a) => a.message.includes('days of stock remain'));
+  const cover = alerts.find((a) => a.message.includes('days of supply remain'));
   assert.strictEqual(cover.level, 'warning');
 });
 
 test('productionAlerts: days of cover exactly at the alert threshold (15) is still only a warning', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: 15, daysSinceStock: 0 });
-  const cover = alerts.find((a) => a.message.includes('days of stock remain'));
+  const cover = alerts.find((a) => a.message.includes('days of supply remain'));
   assert.strictEqual(cover.level, 'warning');
 });
 
 test('productionAlerts: 14 days of cover is an alert, and only an alert (never also a warning)', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: 14, daysSinceStock: 0 });
-  const coverAlerts = alerts.filter((a) => a.message.includes('days of stock remain'));
+  const coverAlerts = alerts.filter((a) => a.message.includes('days of supply remain'));
   assert.strictEqual(coverAlerts.length, 1);
   assert.strictEqual(coverAlerts[0].level, 'alert');
 });
 
 test('productionAlerts: null days of cover raises no days-of-cover alert at all', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: null, daysSinceStock: 0 });
-  assert.strictEqual(alerts.filter((a) => a.message.includes('days of stock remain')).length, 0);
+  assert.strictEqual(alerts.filter((a) => a.message.includes('days of supply remain')).length, 0);
 });
 
 test('productionAlerts: stock recorded exactly 30 days ago is still fresh enough', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: null, daysSinceStock: 30 });
-  assert.strictEqual(alerts.filter((a) => a.message.includes('No stock has been recorded')).length, 0);
+  assert.strictEqual(alerts.filter((a) => a.message.includes('No storage reading has been recorded')).length, 0);
 });
 
 test('productionAlerts: stock recorded 31 days ago is stale', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: null, daysSinceStock: 31 });
-  const stale = alerts.find((a) => a.message.includes('No stock has been recorded'));
+  const stale = alerts.find((a) => a.message.includes('No storage reading has been recorded'));
   assert.strictEqual(stale.level, 'info');
 });
 
 test('productionAlerts: no stock ever recorded (null) is also stale', () => {
   const alerts = productionAlerts({ unplannedMonths: [], daysOfCover: null, daysSinceStock: null });
-  assert.strictEqual(alerts.filter((a) => a.message.includes('No stock has been recorded')).length, 1);
+  assert.strictEqual(alerts.filter((a) => a.message.includes('No storage reading has been recorded')).length, 1);
 });
 
 test('revenueAlerts: not-priced exactly at 5% raises no warning', () => {

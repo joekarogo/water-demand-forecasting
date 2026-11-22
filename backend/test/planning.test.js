@@ -7,6 +7,8 @@ const {
   calculateDaysOfCover,
   validatePlanRequest,
   validateStockAmount,
+  validateChangeReason,
+  largeChangePct,
   isPositiveWholeNumber,
   MAX_STOCK_M3,
 } = require('../planning');
@@ -66,10 +68,11 @@ test('isPositiveWholeNumber rejects values outside the safe integer range', () =
   assert.strictEqual(isPositiveWholeNumber(2 ** 53), false);
 });
 
-test('validateStockAmount: valid amounts', () => {
+test('validateStockAmount: valid amounts, no capacity given (falls back to MAX_STOCK_M3)', () => {
   assert.strictEqual(validateStockAmount(1), null);
   assert.strictEqual(validateStockAmount(62_000_000), null);
   assert.strictEqual(validateStockAmount(MAX_STOCK_M3), null); // the cap itself is allowed
+  assert.strictEqual(validateStockAmount(1, null), null);
 });
 
 test('validateStockAmount: not a positive whole number', () => {
@@ -79,9 +82,74 @@ test('validateStockAmount: not a positive whole number', () => {
   assert.strictEqual(validateStockAmount('1000'), 'Enter a positive amount in m³');
 });
 
-test('validateStockAmount: over the cap', () => {
-  assert.strictEqual(validateStockAmount(MAX_STOCK_M3 + 1), 'That amount is too large. Check the number.');
-  assert.strictEqual(validateStockAmount(999_999_999_999), 'That amount is too large. Check the number.');
+test('validateStockAmount: over the MAX_STOCK_M3 cap when no real capacity is given', () => {
+  assert.strictEqual(
+    validateStockAmount(MAX_STOCK_M3 + 1),
+    'This is more than the total usable storage capacity (10,000.0M m³). Check the number.'
+  );
+  assert.strictEqual(
+    validateStockAmount(999_999_999_999),
+    'This is more than the total usable storage capacity (10,000.0M m³). Check the number.'
+  );
+});
+
+test('validateStockAmount: at and above a real storage capacity', () => {
+  const capacityM3 = 776_422_000;
+  assert.strictEqual(validateStockAmount(capacityM3, capacityM3), null); // exactly at capacity is allowed
+  assert.strictEqual(
+    validateStockAmount(capacityM3 + 1, capacityM3),
+    'This is more than the total usable storage capacity (776.4M m³). Check the number.'
+  );
+});
+
+test('validateStockAmount: a null/zero capacity falls back to MAX_STOCK_M3, not to rejecting everything', () => {
+  assert.strictEqual(validateStockAmount(62_000_000, null), null);
+  assert.strictEqual(validateStockAmount(62_000_000, 0), null);
+});
+
+test('validateChangeReason: 5-300 characters after trimming is valid', () => {
+  assert.strictEqual(validateChangeReason('Meter misread.'), null);
+  assert.strictEqual(validateChangeReason('  Meter misread.  '), null);
+  assert.strictEqual(validateChangeReason('x'.repeat(300)), null);
+});
+
+test('validateChangeReason: under 5 characters (after trimming) is rejected', () => {
+  assert.strictEqual(validateChangeReason('abcd'), 'Enter a reason (5-300 characters).');
+  assert.strictEqual(validateChangeReason('    abcd    '), 'Enter a reason (5-300 characters).');
+  assert.strictEqual(validateChangeReason(''), 'Enter a reason (5-300 characters).');
+  assert.strictEqual(validateChangeReason(undefined), 'Enter a reason (5-300 characters).');
+});
+
+test('validateChangeReason: over 300 characters is rejected', () => {
+  assert.strictEqual(validateChangeReason('x'.repeat(301)), 'Enter a reason (5-300 characters).');
+});
+
+test('validateChangeReason: exactly 5 and exactly 300 characters are both valid (boundary)', () => {
+  assert.strictEqual(validateChangeReason('x'.repeat(5)), null);
+  assert.strictEqual(validateChangeReason('x'.repeat(300)), null);
+});
+
+test('largeChangePct: positive and negative percentage change', () => {
+  assert.strictEqual(largeChangePct(125_000, 100_000), 25);
+  assert.strictEqual(largeChangePct(75_000, 100_000), -25);
+  assert.strictEqual(largeChangePct(100_000, 100_000), 0);
+});
+
+test('largeChangePct: the 25% boundary itself is not "more than 25%"', () => {
+  // Exactly 25% change: a caller comparing Math.abs(pct) > 25 must not flag this.
+  const pct = largeChangePct(125_000, 100_000);
+  assert.strictEqual(Math.abs(pct) > 25, false);
+});
+
+test('largeChangePct: just over the 25% boundary is "more than 25%"', () => {
+  const pct = largeChangePct(125_001, 100_000);
+  assert.strictEqual(Math.abs(pct) > 25, true);
+});
+
+test('largeChangePct: null when there is no previous reading to compare against', () => {
+  assert.strictEqual(largeChangePct(100_000, null), null);
+  assert.strictEqual(largeChangePct(100_000, 0), null);
+  assert.strictEqual(largeChangePct(100_000, undefined), null);
 });
 
 test('validatePlanRequest: valid normal plan', () => {

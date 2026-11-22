@@ -34,6 +34,8 @@ const KNOWN_ACTIONS = [
   'user.job_title_changed',
   'plan.save',
   'stock.record',
+  'stock.correct',
+  'stock.remove',
   'audit.exported',
   'emergency_admin.set', // database/create_emergency_admin.py
   'forecast_published', // ml/publish_forecast.py
@@ -224,6 +226,29 @@ test('summarizeDetails: plan.save reflects the actual stored month/type/m3/versi
   assert.strictEqual(
     summarizeDetails('plan.save', { month: '2026-11-01', plan_type: 'safe', chosen_m3: 1234567, version: 2 }),
     'safe for 2026-11-01: 1,234,567 m³ (v2)'
+  );
+});
+
+test('summarizeDetails: stock.correct reflects the old and new amounts, date and reason', () => {
+  assert.strictEqual(
+    summarizeDetails('stock.correct', {
+      recorded_on: '2026-11-01',
+      old_stock_m3: 62_000_000,
+      new_stock_m3: 61_500_000,
+      reason: 'Meter misread on first entry.',
+    }),
+    '62,000,000 m³ → 61,500,000 m³ on 2026-11-01: Meter misread on first entry.'
+  );
+});
+
+test('summarizeDetails: stock.remove reflects the amount, date and reason', () => {
+  assert.strictEqual(
+    summarizeDetails('stock.remove', {
+      recorded_on: '2026-11-01',
+      stock_m3: 61_500_000,
+      reason: 'Entered for the wrong reservoir.',
+    }),
+    '61,500,000 m³ on 2026-11-01: Entered for the wrong reservoir.'
   );
 });
 
