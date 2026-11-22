@@ -545,7 +545,6 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 1360px;
   width: 100%;
 }
 
@@ -874,7 +873,10 @@ svg {
 
 .chart-wrap {
   position: relative;
-  height: 380px;
+  /* Grows with the window on a tall viewport (e.g. browser zoom 50-67%
+     on a laptop screen) so charts don't stay flat with a large empty
+     area below them, but never below the original 380px or above 680px. */
+  height: clamp(380px, 45vh, 680px);
   padding: 16px 20px 8px;
 }
 .legend {
